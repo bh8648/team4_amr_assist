@@ -43,6 +43,11 @@ class PredictiveAvoidanceNode(Node):
         self.declare_parameter('predicted_points_topic', '/robot5/vision/predicted_obstacle_points')
         self.declare_parameter('local_costmap_param_service', '/robot5/local_costmap/local_costmap/set_parameters')
         # 가상 포인트 발행 / costmap 파라미터 조정 중 사용할 방식 선택: 'pointcloud' | 'costmap_params' | 'both'
+        #
+        # 주의: 'pointcloud' 방식이 실제로 동작하려면 Nav2 voxel_layer의 observation_sources에
+        # 아래 predicted_points_topic이 등록돼 있어야 한다. 그 costmap 설정은 포인트클라우드 기반
+        # 장애물 탐색을 담당하는 팀원 소유이므로, 이 모드를 쓰기 전에 등록 여부를 협의해야 한다.
+        # (이 노드가 만드는 건 장애물 탐지 결과가 아니라 트래킹 결과로부터 예측한 가상 포인트다.)
         self.declare_parameter('avoidance_mode', 'pointcloud')
 
         tracked_topic = self.get_parameter('tracked_detections_topic').value

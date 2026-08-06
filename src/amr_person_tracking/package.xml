@@ -12,12 +12,20 @@
   <exec_depend>vision_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>diagnostic_msgs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>tf2_geometry_msgs</exec_depend>
   <exec_depend>message_filters</exec_depend>
   <exec_depend>rcl_interfaces</exec_depend>
+  <!-- 근접 안전모드에서 IR 근접센서(IrIntensityVector) 교차확인에 사용 -->
+  <exec_depend>irobot_create_msgs</exec_depend>
   <!-- OAK-D PRO 하드웨어 스트림(RGB/Depth/CameraInfo)을 발행하는 상대 패키지 -->
   <exec_depend>depthai_ros_driver</exec_depend>
+  <!--
+    YOLO-pose 추론과 이미지 디코딩에 ultralytics / opencv-python / numpy를 쓰지만,
+    이 워크스페이스는 해당 라이브러리를 rosdep이 아니라 pip으로 관리하므로 여기 기재하지 않는다.
+  -->
   <!--
     라이다 다리검출 패키지(예: mowito/ros2_leg_detector)가 내보내는 메시지 패키지.
     실제 설치 후 정확한 패키지명/메시지 타입 확인 필요 - 아래는 가칭이며 확정된 의존성이 아님.

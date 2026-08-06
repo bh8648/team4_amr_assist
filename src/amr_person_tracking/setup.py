@@ -29,6 +29,7 @@ setup(
     entry_points={
         'console_scripts': [
             'oakd_detector_node = amr_person_tracking.oakd_detector_node:main',
+            'debug_viewer_node = amr_person_tracking.debug_viewer_node:main',
             'leg_detector_bridge_node = amr_person_tracking.leg_detector_bridge_node:main',
             'reid_tracking_node = amr_person_tracking.reid_tracking_node:main',
             'predictive_avoidance_node = amr_person_tracking.predictive_avoidance_node:main',
