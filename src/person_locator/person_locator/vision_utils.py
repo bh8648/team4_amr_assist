@@ -49,6 +49,10 @@ def decode_jpeg(msg):
 LEFT_ANKLE_IDX = 15
 RIGHT_ANKLE_IDX = 16
 
+# 양쪽 손목 keypoint 인덱스 - wrist_gesture_node에 넘길 손 ROI를 자를 중심점
+LEFT_WRIST_IDX = 9
+RIGHT_WRIST_IDX = 10
+
 
 def apply_homography(u, v, H):
     """픽셀 (u, v)를 homography 행렬 H(3x3)로 변환해서 지면 기준 (x, y)를 얻는다.
@@ -135,6 +139,63 @@ def extract_standing_pixel(keypoints_xy, keypoints_conf, box_xyxy, ankle_conf_th
     u = (float(x1) + float(x2)) / 2.0
     v = float(y2)
     return u, v
+
+
+def extract_wrist_pixel(keypoints_xy, keypoints_conf, conf_threshold=0.5):
+    """제스처 인식용으로 손 ROI를 자를 중심 픽셀 (u, v)를 고른다.
+
+    extract_standing_pixel과 달리 bbox fallback이 없다 - 발목은 "바닥에 닿는
+    점"을 대충이라도 근사할 수 있지만, 손목은 신뢰도 낮은 keypoint를 그대로
+    쓰면 엉뚱한 곳을 크롭해서 손이 아예 안 걸리는 ROI를 만들게 됨. 그래서
+    둘 다 신뢰도 미달이면 그냥 None을 반환해서 호출하는 쪽이 이번 프레임은
+    건너뛰게 한다.
+
+    Args:
+        keypoints_xy: (17, 2) 형태의 array - extract_standing_pixel과 동일.
+        keypoints_conf: (17,) 형태의 array 또는 None.
+        conf_threshold: 손목 keypoint를 믿을 수 있는 최소 신뢰도.
+
+    Returns:
+        (u, v) 튜플, 또는 신뢰할 만한 손목이 없으면 None.
+    """
+    if keypoints_conf is None:
+        return None
+
+    left_conf = float(keypoints_conf[LEFT_WRIST_IDX])
+    right_conf = float(keypoints_conf[RIGHT_WRIST_IDX])
+
+    left_ok = left_conf >= conf_threshold
+    right_ok = right_conf >= conf_threshold
+
+    if not left_ok and not right_ok:
+        return None
+
+    # 둘 다 보이면 더 확실하게 보이는 쪽 하나만 고름 - 발목 중점과 달리
+    # 두 손목은 서로 멀리 떨어져 있을 수 있어서 평균 내면 손도 아닌
+    # 엉뚱한 중간 지점을 크롭하게 됨
+    idx = LEFT_WRIST_IDX if left_conf >= right_conf else RIGHT_WRIST_IDX
+    u, v = keypoints_xy[idx]
+    return float(u), float(v)
+
+
+def crop_square_roi(frame, center_u, center_v, half_size):
+    """frame에서 (center_u, center_v)를 중심으로 한 변 2*half_size인 정사각형을 자른다.
+
+    프레임 경계를 벗어나는 부분은 잘려나가므로(클램프), 손이 프레임 가장자리
+    근처에 있으면 결과가 정사각형이 아니라 그보다 작은 직사각형일 수 있다 -
+    호출하는 쪽(wrist_gesture_node)은 이미 정사각형을 가정하지 않고 그냥
+    있는 그대로 MediaPipe에 넣으므로 문제 없음.
+
+    Returns:
+        크롭된 프레임. 중심점이 프레임 밖이면 빈 배열(크기 0)을 반환할 수 있음 -
+        호출하는 쪽에서 크기를 확인해야 함.
+    """
+    h, w = frame.shape[:2]
+    u1 = max(0, int(center_u - half_size))
+    u2 = min(w, int(center_u + half_size))
+    v1 = max(0, int(center_v - half_size))
+    v2 = min(h, int(center_v + half_size))
+    return frame[v1:v2, u1:u2]
 
 
 def select_person(boxes, locked_track_id):

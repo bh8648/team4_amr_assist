@@ -1,19 +1,15 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>person_locator</name>
+  <name>hand_gesture_caller</name>
   <version>0.0.0</version>
-  <description>YOLO-pose + homography: locate a standing person in the map frame and broadcast a TF for AMR navigation to consume</description>
+  <description>MediaPipe Hands로 손목 ROI에서 "쥐었다 폈다" 제스처를 인식해 person_locator에 호출 트리거를 보냄</description>
   <maintainer email="rokey@todo.todo">rokey</maintainer>
   <license>Apache-2.0</license>
 
   <exec_depend>rclpy</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
-  <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>
-  <exec_depend>tf2_ros</exec_depend>
-  <exec_depend>launch</exec_depend>
-  <exec_depend>launch_ros</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

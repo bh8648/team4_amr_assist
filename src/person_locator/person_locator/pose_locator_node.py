@@ -22,14 +22,17 @@ from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CompressedImage
 from geometry_msgs.msg import PointStamped
+from std_msgs.msg import Empty
 from ultralytics import YOLO
 
 # 로컬 헬퍼 함수들 - 실제 계산/로직은 vision_utils.py 참고
 from person_locator.vision_utils import (
     apply_homography,
+    crop_square_roi,
     decode_jpeg,
     encode_jpeg,
     extract_standing_pixel,
+    extract_wrist_pixel,
     load_homography_yaml,
     select_person,
 )
@@ -70,6 +73,22 @@ class PoseLocatorNode(Node):
         self.declare_parameter('overlay_topic', 'person/debug_image/compressed')
         self.declare_parameter('overlay_jpeg_quality', 80)
 
+        # --- 손 제스처 호출(hand_gesture_caller 패키지) 연동 파라미터 ---
+        # 손목 keypoint를 믿을 최소 신뢰도 - 이보다 낮으면 이번 프레임은
+        # wrist ROI를 아예 안 잘라서 안 보냄 (extract_wrist_pixel 참고)
+        self.declare_parameter('wrist_conf_threshold', 0.5)
+        # wrist ROI 정사각형의 반변 길이(px) - 실제로 잘리는 영역은
+        # (2*half)x(2*half), 손목 중심 기준
+        self.declare_parameter('wrist_roi_half_size', 80)
+        self.declare_parameter('publish_wrist_roi', True)
+        self.declare_parameter('wrist_roi_topic', 'person/wrist_roi/compressed')
+        self.declare_parameter('wrist_roi_jpeg_quality', 80)
+        # wrist_gesture_node가 "쥐었다 폈다" 제스처를 확정하면 이 토픽으로
+        # 신호를 보냄 - 받으면 마지막으로 계산해둔 사람 위치를 call_position_topic으로 쏨
+        self.declare_parameter('call_trigger_topic', 'person/call_trigger')
+        # AMR이 구독하는 "지금 이 사람이 부름" 이벤트 좌표
+        self.declare_parameter('call_position_topic', 'person/call_position')
+
         model_path = self.get_parameter('model_path').value
         self.conf_threshold = self.get_parameter('conf_threshold').value
         self.ankle_conf_threshold = self.get_parameter('ankle_conf_threshold').value
@@ -80,6 +99,14 @@ class PoseLocatorNode(Node):
         self.publish_overlay = self.get_parameter('publish_overlay').value
         overlay_topic = self.get_parameter('overlay_topic').value
         self.overlay_jpeg_quality = self.get_parameter('overlay_jpeg_quality').value
+
+        self.wrist_conf_threshold = self.get_parameter('wrist_conf_threshold').value
+        self.wrist_roi_half_size = self.get_parameter('wrist_roi_half_size').value
+        self.publish_wrist_roi = self.get_parameter('publish_wrist_roi').value
+        wrist_roi_topic = self.get_parameter('wrist_roi_topic').value
+        self.wrist_roi_jpeg_quality = self.get_parameter('wrist_roi_jpeg_quality').value
+        call_trigger_topic = self.get_parameter('call_trigger_topic').value
+        call_position_topic = self.get_parameter('call_position_topic').value
 
         # homography 행렬은 시작할 때 미리 로드함 - 파일이 없거나 형식이
         # 이상하면 나중에 조용히 이상한 좌표를 publish하는 대신
@@ -110,11 +137,29 @@ class PoseLocatorNode(Node):
             self.create_publisher(CompressedImage, overlay_topic, 1)
             if self.publish_overlay else None
         )
+        self.wrist_roi_pub = (
+            self.create_publisher(CompressedImage, wrist_roi_topic, 1)
+            if self.publish_wrist_roi else None
+        )
+        self.call_position_pub = self.create_publisher(
+            PointStamped, call_position_topic, qos
+        )
+        # std_msgs/Empty: 트리거는 "지금 이 순간"이라는 사실 자체가 페이로드라서
+        # 별도 데이터가 필요 없음 - wrist_gesture_node가 제스처를 확정하는
+        # 순간에만 한 번 publish함
+        self.call_trigger_sub = self.create_subscription(
+            Empty, call_trigger_topic, self.call_trigger_callback, 10
+        )
 
         # 지금 "락온"해서 따라가고 있는 사람의 트래커 id
         # (vision_utils.select_person 참고) - None이면 아직 아무도 락온 안 한 것
         self.locked_track_id = None
         self.frame_count = 0
+        # call_trigger_callback이 쓸 "마지막으로 계산된 map (x, y)" -
+        # 프레임 콜백과 트리거 콜백이 비동기로 들어오므로 여기 저장해뒀다가 씀.
+        # 아무도 안 보이면(락 풀림) None으로 되돌려서, 트리거가 와도 낡은
+        # 위치를 잘못 쏘지 않게 함
+        self.last_person_point = None
 
         self.get_logger().info(
             f'pose_locator_node: "{image_topic}" 구독, "{target_topic}"에 publish'
@@ -182,11 +227,31 @@ class PoseLocatorNode(Node):
             point_msg.point.y = y
             point_msg.point.z = 0.0
             self.target_pub.publish(point_msg)
+
+            # call_trigger_callback이 나중에(비동기로) 이 값을 그대로
+            # call_position_topic에 실어 보낼 수 있도록 저장해둠
+            self.last_person_point = (x, y)
+
+            if self.publish_wrist_roi:
+                wrist_pixel = extract_wrist_pixel(
+                    keypoints_xy, keypoints_conf, self.wrist_conf_threshold
+                )
+                if wrist_pixel is not None:
+                    wu, wv = wrist_pixel
+                    roi = crop_square_roi(frame, wu, wv, self.wrist_roi_half_size)
+                    # 손목이 프레임 가장자리 바로 바깥이면 크롭 결과가
+                    # 비어있을 수 있음(crop_square_roi 참고) - 그러면 그냥 건너뜀
+                    if roi.size > 0:
+                        roi_msg = encode_jpeg(roi, quality=self.wrist_roi_jpeg_quality)
+                        self.wrist_roi_pub.publish(roi_msg)
         else:
             # 이번 프레임에 아무도 검출 안 됨 - 다음에 검출되는 사람이
             # 누구든 새로 잡을 수 있도록 락을 풀고, 오래된/마지막으로
             # 알던 위치는 일부러 publish하지 않음
             self.locked_track_id = None
+            # 락이 풀렸으니 트리거가 와도 더 이상 유효하지 않은 옛 위치를
+            # 쏘지 않도록 같이 비움
+            self.last_person_point = None
 
         if self.publish_overlay:
             # result.plot()이 박스+스켈레톤 keypoint를 프레임 복사본에
@@ -195,6 +260,28 @@ class PoseLocatorNode(Node):
             overlay = result.plot()
             overlay_msg = encode_jpeg(overlay, quality=self.overlay_jpeg_quality)
             self.overlay_pub.publish(overlay_msg)
+
+    def call_trigger_callback(self, _msg):
+        # wrist_gesture_node가 "쥐었다 폈다"를 확정한 순간 호출됨. 무거운
+        # 재계산 없이, image_callback이 매 프레임 갱신해둔 마지막 위치를
+        # 그대로 실어 보냄 - 이 콜백 시점과 그 위치를 계산한 프레임 사이에
+        # 최대 한 프레임(수십ms) 정도의 지연은 있을 수 있지만, 사람을
+        # 부르는 용도로는 문제 없는 수준
+        if self.last_person_point is None:
+            self.get_logger().warn(
+                'call_trigger를 받았지만 현재 락온된 사람이 없어 무시함'
+            )
+            return
+
+        x, y = self.last_person_point
+        point_msg = PointStamped()
+        point_msg.header.stamp = self.get_clock().now().to_msg()
+        point_msg.header.frame_id = 'map'
+        point_msg.point.x = x
+        point_msg.point.y = y
+        point_msg.point.z = 0.0
+        self.call_position_pub.publish(point_msg)
+        self.get_logger().info(f'call_trigger 수신 -> call_position ({x:.2f}, {y:.2f}) publish')
 
 
 def main(args=None):
