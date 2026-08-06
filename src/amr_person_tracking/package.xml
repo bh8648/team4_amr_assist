@@ -1,0 +1,38 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>amr_person_tracking</name>
+  <version>0.0.0</version>
+  <description>AMR(TurtleBot4 + OAK-D PRO) 기반 사람 추종 - 근접 3D 위치추정(YOLO-pose+depth), 라이다 다리검출 편입, 재식별/트래킹, 예측적 회피</description>
+  <maintainer email="rokey@todo.todo">rokey</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>vision_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>tf2_geometry_msgs</exec_depend>
+  <exec_depend>message_filters</exec_depend>
+  <exec_depend>rcl_interfaces</exec_depend>
+  <!-- OAK-D PRO 하드웨어 스트림(RGB/Depth/CameraInfo)을 발행하는 상대 패키지 -->
+  <exec_depend>depthai_ros_driver</exec_depend>
+  <!--
+    라이다 다리검출 패키지(예: mowito/ros2_leg_detector)가 내보내는 메시지 패키지.
+    실제 설치 후 정확한 패키지명/메시지 타입 확인 필요 - 아래는 가칭이며 확정된 의존성이 아님.
+    leg_detector_bridge_node.py의 subscription도 이 확인이 끝나야 채울 수 있음.
+  -->
+  <!-- <exec_depend>leg_detector_msgs</exec_depend> -->
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <test_depend>ament_copyright</test_depend>
+  <test_depend>ament_flake8</test_depend>
+  <test_depend>ament_pep257</test_depend>
+  <test_depend>python3-pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
