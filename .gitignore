@@ -1,0 +1,5 @@
+# Local editor caches (browse.vc.db can grow to multiple GB)
+/.vscode/
+
+# Separate project/repository; not part of the AMR HMI branch
+/mini_project/
