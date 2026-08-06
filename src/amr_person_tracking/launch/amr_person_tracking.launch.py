@@ -51,11 +51,11 @@ def generate_launch_description():
         DeclareLaunchArgument('publish_markers', default_value='true'),
         # 웹캠 로컬라이제이션 노드가 발행하는 원거리 검출 스트림 (외부 패키지, 이 워크스페이스 밖)
         DeclareLaunchArgument('webcam_detections_topic', default_value='/vision/webcam/detections_3d'),
-        # 라이다 다리검출 패키지(예: ros2_leg_detector)가 발행하는 원본 토픽. 메시지 타입은
-        # leg_detector_bridge_node 쪽에서 실제 설치 후 확인 필요
+        # LiDAR 드라이버가 발행하는 원본 스캔. leg_detector_bridge_node가 이 토픽을 직접 구독해
+        # 다리쌍을 검출한다 (ros2_leg_detector 등 외부 패키지 불필요 - 노드 docstring 참고)
         DeclareLaunchArgument(
-            'people_tracked_topic',
-            default_value=PathJoinSubstitution(['/', LaunchConfiguration('namespace'), 'people_tracked']),
+            'scan_topic',
+            default_value=PathJoinSubstitution(['/', LaunchConfiguration('namespace'), 'scan']),
         ),
         # 예측 회피 노드가 접근 대상 반영 방식을 고를 파라미터: pointcloud | costmap_params | both
         DeclareLaunchArgument('avoidance_mode', default_value='pointcloud'),
@@ -124,7 +124,7 @@ def generate_launch_description():
         output='screen',
         remappings=tf_remappings,
         parameters=[{
-            'people_tracked_topic': LaunchConfiguration('people_tracked_topic'),
+            'scan_topic': LaunchConfiguration('scan_topic'),
             'leg_detections_topic': leg_detections_topic,
             'publish_markers': LaunchConfiguration('publish_markers'),
             'marker_topic': leg_marker_topic,

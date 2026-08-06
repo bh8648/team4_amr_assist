@@ -9,40 +9,31 @@ leg_detector_bridge_node.py
 range+bearing(거리+각도)을 직접 측정하는 센서라 호모그래피나 depth 역투영 같은 변환이 필요 없기
 때문이다.
 
-이 노드는 라이다 다리검출 패키지(mowito/ros2_leg_detector, https://github.com/mowito/ros2_leg_detector)의
-출력을 oakd_detector_node와 동일한 스키마(vision_msgs/Detection3DArray)로 변환해 재식별/트래킹
-노드에 편입시키는 얇은 컨버터다. 다리쌍의 신원(누구인지)은 이 노드가 판단하지 않는다 — 위치와
-라이다 쪽 트랙 ID만 실어 보내고, 신원 매칭(웹캠이 추종 중이던 타겟과의 대조)은 reid_tracking_node가
-담당한다.
+[외부 패키지 의존 제거 - Foxy/Humble 호환 문제]
+원래는 mowito/ros2_leg_detector(leg_detector_msgs/PersonArray)의 출력을 oakd_detector_node와
+동일한 스키마(vision_msgs/Detection3DArray)로 변환하는 얇은 컨버터로 설계했다. 하지만
+ros2_leg_detector는 ROS2 Foxy 기준 코드에 OpenCV 3.4.12 명시 의존까지 있어 이 워크스페이스
+(Humble)에서 빌드가 되지 않았다 (leg_detector_msgs/leg_detector 클론+빌드 실패).
 
-[메시지 타입 - GitHub 소스로 확인 완료, 실제 설치/빌드는 별도]
-ros2_leg_detector는 rosdep/apt 배포가 없는 소스 전용 패키지라 이 노드를 실행하려면
-`leg_detector_msgs`, `leg_detector` 두 패키지를 클론해 워크스페이스에서 직접 빌드해야 한다.
-- 원본은 ROS2 Foxy 기준으로 작성됨 (이 워크스페이스는 Humble) - 빌드 호환 여부 미검증
-- package.xml에 OpenCV 3.4.12를 명시 의존 - 이 워크스페이스의 opencv-python(ultralytics용)과
-  버전이 다를 수 있어 실제 설치 시 충돌 확인 필요
+그래서 외부 패키지를 워크스페이스에 추가로 설치하지 않고, LiDAR 드라이버가 표준으로 내보내는
+sensor_msgs/LaserScan을 이 노드가 직접 구독해 다리쌍을 검출하는 경량 휴리스틱으로 대체했다
+(알고리즘은 leg_detection_utils.py 참고 - jump-distance 클러스터링 + 폭 필터 + 그리디 페어링).
+트래킹(라이다 트랙 ID 부여)도 원래 ros2_leg_detector가 내부에서 하던 역할이라, 이 노드가
+reid_tracking_node와 동일한 방식(tracking_utils.Track/match_track)으로 직접 수행한다 - 그래야
+reid_tracking_node의 5~6단계 락온/스왑검증 로직(같은 raw leg id가 연속 프레임 최고 후보여야
+락온 확정되는 구조)이 코드 변경 없이 그대로 맞물린다.
 
-`leg_detector_msgs/msg/PersonArray` (경로: src/leg_detector_msgs/msg/PersonArray.msg):
-    std_msgs/Header header
-    Person[] people
-`leg_detector_msgs/msg/Person`:
-    geometry_msgs/Pose pose
-    uint32 id
+이 노드가 검출/추적한 다리쌍의 신원(누구인지)은 이 노드가 판단하지 않는다 - 위치와 이 노드가
+매긴 raw 트랙 ID만 실어 보내고, 신원 매칭(웹캠이 추종 중이던 타겟과의 대조)은 reid_tracking_node가
+담당한다. 이 경계와 출력 스키마/토픽은 원래 설계에서 바뀌지 않았다.
 
-주의 - Person에는 속도도, 신뢰도(confidence)도 없다:
-  - 속도: 이 노드는 속도를 계산해 싣지 않는다. Detection3D에는 애초에 속도 필드가 없고,
-    reid_tracking_node가 문서 7번의 락온 상태머신에서 라이다 트랙 id별 위치 이력을 어차피
-    여러 프레임 버퍼링해야 하므로, 그 이력에서 직접 미분해 속도를 구하는 편이 이 노드가
-    구한 속도를 다시 신뢰도 필드에 욱여넣어 넘기는 것보다 자연스럽다.
-  - 신뢰도: leg_detector_msgs/Leg에는 confidence가 있지만 최종 산출물인 Person에는 없다
-    (트래커 내부에서 이미 필터링됐다는 전제). 아래 leg_detection_score 파라미터로 고정값을 싣는다.
-
-publish_people_frame(사실상 header.frame_id)이 라이다 원본 트래커의 fixed_frame 파라미터
-기본값("laser")을 그대로 따르는 구성일 수도, 이미 map/odom으로 변환돼 나오는 구성일 수도 있어
-프레임을 가정하지 않는다 - oakd_detector_node와 동일하게 매번 tf2로 map 변환한다.
+[검출기 성격]
+학습 기반 분류기가 아니라 거리/폭 임계값만 쓰는 단순 검출기다. 실제 라이다의 각해상도, 노이즈,
+사람 다리 두께(옷 두께 포함)에 맞춰 아래 파라미터(cluster_distance_threshold, leg_diameter_min/max,
+leg_pair_max_distance 등)를 현장에서 튜닝해야 한다.
 
 [입력 토픽]
-  - <namespace>/people_tracked (leg_detector_msgs/msg/PersonArray)
+  - <namespace>/scan (sensor_msgs/msg/LaserScan) - LiDAR 드라이버가 laser 프레임으로 발행
 
 [출력 토픽]
   - <namespace>/vision/leg_detections_3d (vision_msgs/Detection3DArray, frame_id=map)
@@ -55,14 +46,19 @@ publish_people_frame(사실상 header.frame_id)이 라이다 원본 트래커의
 import rclpy
 from rclpy.duration import Duration
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 
 from geometry_msgs.msg import PointStamped
+from sensor_msgs.msg import LaserScan
 from std_msgs.msg import ColorRGBA
 from vision_msgs.msg import Detection3D, Detection3DArray, ObjectHypothesis, ObjectHypothesisWithPose
 from visualization_msgs.msg import Marker, MarkerArray
 
 import tf2_ros
 import tf2_geometry_msgs  # noqa: F401  (PointStamped tf2 변환 등록)
+
+from amr_person_tracking.leg_detection_utils import detect_persons
+from amr_person_tracking.tracking_utils import Track, match_track, stamp_to_sec
 
 MARKER_NS_SPHERES = 'leg_detections'
 MARKER_NS_LABELS = 'leg_detections_labels'
@@ -73,13 +69,30 @@ class LegDetectorBridgeNode(Node):
     def __init__(self):
         super().__init__('leg_detector_bridge_node')
 
-        self.declare_parameter('people_tracked_topic', '/robot5/people_tracked')
+        self.declare_parameter('scan_topic', '/robot5/scan')
         self.declare_parameter('leg_detections_topic', '/robot5/vision/leg_detections_3d')
         self.declare_parameter('map_frame', 'map')
         self.declare_parameter('tf_timeout', 0.2)
-        # Person.msg에는 신뢰도가 없어 고정값을 싣는다 - 실제 검출 신뢰도가 아니라
+        # 이 노드는 학습 기반 신뢰도를 못 내므로 고정값을 싣는다 - 실제 검출 신뢰도가 아니라
         # "라이다 다리검출 출처"라는 표시에 가깝다.
         self.declare_parameter('leg_detection_score', 0.7)
+
+        # 검출 파라미터 (leg_detection_utils.detect_persons) - 현장 라이다 특성에 맞춰 튜닝 필요
+        self.declare_parameter('scan_range_limit', 5.0)
+        self.declare_parameter('cluster_distance_threshold', 0.08)
+        self.declare_parameter('min_cluster_points', 3)
+        self.declare_parameter('leg_diameter_min', 0.05)
+        self.declare_parameter('leg_diameter_max', 0.25)
+        self.declare_parameter('leg_pair_max_distance', 0.5)
+        self.declare_parameter('allow_single_leg_detection', True)
+
+        # 검출된 다리쌍(사람 중심점)에 raw 트랙 ID를 매기는 단순 최근접 트래커.
+        # reid_tracking_node의 게이팅과 동일한 방식(tracking_utils) - 스캔이 빠르게(보통 5~15Hz)
+        # 들어오므로 track_timeout은 reid_tracking_node보다 짧게 잡는다.
+        self.declare_parameter('track_gating_max_speed', 2.0)
+        self.declare_parameter('track_gating_min_gate', 0.3)
+        self.declare_parameter('track_velocity_alpha', 0.5)
+        self.declare_parameter('track_timeout', 1.0)
 
         # RViz 디버그 시각화 (검증 단계라 기본 on - oakd_detector_node의 publish_debug_image와 동일한 취지)
         self.declare_parameter('publish_markers', True)
@@ -88,12 +101,26 @@ class LegDetectorBridgeNode(Node):
         # 노드가 멈추거나 해당 프레임에 발행이 없어도 RViz에 마커가 유령처럼 남지 않도록 자동 만료
         self.declare_parameter('marker_lifetime', 0.5)
 
-        people_tracked_topic = self.get_parameter('people_tracked_topic').value
+        scan_topic = self.get_parameter('scan_topic').value
         leg_detections_topic = self.get_parameter('leg_detections_topic').value
 
         self.map_frame = self.get_parameter('map_frame').value
         self.tf_timeout = Duration(seconds=self.get_parameter('tf_timeout').value)
         self.leg_detection_score = self.get_parameter('leg_detection_score').value
+
+        self.scan_range_limit = self.get_parameter('scan_range_limit').value
+        self.cluster_distance_threshold = self.get_parameter('cluster_distance_threshold').value
+        self.min_cluster_points = self.get_parameter('min_cluster_points').value
+        self.leg_diameter_min = self.get_parameter('leg_diameter_min').value
+        self.leg_diameter_max = self.get_parameter('leg_diameter_max').value
+        self.leg_pair_max_distance = self.get_parameter('leg_pair_max_distance').value
+        self.allow_single_leg_detection = self.get_parameter('allow_single_leg_detection').value
+
+        self.track_gating_max_speed = self.get_parameter('track_gating_max_speed').value
+        self.track_gating_min_gate = self.get_parameter('track_gating_min_gate').value
+        self.track_velocity_alpha = self.get_parameter('track_velocity_alpha').value
+        self.track_timeout = self.get_parameter('track_timeout').value
+
         self.publish_markers = self.get_parameter('publish_markers').value
         self.marker_scale = self.get_parameter('marker_scale').value
         self.marker_lifetime = Duration(seconds=self.get_parameter('marker_lifetime').value)
@@ -107,26 +134,41 @@ class LegDetectorBridgeNode(Node):
         self.tf_buffer = tf2_ros.Buffer(cache_time=Duration(seconds=5.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
 
-        # leg_detector_msgs는 rosdep/apt 배포가 없어 ros2_leg_detector를 워크스페이스에
-        # 직접 빌드해 넣기 전까지는 이 import가 실패한다 - 이 노드는 그 패키지 없이는
-        # 원천적으로 동작할 수 없으므로(선택 기능이 아님) 조용히 넘어가지 않고 그대로 터뜨린다.
-        from leg_detector_msgs.msg import PersonArray
+        # raw 트랙 ID(int) -> Track (map 좌표계). reid_tracking_node와 동일한 목적의 로컬 트래커.
+        self.tracks = {}
+        self._next_track_id = 1
 
-        self.people_tracked_sub = self.create_subscription(
-            PersonArray, people_tracked_topic, self.people_tracked_callback, 10)
+        # LiDAR 드라이버는 보통 best_effort로 발행한다 (oakd_detector_node의 detections_pub과 동일한 사정).
+        self.scan_sub = self.create_subscription(
+            LaserScan, scan_topic, self.scan_callback, qos_profile_sensor_data)
 
         self.get_logger().info(
-            f'leg_detector_bridge_node 시작 | {people_tracked_topic} -> {leg_detections_topic}'
+            f'leg_detector_bridge_node 시작 (자체 LaserScan 다리검출) | {scan_topic} -> {leg_detections_topic}'
         )
 
-    def people_tracked_callback(self, msg):
+    def scan_callback(self, msg: LaserScan):
+        persons_laser = detect_persons(
+            msg,
+            range_limit=self.scan_range_limit,
+            cluster_distance_threshold=self.cluster_distance_threshold,
+            min_cluster_points=self.min_cluster_points,
+            leg_diameter_min=self.leg_diameter_min,
+            leg_diameter_max=self.leg_diameter_max,
+            pair_max_distance=self.leg_pair_max_distance,
+            allow_single_leg=self.allow_single_leg_detection,
+        )
+
+        stamp = stamp_to_sec(msg.header.stamp)
         detections = []
         markers = []
-        for person in msg.people:
+
+        for lx, ly in persons_laser:
             pt = PointStamped()
             pt.header.frame_id = msg.header.frame_id
             pt.header.stamp = msg.header.stamp
-            pt.point = person.pose.position
+            pt.point.x = lx
+            pt.point.y = ly
+            pt.point.z = 0.0
 
             try:
                 pt_map = self.tf_buffer.transform(pt, self.map_frame, timeout=self.tf_timeout)
@@ -135,13 +177,34 @@ class LegDetectorBridgeNode(Node):
                     f'{self.map_frame} 변환 실패: {exc}', throttle_duration_sec=2.0)
                 continue
 
-            detections.append(self._make_detection3d(pt_map, person.id, msg.header))
-            if self.publish_markers:
-                markers.extend(self._make_markers(pt_map, person.id, msg.header))
+            track_id = self._update_track(pt_map.point.x, pt_map.point.y, stamp)
 
+            detections.append(self._make_detection3d(pt_map, track_id, msg.header))
+            if self.publish_markers:
+                markers.extend(self._make_markers(pt_map, track_id, msg.header))
+
+        self._prune_stale_tracks(stamp)
         self.publish_leg_detections(detections, msg.header)
         if self.publish_markers:
             self.publish_markers_array(markers, msg.header)
+
+    def _update_track(self, x, y, stamp):
+        track_id = match_track(
+            self.tracks, x, y, stamp, self.track_gating_max_speed, self.track_gating_min_gate)
+        if track_id is None:
+            track_id = self._next_track_id
+            self._next_track_id += 1
+            self.tracks[track_id] = Track(track_id, x, y, stamp, source='lidar_leg')
+        else:
+            self.tracks[track_id].update(
+                x, y, stamp, source='lidar_leg',
+                velocity_alpha=self.track_velocity_alpha, max_speed=self.track_gating_max_speed)
+        return track_id
+
+    def _prune_stale_tracks(self, now):
+        stale = [tid for tid, tr in self.tracks.items() if now - tr.last_stamp > self.track_timeout]
+        for tid in stale:
+            del self.tracks[tid]
 
     def _make_detection3d(self, pt_map, track_id, header):
         det = Detection3D()
@@ -163,8 +226,8 @@ class LegDetectorBridgeNode(Node):
         det.bbox.center.position = pt_map.point
         det.bbox.center.orientation.w = 1.0
 
-        # 라이다 트래커 자체의 트랙 ID (재시작 시 리셋될 수 있음). 재식별 노드가 map 기준
-        # 지속 트랙 ID로 덮어쓴다 - oakd_detector_node의 'oakd_<id>'와 동일한 관례.
+        # 이 노드가 매긴 raw 트랙 ID (노드 재시작 시 리셋됨). 재식별 노드가 map 기준 지속 트랙
+        # ID로 덮어쓴다 - oakd_detector_node의 'oakd_<id>'와 동일한 관례.
         det.id = f'leg_{int(track_id)}'
         return det
 
@@ -178,7 +241,7 @@ class LegDetectorBridgeNode(Node):
     def _make_markers(self, pt_map, track_id, header):
         """검출 다리쌍 하나당 구체(위치) + 텍스트(라이다 트랙 ID) 마커 한 쌍을 만든다.
 
-        marker.id를 라이다 트랙 ID로 고정해 같은 사람이 프레임마다 새 마커가 아니라
+        marker.id를 트랙 ID로 고정해 같은 사람이 프레임마다 새 마커가 아니라
         RViz에서 하나의 마커가 매끄럽게 이동하는 것처럼 보이게 한다.
         """
         sphere = Marker()
