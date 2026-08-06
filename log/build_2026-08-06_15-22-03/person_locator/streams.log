@@ -1,0 +1,34 @@
+[0.402s] Invoking command in '/home/rokey/tth_ws/src/person_locator': PYTHONPATH=/home/rokey/tth_ws/build/person_locator/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/person_locator build --build-base /home/rokey/tth_ws/build/person_locator/build install --record /home/rokey/tth_ws/build/person_locator/install.log --install-scripts $base/lib/person_locator --single-version-externally-managed install_data
+[0.553s] running egg_info
+[0.553s] writing ../../build/person_locator/person_locator.egg-info/PKG-INFO
+[0.553s] writing dependency_links to ../../build/person_locator/person_locator.egg-info/dependency_links.txt
+[0.553s] writing entry points to ../../build/person_locator/person_locator.egg-info/entry_points.txt
+[0.553s] writing requirements to ../../build/person_locator/person_locator.egg-info/requires.txt
+[0.553s] writing top-level names to ../../build/person_locator/person_locator.egg-info/top_level.txt
+[0.554s] reading manifest file '../../build/person_locator/person_locator.egg-info/SOURCES.txt'
+[0.555s] writing manifest file '../../build/person_locator/person_locator.egg-info/SOURCES.txt'
+[0.555s] running build
+[0.555s] running build_py
+[0.555s] copying person_locator/pose_locator_node.py -> /home/rokey/tth_ws/build/person_locator/build/lib/person_locator
+[0.555s] copying person_locator/log_amr_positions.py -> /home/rokey/tth_ws/build/person_locator/build/lib/person_locator
+[0.556s] running install
+[0.556s] running install_lib
+[0.556s] copying /home/rokey/tth_ws/build/person_locator/build/lib/person_locator/pose_locator_node.py -> /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator
+[0.556s] copying /home/rokey/tth_ws/build/person_locator/build/lib/person_locator/log_amr_positions.py -> /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator
+[0.556s] byte-compiling /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator/pose_locator_node.py to pose_locator_node.cpython-310.pyc
+[0.557s] byte-compiling /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator/log_amr_positions.py to log_amr_positions.cpython-310.pyc
+[0.558s] running install_data
+[0.558s] copying config/person_homography_cam1.yaml -> /home/rokey/tth_ws/install/person_locator/share/person_locator/config
+[0.558s] running install_egg_info
+[0.559s] removing '/home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator-0.0.0-py3.10.egg-info' (and everything under it)
+[0.559s] Copying ../../build/person_locator/person_locator.egg-info to /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator-0.0.0-py3.10.egg-info
+[0.560s] running install_scripts
+[0.570s] Installing calibrate_homography script to /home/rokey/tth_ws/install/person_locator/lib/person_locator
+[0.570s] Installing camera_publisher script to /home/rokey/tth_ws/install/person_locator/lib/person_locator
+[0.570s] Installing compute_homography_from_points script to /home/rokey/tth_ws/install/person_locator/lib/person_locator
+[0.571s] Installing log_amr_positions script to /home/rokey/tth_ws/install/person_locator/lib/person_locator
+[0.571s] Installing person_tf_broadcaster_node script to /home/rokey/tth_ws/install/person_locator/lib/person_locator
+[0.571s] Installing pick_pixel_points script to /home/rokey/tth_ws/install/person_locator/lib/person_locator
+[0.571s] Installing pose_locator_node script to /home/rokey/tth_ws/install/person_locator/lib/person_locator
+[0.571s] writing list of installed files to '/home/rokey/tth_ws/build/person_locator/install.log'
+[0.585s] Invoked command in '/home/rokey/tth_ws/src/person_locator' returned '0': PYTHONPATH=/home/rokey/tth_ws/build/person_locator/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/person_locator build --build-base /home/rokey/tth_ws/build/person_locator/build install --record /home/rokey/tth_ws/build/person_locator/install.log --install-scripts $base/lib/person_locator --single-version-externally-managed install_data

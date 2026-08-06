@@ -1,0 +1,66 @@
+running egg_info
+creating build/person_locator/person_locator.egg-info
+writing build/person_locator/person_locator.egg-info/PKG-INFO
+writing dependency_links to build/person_locator/person_locator.egg-info/dependency_links.txt
+writing entry points to build/person_locator/person_locator.egg-info/entry_points.txt
+writing requirements to build/person_locator/person_locator.egg-info/requires.txt
+writing top-level names to build/person_locator/person_locator.egg-info/top_level.txt
+writing manifest file 'build/person_locator/person_locator.egg-info/SOURCES.txt'
+reading manifest file 'build/person_locator/person_locator.egg-info/SOURCES.txt'
+writing manifest file 'build/person_locator/person_locator.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/rokey/tth_ws/src/person_locator/build/person_locator/build
+creating /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib
+creating /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator
+copying person_locator/camera_publisher.py -> /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator
+copying person_locator/vision_utils.py -> /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator
+copying person_locator/pick_pixel_points.py -> /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator
+copying person_locator/calibrate_homography.py -> /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator
+copying person_locator/compute_homography_from_points.py -> /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator
+copying person_locator/pose_locator_node.py -> /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator
+copying person_locator/log_amr_positions.py -> /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator
+copying person_locator/__init__.py -> /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator
+copying person_locator/person_tf_broadcaster_node.py -> /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator
+running install
+running install_lib
+creating /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator
+copying /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator/camera_publisher.py -> /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator
+copying /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator/vision_utils.py -> /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator
+copying /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator/pick_pixel_points.py -> /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator
+copying /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator/calibrate_homography.py -> /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator
+copying /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator/compute_homography_from_points.py -> /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator
+copying /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator/pose_locator_node.py -> /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator
+copying /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator/log_amr_positions.py -> /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator
+copying /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator/__init__.py -> /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator
+copying /home/rokey/tth_ws/src/person_locator/build/person_locator/build/lib/person_locator/person_tf_broadcaster_node.py -> /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator
+byte-compiling /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator/camera_publisher.py to camera_publisher.cpython-310.pyc
+byte-compiling /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator/vision_utils.py to vision_utils.cpython-310.pyc
+byte-compiling /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator/pick_pixel_points.py to pick_pixel_points.cpython-310.pyc
+byte-compiling /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator/calibrate_homography.py to calibrate_homography.cpython-310.pyc
+byte-compiling /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator/compute_homography_from_points.py to compute_homography_from_points.cpython-310.pyc
+byte-compiling /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator/pose_locator_node.py to pose_locator_node.cpython-310.pyc
+byte-compiling /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator/log_amr_positions.py to log_amr_positions.cpython-310.pyc
+byte-compiling /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator/__init__.py to __init__.cpython-310.pyc
+byte-compiling /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator/person_tf_broadcaster_node.py to person_tf_broadcaster_node.cpython-310.pyc
+running install_data
+creating /home/rokey/tth_ws/src/person_locator/install/person_locator/share/ament_index
+creating /home/rokey/tth_ws/src/person_locator/install/person_locator/share/ament_index/resource_index
+creating /home/rokey/tth_ws/src/person_locator/install/person_locator/share/ament_index/resource_index/packages
+copying resource/person_locator -> /home/rokey/tth_ws/src/person_locator/install/person_locator/share/ament_index/resource_index/packages
+copying package.xml -> /home/rokey/tth_ws/src/person_locator/install/person_locator/share/person_locator
+creating /home/rokey/tth_ws/src/person_locator/install/person_locator/share/person_locator/launch
+copying launch/person_locator.launch.py -> /home/rokey/tth_ws/src/person_locator/install/person_locator/share/person_locator/launch
+creating /home/rokey/tth_ws/src/person_locator/install/person_locator/share/person_locator/config
+copying config/person_homography.yaml -> /home/rokey/tth_ws/src/person_locator/install/person_locator/share/person_locator/config
+running install_egg_info
+Copying build/person_locator/person_locator.egg-info to /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/python3.10/site-packages/person_locator-0.0.0-py3.10.egg-info
+running install_scripts
+Installing calibrate_homography script to /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/person_locator
+Installing camera_publisher script to /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/person_locator
+Installing compute_homography_from_points script to /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/person_locator
+Installing log_amr_positions script to /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/person_locator
+Installing person_tf_broadcaster_node script to /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/person_locator
+Installing pick_pixel_points script to /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/person_locator
+Installing pose_locator_node script to /home/rokey/tth_ws/src/person_locator/install/person_locator/lib/person_locator
+writing list of installed files to '/home/rokey/tth_ws/src/person_locator/build/person_locator/install.log'

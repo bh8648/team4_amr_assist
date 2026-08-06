@@ -1,0 +1,68 @@
+[0.379s] Invoking command in '/home/rokey/tth_ws/src/person_locator': PYTHONPATH=/home/rokey/tth_ws/build/person_locator/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/person_locator build --build-base /home/rokey/tth_ws/build/person_locator/build install --record /home/rokey/tth_ws/build/person_locator/install.log --install-scripts $base/lib/person_locator --single-version-externally-managed install_data
+[0.528s] running egg_info
+[0.528s] creating ../../build/person_locator/person_locator.egg-info
+[0.528s] writing ../../build/person_locator/person_locator.egg-info/PKG-INFO
+[0.529s] writing dependency_links to ../../build/person_locator/person_locator.egg-info/dependency_links.txt
+[0.529s] writing entry points to ../../build/person_locator/person_locator.egg-info/entry_points.txt
+[0.529s] writing requirements to ../../build/person_locator/person_locator.egg-info/requires.txt
+[0.529s] writing top-level names to ../../build/person_locator/person_locator.egg-info/top_level.txt
+[0.529s] writing manifest file '../../build/person_locator/person_locator.egg-info/SOURCES.txt'
+[0.529s] reading manifest file '../../build/person_locator/person_locator.egg-info/SOURCES.txt'
+[0.529s] writing manifest file '../../build/person_locator/person_locator.egg-info/SOURCES.txt'
+[0.529s] running build
+[0.530s] running build_py
+[0.530s] creating /home/rokey/tth_ws/build/person_locator/build
+[0.530s] creating /home/rokey/tth_ws/build/person_locator/build/lib
+[0.530s] creating /home/rokey/tth_ws/build/person_locator/build/lib/person_locator
+[0.530s] copying person_locator/camera_publisher.py -> /home/rokey/tth_ws/build/person_locator/build/lib/person_locator
+[0.530s] copying person_locator/vision_utils.py -> /home/rokey/tth_ws/build/person_locator/build/lib/person_locator
+[0.530s] copying person_locator/pick_pixel_points.py -> /home/rokey/tth_ws/build/person_locator/build/lib/person_locator
+[0.530s] copying person_locator/calibrate_homography.py -> /home/rokey/tth_ws/build/person_locator/build/lib/person_locator
+[0.530s] copying person_locator/compute_homography_from_points.py -> /home/rokey/tth_ws/build/person_locator/build/lib/person_locator
+[0.530s] copying person_locator/pose_locator_node.py -> /home/rokey/tth_ws/build/person_locator/build/lib/person_locator
+[0.530s] copying person_locator/log_amr_positions.py -> /home/rokey/tth_ws/build/person_locator/build/lib/person_locator
+[0.530s] copying person_locator/__init__.py -> /home/rokey/tth_ws/build/person_locator/build/lib/person_locator
+[0.530s] copying person_locator/person_tf_broadcaster_node.py -> /home/rokey/tth_ws/build/person_locator/build/lib/person_locator
+[0.530s] running install
+[0.530s] running install_lib
+[0.531s] creating /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator
+[0.531s] copying /home/rokey/tth_ws/build/person_locator/build/lib/person_locator/camera_publisher.py -> /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator
+[0.531s] copying /home/rokey/tth_ws/build/person_locator/build/lib/person_locator/vision_utils.py -> /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator
+[0.531s] copying /home/rokey/tth_ws/build/person_locator/build/lib/person_locator/pick_pixel_points.py -> /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator
+[0.531s] copying /home/rokey/tth_ws/build/person_locator/build/lib/person_locator/calibrate_homography.py -> /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator
+[0.531s] copying /home/rokey/tth_ws/build/person_locator/build/lib/person_locator/compute_homography_from_points.py -> /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator
+[0.531s] copying /home/rokey/tth_ws/build/person_locator/build/lib/person_locator/pose_locator_node.py -> /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator
+[0.531s] copying /home/rokey/tth_ws/build/person_locator/build/lib/person_locator/log_amr_positions.py -> /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator
+[0.531s] copying /home/rokey/tth_ws/build/person_locator/build/lib/person_locator/__init__.py -> /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator
+[0.531s] copying /home/rokey/tth_ws/build/person_locator/build/lib/person_locator/person_tf_broadcaster_node.py -> /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator
+[0.531s] byte-compiling /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator/camera_publisher.py to camera_publisher.cpython-310.pyc
+[0.532s] byte-compiling /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator/vision_utils.py to vision_utils.cpython-310.pyc
+[0.532s] byte-compiling /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator/pick_pixel_points.py to pick_pixel_points.cpython-310.pyc
+[0.532s] byte-compiling /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator/calibrate_homography.py to calibrate_homography.cpython-310.pyc
+[0.533s] byte-compiling /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator/compute_homography_from_points.py to compute_homography_from_points.cpython-310.pyc
+[0.534s] byte-compiling /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator/pose_locator_node.py to pose_locator_node.cpython-310.pyc
+[0.534s] byte-compiling /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator/log_amr_positions.py to log_amr_positions.cpython-310.pyc
+[0.535s] byte-compiling /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator/__init__.py to __init__.cpython-310.pyc
+[0.535s] byte-compiling /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator/person_tf_broadcaster_node.py to person_tf_broadcaster_node.cpython-310.pyc
+[0.535s] running install_data
+[0.535s] creating /home/rokey/tth_ws/install/person_locator/share/ament_index
+[0.535s] creating /home/rokey/tth_ws/install/person_locator/share/ament_index/resource_index
+[0.535s] creating /home/rokey/tth_ws/install/person_locator/share/ament_index/resource_index/packages
+[0.535s] copying resource/person_locator -> /home/rokey/tth_ws/install/person_locator/share/ament_index/resource_index/packages
+[0.535s] copying package.xml -> /home/rokey/tth_ws/install/person_locator/share/person_locator
+[0.535s] creating /home/rokey/tth_ws/install/person_locator/share/person_locator/launch
+[0.535s] copying launch/person_locator.launch.py -> /home/rokey/tth_ws/install/person_locator/share/person_locator/launch
+[0.535s] creating /home/rokey/tth_ws/install/person_locator/share/person_locator/config
+[0.535s] copying config/person_homography.yaml -> /home/rokey/tth_ws/install/person_locator/share/person_locator/config
+[0.535s] running install_egg_info
+[0.536s] Copying ../../build/person_locator/person_locator.egg-info to /home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages/person_locator-0.0.0-py3.10.egg-info
+[0.537s] running install_scripts
+[0.548s] Installing calibrate_homography script to /home/rokey/tth_ws/install/person_locator/lib/person_locator
+[0.548s] Installing camera_publisher script to /home/rokey/tth_ws/install/person_locator/lib/person_locator
+[0.548s] Installing compute_homography_from_points script to /home/rokey/tth_ws/install/person_locator/lib/person_locator
+[0.548s] Installing log_amr_positions script to /home/rokey/tth_ws/install/person_locator/lib/person_locator
+[0.548s] Installing person_tf_broadcaster_node script to /home/rokey/tth_ws/install/person_locator/lib/person_locator
+[0.548s] Installing pick_pixel_points script to /home/rokey/tth_ws/install/person_locator/lib/person_locator
+[0.548s] Installing pose_locator_node script to /home/rokey/tth_ws/install/person_locator/lib/person_locator
+[0.548s] writing list of installed files to '/home/rokey/tth_ws/build/person_locator/install.log'
+[0.563s] Invoked command in '/home/rokey/tth_ws/src/person_locator' returned '0': PYTHONPATH=/home/rokey/tth_ws/build/person_locator/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/rokey/tth_ws/install/person_locator/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/person_locator build --build-base /home/rokey/tth_ws/build/person_locator/build install --record /home/rokey/tth_ws/build/person_locator/install.log --install-scripts $base/lib/person_locator --single-version-externally-managed install_data

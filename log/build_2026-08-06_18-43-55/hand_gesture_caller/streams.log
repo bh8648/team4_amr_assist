@@ -1,0 +1,40 @@
+[0.560s] Invoking command in '/home/rokey/tth_ws/src/hand_gesture_caller': PYTHONPATH=/home/rokey/tth_ws/build/hand_gesture_caller/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/rokey/tth_ws/install/hand_gesture_caller/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/hand_gesture_caller build --build-base /home/rokey/tth_ws/build/hand_gesture_caller/build install --record /home/rokey/tth_ws/build/hand_gesture_caller/install.log --install-scripts $base/lib/hand_gesture_caller --single-version-externally-managed install_data
+[0.703s] running egg_info
+[0.703s] creating ../../build/hand_gesture_caller/hand_gesture_caller.egg-info
+[0.704s] writing ../../build/hand_gesture_caller/hand_gesture_caller.egg-info/PKG-INFO
+[0.705s] writing dependency_links to ../../build/hand_gesture_caller/hand_gesture_caller.egg-info/dependency_links.txt
+[0.705s] writing entry points to ../../build/hand_gesture_caller/hand_gesture_caller.egg-info/entry_points.txt
+[0.706s] writing requirements to ../../build/hand_gesture_caller/hand_gesture_caller.egg-info/requires.txt
+[0.706s] writing top-level names to ../../build/hand_gesture_caller/hand_gesture_caller.egg-info/top_level.txt
+[0.706s] writing manifest file '../../build/hand_gesture_caller/hand_gesture_caller.egg-info/SOURCES.txt'
+[0.706s] reading manifest file '../../build/hand_gesture_caller/hand_gesture_caller.egg-info/SOURCES.txt'
+[0.706s] writing manifest file '../../build/hand_gesture_caller/hand_gesture_caller.egg-info/SOURCES.txt'
+[0.706s] running build
+[0.706s] running build_py
+[0.706s] creating /home/rokey/tth_ws/build/hand_gesture_caller/build
+[0.706s] creating /home/rokey/tth_ws/build/hand_gesture_caller/build/lib
+[0.706s] creating /home/rokey/tth_ws/build/hand_gesture_caller/build/lib/hand_gesture_caller
+[0.706s] copying hand_gesture_caller/vision_utils.py -> /home/rokey/tth_ws/build/hand_gesture_caller/build/lib/hand_gesture_caller
+[0.706s] copying hand_gesture_caller/wrist_gesture_node.py -> /home/rokey/tth_ws/build/hand_gesture_caller/build/lib/hand_gesture_caller
+[0.706s] copying hand_gesture_caller/__init__.py -> /home/rokey/tth_ws/build/hand_gesture_caller/build/lib/hand_gesture_caller
+[0.706s] running install
+[0.706s] running install_lib
+[0.707s] creating /home/rokey/tth_ws/install/hand_gesture_caller/lib/python3.10/site-packages/hand_gesture_caller
+[0.707s] copying /home/rokey/tth_ws/build/hand_gesture_caller/build/lib/hand_gesture_caller/vision_utils.py -> /home/rokey/tth_ws/install/hand_gesture_caller/lib/python3.10/site-packages/hand_gesture_caller
+[0.707s] copying /home/rokey/tth_ws/build/hand_gesture_caller/build/lib/hand_gesture_caller/wrist_gesture_node.py -> /home/rokey/tth_ws/install/hand_gesture_caller/lib/python3.10/site-packages/hand_gesture_caller
+[0.707s] copying /home/rokey/tth_ws/build/hand_gesture_caller/build/lib/hand_gesture_caller/__init__.py -> /home/rokey/tth_ws/install/hand_gesture_caller/lib/python3.10/site-packages/hand_gesture_caller
+[0.707s] byte-compiling /home/rokey/tth_ws/install/hand_gesture_caller/lib/python3.10/site-packages/hand_gesture_caller/vision_utils.py to vision_utils.cpython-310.pyc
+[0.707s] byte-compiling /home/rokey/tth_ws/install/hand_gesture_caller/lib/python3.10/site-packages/hand_gesture_caller/wrist_gesture_node.py to wrist_gesture_node.cpython-310.pyc
+[0.707s] byte-compiling /home/rokey/tth_ws/install/hand_gesture_caller/lib/python3.10/site-packages/hand_gesture_caller/__init__.py to __init__.cpython-310.pyc
+[0.707s] running install_data
+[0.707s] creating /home/rokey/tth_ws/install/hand_gesture_caller/share/ament_index
+[0.707s] creating /home/rokey/tth_ws/install/hand_gesture_caller/share/ament_index/resource_index
+[0.707s] creating /home/rokey/tth_ws/install/hand_gesture_caller/share/ament_index/resource_index/packages
+[0.707s] copying resource/hand_gesture_caller -> /home/rokey/tth_ws/install/hand_gesture_caller/share/ament_index/resource_index/packages
+[0.707s] copying package.xml -> /home/rokey/tth_ws/install/hand_gesture_caller/share/hand_gesture_caller
+[0.707s] running install_egg_info
+[0.709s] Copying ../../build/hand_gesture_caller/hand_gesture_caller.egg-info to /home/rokey/tth_ws/install/hand_gesture_caller/lib/python3.10/site-packages/hand_gesture_caller-0.0.0-py3.10.egg-info
+[0.710s] running install_scripts
+[0.722s] Installing wrist_gesture_node script to /home/rokey/tth_ws/install/hand_gesture_caller/lib/hand_gesture_caller
+[0.722s] writing list of installed files to '/home/rokey/tth_ws/build/hand_gesture_caller/install.log'
+[0.752s] Invoked command in '/home/rokey/tth_ws/src/hand_gesture_caller' returned '0': PYTHONPATH=/home/rokey/tth_ws/build/hand_gesture_caller/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/rokey/tth_ws/install/hand_gesture_caller/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/hand_gesture_caller build --build-base /home/rokey/tth_ws/build/hand_gesture_caller/build install --record /home/rokey/tth_ws/build/hand_gesture_caller/install.log --install-scripts $base/lib/hand_gesture_caller --single-version-externally-managed install_data

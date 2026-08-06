@@ -1,0 +1,38 @@
+running egg_info
+creating ../../build/hand_gesture_caller/hand_gesture_caller.egg-info
+writing ../../build/hand_gesture_caller/hand_gesture_caller.egg-info/PKG-INFO
+writing dependency_links to ../../build/hand_gesture_caller/hand_gesture_caller.egg-info/dependency_links.txt
+writing entry points to ../../build/hand_gesture_caller/hand_gesture_caller.egg-info/entry_points.txt
+writing requirements to ../../build/hand_gesture_caller/hand_gesture_caller.egg-info/requires.txt
+writing top-level names to ../../build/hand_gesture_caller/hand_gesture_caller.egg-info/top_level.txt
+writing manifest file '../../build/hand_gesture_caller/hand_gesture_caller.egg-info/SOURCES.txt'
+reading manifest file '../../build/hand_gesture_caller/hand_gesture_caller.egg-info/SOURCES.txt'
+writing manifest file '../../build/hand_gesture_caller/hand_gesture_caller.egg-info/SOURCES.txt'
+running build
+running build_py
+creating /home/rokey/tth_ws/build/hand_gesture_caller/build
+creating /home/rokey/tth_ws/build/hand_gesture_caller/build/lib
+creating /home/rokey/tth_ws/build/hand_gesture_caller/build/lib/hand_gesture_caller
+copying hand_gesture_caller/vision_utils.py -> /home/rokey/tth_ws/build/hand_gesture_caller/build/lib/hand_gesture_caller
+copying hand_gesture_caller/wrist_gesture_node.py -> /home/rokey/tth_ws/build/hand_gesture_caller/build/lib/hand_gesture_caller
+copying hand_gesture_caller/__init__.py -> /home/rokey/tth_ws/build/hand_gesture_caller/build/lib/hand_gesture_caller
+running install
+running install_lib
+creating /home/rokey/tth_ws/install/hand_gesture_caller/lib/python3.10/site-packages/hand_gesture_caller
+copying /home/rokey/tth_ws/build/hand_gesture_caller/build/lib/hand_gesture_caller/vision_utils.py -> /home/rokey/tth_ws/install/hand_gesture_caller/lib/python3.10/site-packages/hand_gesture_caller
+copying /home/rokey/tth_ws/build/hand_gesture_caller/build/lib/hand_gesture_caller/wrist_gesture_node.py -> /home/rokey/tth_ws/install/hand_gesture_caller/lib/python3.10/site-packages/hand_gesture_caller
+copying /home/rokey/tth_ws/build/hand_gesture_caller/build/lib/hand_gesture_caller/__init__.py -> /home/rokey/tth_ws/install/hand_gesture_caller/lib/python3.10/site-packages/hand_gesture_caller
+byte-compiling /home/rokey/tth_ws/install/hand_gesture_caller/lib/python3.10/site-packages/hand_gesture_caller/vision_utils.py to vision_utils.cpython-310.pyc
+byte-compiling /home/rokey/tth_ws/install/hand_gesture_caller/lib/python3.10/site-packages/hand_gesture_caller/wrist_gesture_node.py to wrist_gesture_node.cpython-310.pyc
+byte-compiling /home/rokey/tth_ws/install/hand_gesture_caller/lib/python3.10/site-packages/hand_gesture_caller/__init__.py to __init__.cpython-310.pyc
+running install_data
+creating /home/rokey/tth_ws/install/hand_gesture_caller/share/ament_index
+creating /home/rokey/tth_ws/install/hand_gesture_caller/share/ament_index/resource_index
+creating /home/rokey/tth_ws/install/hand_gesture_caller/share/ament_index/resource_index/packages
+copying resource/hand_gesture_caller -> /home/rokey/tth_ws/install/hand_gesture_caller/share/ament_index/resource_index/packages
+copying package.xml -> /home/rokey/tth_ws/install/hand_gesture_caller/share/hand_gesture_caller
+running install_egg_info
+Copying ../../build/hand_gesture_caller/hand_gesture_caller.egg-info to /home/rokey/tth_ws/install/hand_gesture_caller/lib/python3.10/site-packages/hand_gesture_caller-0.0.0-py3.10.egg-info
+running install_scripts
+Installing wrist_gesture_node script to /home/rokey/tth_ws/install/hand_gesture_caller/lib/hand_gesture_caller
+writing list of installed files to '/home/rokey/tth_ws/build/hand_gesture_caller/install.log'

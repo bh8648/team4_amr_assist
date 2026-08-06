@@ -1,0 +1,6 @@
+source;share/person_locator/hook/pythonpath.ps1
+source;share/person_locator/hook/pythonpath.dsv
+source;share/person_locator/hook/pythonpath.sh
+source;share/person_locator/hook/ament_prefix_path.ps1
+source;share/person_locator/hook/ament_prefix_path.dsv
+source;share/person_locator/hook/ament_prefix_path.sh
