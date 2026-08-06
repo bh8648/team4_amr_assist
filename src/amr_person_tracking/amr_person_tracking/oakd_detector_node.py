@@ -192,7 +192,14 @@ class OakdDetectorNode(Node):
             )
 
         # ---- 출력 ----
-        self.detections_pub = self.create_publisher(Detection3DArray, detections_topic, 10)
+        # 고빈도 스트림(검출, 디버그 이미지)은 best_effort로 - 유실보다 최신 프레임 지연 없이
+        # 넘기는 게 더 중요하다. 저빈도 이벤트(진단, 근접 경보)는 reliable을 유지한다.
+        streaming_qos = QoSProfile(depth=10)
+        streaming_qos.reliability = ReliabilityPolicy.BEST_EFFORT
+        streaming_qos.history = HistoryPolicy.KEEP_LAST
+        streaming_qos.durability = DurabilityPolicy.VOLATILE
+
+        self.detections_pub = self.create_publisher(Detection3DArray, detections_topic, streaming_qos)
 
         # 근접 경보는 나중에 뜨는 매니저 노드가 구독 즉시 현재 상태를 받아야 하므로 래치한다.
         latched_qos = QoSProfile(depth=1)
@@ -208,7 +215,9 @@ class OakdDetectorNode(Node):
 
         self.debug_pub = (
             self.create_publisher(
-                CompressedImage, self.get_parameter('debug_image_topic').value, 1)
+                CompressedImage, self.get_parameter('debug_image_topic').value,
+                QoSProfile(depth=1, reliability=ReliabilityPolicy.BEST_EFFORT,
+                           history=HistoryPolicy.KEEP_LAST, durability=DurabilityPolicy.VOLATILE))
             if self.publish_debug_image else None
         )
 

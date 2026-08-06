@@ -51,6 +51,7 @@ leg_detector_bridge_node 스트림은 별도 콜백(leg_detections_callback)에�
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 
 from vision_msgs.msg import Detection3DArray
 from geometry_msgs.msg import PoseStamped
@@ -82,8 +83,10 @@ class ReidTrackingNode(Node):
         tracked_topic = self.get_parameter('tracked_detections_topic').value
         target_pose_topic = self.get_parameter('target_pose_topic').value
 
+        # oakd_detector_node의 detections_pub이 best_effort라 QoS를 맞춰야 구독이 연결된다
+        # (reliable 구독은 best_effort 발행자와 호환되지 않는다).
         self.oakd_sub = self.create_subscription(
-            Detection3DArray, oakd_topic, self.oakd_detections_callback, 10)
+            Detection3DArray, oakd_topic, self.oakd_detections_callback, qos_profile_sensor_data)
         self.webcam_sub = self.create_subscription(
             Detection3DArray, webcam_topic, self.webcam_detections_callback, 10)
         self.leg_sub = self.create_subscription(
