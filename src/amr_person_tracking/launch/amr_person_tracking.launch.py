@@ -46,6 +46,9 @@ def generate_launch_description():
         # 검출 노드 디버그 오버레이 발행 여부. true면 debug_viewer_node가 cv2 창을 자동으로 띄운다.
         # 실증(눈으로 검출 확인) 단계라 기본값을 true로 뒀다 - 운영 시엔 false로 낮출 것
         DeclareLaunchArgument('publish_debug_image', default_value='true'),
+        # 라이다 다리검출 결과 RViz 마커 발행 여부 (leg_detector_bridge_node). 카메라 이미지가
+        # 없는 입력이라 debug_viewer_node 대신 RViz Marker로 확인한다
+        DeclareLaunchArgument('publish_markers', default_value='true'),
         # 웹캠 로컬라이제이션 노드가 발행하는 원거리 검출 스트림 (외부 패키지, 이 워크스페이스 밖)
         DeclareLaunchArgument('webcam_detections_topic', default_value='/vision/webcam/detections_3d'),
         # 라이다 다리검출 패키지(예: ros2_leg_detector)가 발행하는 원본 토픽. 메시지 타입은
@@ -68,6 +71,7 @@ def generate_launch_description():
     proximity_alert_topic = PathJoinSubstitution(['/', namespace, 'vision/proximity_alert'])
     diagnostics_topic = PathJoinSubstitution(['/', namespace, 'diagnostics'])
     debug_image_topic = PathJoinSubstitution(['/', namespace, 'vision/oakd_detector/debug/compressed'])
+    leg_marker_topic = PathJoinSubstitution(['/', namespace, 'vision/leg_detections/markers'])
 
     # tf2의 TransformListener는 노드 네임스페이스와 무관하게 절대경로 /tf, /tf_static을 구독한다.
     # 터틀봇4는 tf를 네임스페이스 아래(/robot5/tf)로 발행하므로 remap이 없으면 tf 버퍼가 비어
@@ -122,6 +126,8 @@ def generate_launch_description():
         parameters=[{
             'people_tracked_topic': LaunchConfiguration('people_tracked_topic'),
             'leg_detections_topic': leg_detections_topic,
+            'publish_markers': LaunchConfiguration('publish_markers'),
+            'marker_topic': leg_marker_topic,
         }],
     )
 

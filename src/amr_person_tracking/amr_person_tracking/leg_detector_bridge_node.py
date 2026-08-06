@@ -46,6 +46,10 @@ publish_people_frame(사실상 header.frame_id)이 라이다 원본 트래커의
 
 [출력 토픽]
   - <namespace>/vision/leg_detections_3d (vision_msgs/Detection3DArray, frame_id=map)
+  - <namespace>/vision/leg_detections/markers (visualization_msgs/MarkerArray, frame_id=map, 선택)
+    RViz로 눈으로 확인하기 위한 디버그 시각화. 라이다 스캔에는 카메라 이미지 같은 게 없어서
+    oakd_detector_node처럼 프레임에 오버레이를 그릴 수 없다 - 원본 ros2_leg_detector도 같은
+    이유로 /visualization_marker(Marker)를 발행하며, 이 노드는 그 관례를 따른다.
 """
 
 import rclpy
@@ -53,10 +57,15 @@ from rclpy.duration import Duration
 from rclpy.node import Node
 
 from geometry_msgs.msg import PointStamped
+from std_msgs.msg import ColorRGBA
 from vision_msgs.msg import Detection3D, Detection3DArray, ObjectHypothesis, ObjectHypothesisWithPose
+from visualization_msgs.msg import Marker, MarkerArray
 
 import tf2_ros
 import tf2_geometry_msgs  # noqa: F401  (PointStamped tf2 변환 등록)
+
+MARKER_NS_SPHERES = 'leg_detections'
+MARKER_NS_LABELS = 'leg_detections_labels'
 
 
 class LegDetectorBridgeNode(Node):
@@ -72,14 +81,28 @@ class LegDetectorBridgeNode(Node):
         # "라이다 다리검출 출처"라는 표시에 가깝다.
         self.declare_parameter('leg_detection_score', 0.7)
 
+        # RViz 디버그 시각화 (검증 단계라 기본 on - oakd_detector_node의 publish_debug_image와 동일한 취지)
+        self.declare_parameter('publish_markers', True)
+        self.declare_parameter('marker_topic', '/robot5/vision/leg_detections/markers')
+        self.declare_parameter('marker_scale', 0.15)
+        # 노드가 멈추거나 해당 프레임에 발행이 없어도 RViz에 마커가 유령처럼 남지 않도록 자동 만료
+        self.declare_parameter('marker_lifetime', 0.5)
+
         people_tracked_topic = self.get_parameter('people_tracked_topic').value
         leg_detections_topic = self.get_parameter('leg_detections_topic').value
 
         self.map_frame = self.get_parameter('map_frame').value
         self.tf_timeout = Duration(seconds=self.get_parameter('tf_timeout').value)
         self.leg_detection_score = self.get_parameter('leg_detection_score').value
+        self.publish_markers = self.get_parameter('publish_markers').value
+        self.marker_scale = self.get_parameter('marker_scale').value
+        self.marker_lifetime = Duration(seconds=self.get_parameter('marker_lifetime').value)
 
         self.leg_detections_pub = self.create_publisher(Detection3DArray, leg_detections_topic, 10)
+        self.marker_pub = (
+            self.create_publisher(MarkerArray, self.get_parameter('marker_topic').value, 10)
+            if self.publish_markers else None
+        )
 
         self.tf_buffer = tf2_ros.Buffer(cache_time=Duration(seconds=5.0))
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
@@ -98,6 +121,7 @@ class LegDetectorBridgeNode(Node):
 
     def people_tracked_callback(self, msg):
         detections = []
+        markers = []
         for person in msg.people:
             pt = PointStamped()
             pt.header.frame_id = msg.header.frame_id
@@ -112,8 +136,12 @@ class LegDetectorBridgeNode(Node):
                 continue
 
             detections.append(self._make_detection3d(pt_map, person.id, msg.header))
+            if self.publish_markers:
+                markers.extend(self._make_markers(pt_map, person.id, msg.header))
 
         self.publish_leg_detections(detections, msg.header)
+        if self.publish_markers:
+            self.publish_markers_array(markers, msg.header)
 
     def _make_detection3d(self, pt_map, track_id, header):
         det = Detection3D()
@@ -146,6 +174,57 @@ class LegDetectorBridgeNode(Node):
         out_msg.header.frame_id = self.map_frame
         out_msg.detections = detections
         self.leg_detections_pub.publish(out_msg)
+
+    def _make_markers(self, pt_map, track_id, header):
+        """검출 다리쌍 하나당 구체(위치) + 텍스트(라이다 트랙 ID) 마커 한 쌍을 만든다.
+
+        marker.id를 라이다 트랙 ID로 고정해 같은 사람이 프레임마다 새 마커가 아니라
+        RViz에서 하나의 마커가 매끄럽게 이동하는 것처럼 보이게 한다.
+        """
+        sphere = Marker()
+        sphere.header = header
+        sphere.header.frame_id = self.map_frame
+        sphere.ns = MARKER_NS_SPHERES
+        sphere.id = int(track_id)
+        sphere.type = Marker.SPHERE
+        sphere.action = Marker.ADD
+        sphere.pose.position = pt_map.point
+        sphere.pose.orientation.w = 1.0
+        sphere.scale.x = sphere.scale.y = sphere.scale.z = self.marker_scale
+        sphere.color = ColorRGBA(r=1.0, g=0.5, b=0.0, a=0.85)
+        sphere.lifetime = self.marker_lifetime.to_msg()
+
+        label = Marker()
+        label.header = header
+        label.header.frame_id = self.map_frame
+        label.ns = MARKER_NS_LABELS
+        label.id = int(track_id)
+        label.type = Marker.TEXT_VIEW_FACING
+        label.action = Marker.ADD
+        label.pose.position.x = pt_map.point.x
+        label.pose.position.y = pt_map.point.y
+        label.pose.position.z = pt_map.point.z + 0.25
+        label.pose.orientation.w = 1.0
+        label.scale.z = 0.15
+        label.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=0.9)
+        label.text = f'leg_{int(track_id)}'
+        label.lifetime = self.marker_lifetime.to_msg()
+
+        return [sphere, label]
+
+    def publish_markers_array(self, markers, header):
+        """매 프레임 이전 마커를 전부 지우고 다시 그린다 - 트랙 ID가 사라졌을 때 RViz에
+        유령 마커가 남는 것을 방지하는 표준적인 방식이다 (lifetime 만료에만 기대지 않는다)."""
+        out_msg = MarkerArray()
+        for ns in (MARKER_NS_SPHERES, MARKER_NS_LABELS):
+            delete_all = Marker()
+            delete_all.header = header
+            delete_all.header.frame_id = self.map_frame
+            delete_all.ns = ns
+            delete_all.action = Marker.DELETEALL
+            out_msg.markers.append(delete_all)
+        out_msg.markers.extend(markers)
+        self.marker_pub.publish(out_msg)
 
 
 def main(args=None):
