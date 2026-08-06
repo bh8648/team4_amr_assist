@@ -1,0 +1,13 @@
+pc2_goal_coordinator_node:
+  ros__parameters:
+    worker_pose_topic: /pc1/worker_pose
+    robot_status_topic: /robot_status
+    amr_goal_command_topic: /amr_goal_command
+    nav_result_topic: /amr_nav_result
+    status_topic: /pc2/status
+    loop_hz: 2.0
+    assigned_robot_id: 11
+    auto_start: true
+    # 지금은 worker pose를 그대로 goal로 쓰고, 나중에 안전 접근 offset을 넣으면 된다.
+    approach_offset_m: 0.0
+    default_goal_yaw: 0.0

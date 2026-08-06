@@ -1,0 +1,19 @@
+pc3_amr_executor_node:
+  ros__parameters:
+    robot_id: 11
+    goal_command_topic: /amr_goal_command
+    nav_status_topic: /amr_nav_status
+    nav_result_topic: /amr_nav_result
+    debug_goal_topic: /amr_debug_goal
+    amcl_pose_topic: /robot11/amcl_pose
+    odom_topic: /robot11/odom
+    loop_hz: 5.0
+    # 실제 AMR 테스트 시 false로 두고, 코드만 먼저 검증할 땐 true로 둔다.
+    simulate_nav: false
+    simulate_goal_complete_sec: 3.0
+    default_goal_yaw: 0.0
+    # RViz 2D Pose Estimate로 맞춘 값을 여기에 저장해 재사용 가능하다.
+    use_initial_pose: true
+    initial_pose_x: -2.34
+    initial_pose_y: -4.74
+    initial_pose_yaw: 0.344

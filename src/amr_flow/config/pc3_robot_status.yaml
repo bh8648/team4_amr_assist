@@ -1,0 +1,13 @@
+pc3_robot_status_node:
+  ros__parameters:
+    robot_id: 11
+    robot_status_topic: /robot_status
+    battery_topic: /robot11/battery_state
+    amcl_pose_topic: /robot11/amcl_pose
+    odom_topic: /robot11/odom
+    publish_hz: 2.0
+    battery_scale: 100.0
+    allow_poseless_publish: true
+    default_x: 0.0
+    default_y: 0.0
+    default_yaw: 0.0

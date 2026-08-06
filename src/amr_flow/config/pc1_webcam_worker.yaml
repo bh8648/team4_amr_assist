@@ -1,0 +1,27 @@
+pc1_webcam_worker_node:
+  ros__parameters:
+    camera_index: 2
+    model_path: /home/rokey/Downloads/yolov8n-pose.pt
+    worker_pose_topic: /pc1/worker_pose
+    worker_status_topic: /pc1/worker_status
+    loop_hz: 10.0
+    confidence_threshold: 0.25
+    show_window: true
+    window_name: PC1 YOLO Worker View
+    # 웹캠 팀이 주는 실제 보정값을 나중에 아래 9개에 넣으면 된다.
+    # 순서: [h11, h12, h13, h21, h22, h23, h31, h32, h33]
+    homography_matrix:
+      - 0.008087170952447187
+      - -0.020677104240030234
+      - -0.14123126419865004
+      - 0.0006336569481489647
+      - -0.017602362944761578
+      - 2.375288437145098
+      - -0.003140156246186425
+      - 0.005126220164708837
+      - 1.0
+    # 아직 보정값이 없을 때도 전체 시나리오를 돌려보기 위한 임시 mock pose.
+    use_mock_pose_without_homography: false
+    mock_worker_x: 1.0
+    mock_worker_y: 0.0
+    mock_worker_yaw: 0.0
