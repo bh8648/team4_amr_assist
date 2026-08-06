@@ -15,7 +15,7 @@ RGB(compressed) + Depth(compressedDepth) 시간동기 구독 (CameraInfo는 별�
   -> vision_msgs/Detection3DArray로 발행
 
 [유효 거리 - 실측 기하 기준]
-이 카메라는 base_link 기준 z=0.244m에 틸트 없이 수평으로 달려 있고 FOV는 63.8°다.
+이 카메라는 틸트 없이 수평으로 달려 있고 FOV는 63.8°다.
 따라서 거리별로 보이는 최대 높이가 1.0m->0.87m, 1.5m->1.18m, 2.0m->1.49m, 2.5m->1.80m이라
 2.5m 이내에서는 사람 머리가 항상 잘린다. 반대로 지면은 0.39m 앞부터 화각에 들어와
 발끝은 오히려 근접할수록 잘 보인다. 또 스테레오 최소 측정거리 때문에 0.7m 아래는 depth가 없다.
@@ -49,6 +49,7 @@ import cv2
 import numpy as np
 import rclpy
 from rclpy.duration import Duration
+from rclpy.executors import MultiThreadedExecutor
 from rclpy.node import Node
 from rclpy.qos import (
     DurabilityPolicy,
@@ -634,11 +635,20 @@ def _stamp_to_sec(stamp):
 def main(args=None):
     rclpy.init(args=args)
     node = OakdDetectorNode()
+    # tf2_ros.TransformListener는 자신의 구독을 ReentrantCallbackGroup에 등록해두지만,
+    # 기본 rclpy.spin()이 쓰는 SingleThreadedExecutor는 스레드가 하나뿐이라 그룹을 나눠봐야
+    # 소용이 없다 - sync_callback 안에서 tf_buffer.transform()이 대기하는 동안 같은 스레드가
+    # /tf 구독 콜백도 처리해야 해서, 실제로는 새 tf가 안 들어오고 매번 tf_timeout을 거의
+    # 다 채우고서야 풀린다. MultiThreadedExecutor로 스레드를 분리해야 tf 콜백이 그 사이에
+    # 끼어들어 처리될 수 있다.
+    executor = MultiThreadedExecutor()
+    executor.add_node(node)
     try:
-        rclpy.spin(node)
+        executor.spin()
     except KeyboardInterrupt:
         pass
     finally:
+        executor.shutdown()
         node.destroy_node()
         rclpy.shutdown()
 
