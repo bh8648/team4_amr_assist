@@ -30,6 +30,9 @@ setup(
         'console_scripts': [
             'camera_publisher = person_locator.camera_publisher:main',
             'calibrate_homography = person_locator.calibrate_homography:main',
+            'pick_pixel_points = person_locator.pick_pixel_points:main',
+            'log_amr_positions = person_locator.log_amr_positions:main',
+            'compute_homography_from_points = person_locator.compute_homography_from_points:main',
             'pose_locator_node = person_locator.pose_locator_node:main',
             'person_tf_broadcaster_node = person_locator.person_tf_broadcaster_node:main',
         ],
