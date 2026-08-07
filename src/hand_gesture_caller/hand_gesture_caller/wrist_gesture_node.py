@@ -163,12 +163,19 @@ class WristGestureNode(Node):
 
         self.declare_parameter('publish_debug_overlay', True)
         self.declare_parameter('debug_overlay_topic', 'person/gesture_debug_image/compressed')
+        # 임계값 튜닝용: ratio를 rqt_image_view 없이 터미널 로그로 바로 보고
+        # 싶을 때 켜는 옵션. throttle을 걸어서 스팸은 안 나되, 손을 폈다
+        # 쥐었다 하는 동안 값 변화를 눈으로 따라가기엔 충분한 주기로 찍음
+        self.declare_parameter('log_ratio', True)
+        self.declare_parameter('log_ratio_period_sec', 0.3)
 
         wrist_roi_topic = self.get_parameter('wrist_roi_topic').value
         call_trigger_topic = self.get_parameter('call_trigger_topic').value
         min_detection_confidence = self.get_parameter('min_detection_confidence').value
         self.publish_debug_overlay = self.get_parameter('publish_debug_overlay').value
         debug_overlay_topic = self.get_parameter('debug_overlay_topic').value
+        self.log_ratio = self.get_parameter('log_ratio').value
+        self.log_ratio_period_sec = self.get_parameter('log_ratio_period_sec').value
 
         self.hands = mp.solutions.hands.Hands(
             static_image_mode=True,
@@ -219,6 +226,17 @@ class WristGestureNode(Node):
         if triggered:
             self.get_logger().info('제스처 확정("폈다-쥐었다-폈다") -> call_trigger publish')
             self.trigger_pub.publish(Empty())
+
+        if self.log_ratio:
+            ratio_str = f'{ratio:.2f}' if ratio is not None else 'no_hand'
+            # open/closed_ratio_threshold도 같이 찍어서, 로그만 보고도 지금
+            # 값이 히스테리시스 밴드 어느 쪽에 있는지 바로 판단할 수 있게 함
+            self.get_logger().info(
+                f'ratio={ratio_str}  phase={self.state_machine.phase}  '
+                f'(open>={self.state_machine.open_threshold}, '
+                f'closed<={self.state_machine.closed_threshold})',
+                throttle_duration_sec=self.log_ratio_period_sec,
+            )
 
         if self.publish_debug_overlay:
             self._publish_debug_overlay(roi, landmarks, ratio)
