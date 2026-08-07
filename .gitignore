@@ -3,3 +3,6 @@
 
 # Separate project/repository; not part of the AMR HMI branch
 /mini_project/
+
+# superpowers subagent-driven-development scratch workspace
+/.superpowers/
