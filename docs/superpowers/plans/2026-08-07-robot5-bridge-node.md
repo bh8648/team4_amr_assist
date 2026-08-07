@@ -752,7 +752,9 @@ def _valid_person_pose(x=1.0, y=2.0):
 
 
 def _invalid_person_pose():
-    return PoseStamped()  # orientation 전부 0.0 (기본값) = 무효
+    msg = PoseStamped()
+    msg.pose.orientation.w = 0.0  # geometry_msgs/Quaternion 기본값은 w=1.0(유효)이므로 명시적으로 0으로 만들어야 무효 케이스가 됨
+    return msg
 
 
 def test_task_state_callback_filters_by_robot_id():
