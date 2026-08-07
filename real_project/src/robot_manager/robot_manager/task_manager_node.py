@@ -38,7 +38,7 @@ class TaskManagerNode(Node):
     def __init__(self):
         super().__init__('task_manager_node')
         self.declare_parameter('robot5_dock_pose', [0.0, 0.0, 0.0])
-        self.declare_parameter('robot11_dock_pose', [0.0, 0.0, 0.0])
+        self.declare_parameter('robot11_dock_pose', [-2.235, -5.022, -1.528])
         self.tasks: Dict[str, ManagedTask] = {}
         self.idle_paused: Set[str] = set()
         self.assignment_sub = self.create_subscription(RobotAssignment, '/robot_assignment', self.assignment_callback, 10)

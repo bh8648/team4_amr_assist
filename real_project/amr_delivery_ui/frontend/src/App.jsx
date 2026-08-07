@@ -33,7 +33,7 @@ function LoginScreen({ onLogin }) {
 function taskInfo(robot) {
   const task = robot.current_task;
   const state = task?.state || task?.status;
-  const active = ACTIVE.has(robot.mode) || (task && !['COMPLETED', 'DELIVERED', 'CANCELLED', 'FAILED'].includes(state));
+  const active = ACTIVE.has(state || robot.mode);
   return { task, state, active };
 }
 
@@ -221,7 +221,7 @@ export default function App() {
 
       <aside className="control-rail">
         {selected ? <>
-          <section className="selected-unit"><div><small>SELECTED UNIT</small><h2>{selected.robot_id.toUpperCase()}</h2><p>{LABELS[selected.mode] || selected.mode} · X {selected.pose_x.toFixed(2)}, Y {selected.pose_y.toFixed(2)}</p></div><span className={IDLE.has(selected.mode) ? 'ready' : ''}>{IDLE.has(selected.mode) ? '수동 제어 가능' : '작업 수행 중'}</span></section>
+          <section className="selected-unit"><div><small>SELECTED UNIT</small><h2>{selected.robot_id.toUpperCase()}</h2><p>{LABELS[selected.mode] || selected.mode} · X {selected.pose_x.toFixed(2)}, Y {selected.pose_y.toFixed(2)}</p></div><span className={IDLE.has(selected.mode) ? 'ready' : ''}>{selectedTask.active ? '작업 수행 중' : selected.mode === 'DOCKED' ? '도킹 상태' : selected.mode === 'ERROR' ? '오류 상태' : '수동 제어 가능'}</span></section>
 
           <section className="quick-actions"><header><strong>작업·안전 제어</strong></header><div><button className="cancel" disabled={busy || !selectedTask.active} onClick={() => window.confirm(`${selected.robot_id.toUpperCase()} 작업을 취소할까요?`) && execute(() => robotApi.cancelTask(selected.robot_id), '작업 취소 요청 완료')}>작업 취소</button><button className={`pause ${selected.estopped ? 'resume' : ''}`} disabled={busy} onClick={() => execute(() => robotApi.setEstop(!selected.estopped, selected.robot_id), selected.estopped ? '운행 재개 요청 완료' : '일시정지 요청 완료')}>{selected.estopped ? '운행 재개' : '일시정지'}</button></div></section>
 

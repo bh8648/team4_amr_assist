@@ -52,7 +52,7 @@ class DbManagerNode(Node):
         current_time = self.get_clock().now().nanoseconds / 1e9  # 초 단위 변환
         
         # msg.robot_id는 string ('robot5' 또는 'robot11')
-        robot_id = msg.robot_id
+        robot_id = str(msg.robot_id)
         self.last_msg_time[robot_id] = current_time
         self.latest_status[robot_id] = msg
 
@@ -63,26 +63,28 @@ class DbManagerNode(Node):
         # task_id가 없거나 비어있으면 None(NULL) 매핑
         task_id = msg.task_id if getattr(msg, 'task_id', None) else None
 
-        query = """
+        # 에러 코드 DB에 저장
+        query = """     
             INSERT INTO error_logs (robot_id, task_id, error_code)
             VALUES (?, ?, ?)
         """
-        data = (msg.robot_id, task_id, msg.error_code)
+        data = (str(msg.robot_id), task_id, msg.error_code)
 
         try:
-            cursor.execute(query, data)
+            cursor.execute(query, data) 
             self.conn.commit()  # 에러 로그는 즉시 DB 반영
             self.get_logger().warn(f'[{msg.robot_id}] 오류 기록 완료: {msg.error_code}')
         except sqlite3.Error as e:
             self.get_logger().error(f'[{msg.robot_id}] 에러 로그 DB 저장 실패: {e}')
 
-    def assignment_callback(self, msg):
+    def assignment_callback(self, msg):     # AMR 배정 정보를 DB에 저장
         """배정 결과를 tasks 테이블에 기록한다."""
         if not msg.assigned:
             self.get_logger().warn('가용 AMR이 없어 작업이 생성되지 않았습니다.')
             return
 
-        assigned_at = datetime.fromtimestamp(msg.assigned_at.sec + msg.assigned_at.nanosec / 1e9).strftime('%Y-%m-%d %H:%M:%S')
+        assigned_at = datetime.fromtimestamp(msg.assigned_at.sec + msg.assigned_at.nanosec / 1e9).strftime('%Y-%m-%d %H:%M:%S') 
+        # AMR 배정 시간, 날짜 형식으로 변환(할당 시간)
         task_id = f'TASK_{msg.assigned_at.sec}_{msg.assigned_at.nanosec}'
         cursor = self.conn.cursor()
         destination = cursor.execute(
@@ -152,7 +154,7 @@ class DbManagerNode(Node):
             # 연결 여부는 별도의 online 컬럼에 저장한다.
             task_state = self.task_states.get(str(robot_id))
             robot_state = task_state.state if task_state else "DOCKED"
-            task_id = task_state.task_id if task_state and task_state.state not in ('DOCKED', 'ERROR') else None if task_state else msg.current_task_id or None
+            task_id = task_state.task_id if task_state and task_state.state not in ('DOCKED', 'ERROR') else None
 
             query = """
                 INSERT INTO robot_status_logs (

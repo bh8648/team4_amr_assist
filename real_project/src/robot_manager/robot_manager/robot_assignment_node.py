@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 import rclpy
+from ament_index_python.packages import get_package_prefix
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
@@ -31,7 +32,9 @@ class RobotAssignmentNode(Node):
         self.declare_parameter('assignment_timeout_sec', 60.0)      # 배정을 대기할 시간
         self.declare_parameter('retry_interval_sec', 5.0)           # 배정 실패시 5초 대기 후 재배정 시도
         self.declare_parameter('duplicate_goal_tolerance_m', 0.2)   # 동일한 호출 좌표가 반복 발행될 때 무시할 거리 허용치 (미터)
-        self.declare_parameter('map_yaml_path', os.environ.get('AMR_MAP_YAML', os.path.abspath('amr_delivery_ui/frontend/maps/map2.yaml')))
+        project_root = Path(get_package_prefix('robot_manager')).resolve().parents[1]
+        default_map_path = project_root / 'amr_delivery_ui/frontend/maps/map2.yaml'
+        self.declare_parameter('map_yaml_path', os.environ.get('AMR_MAP_YAML', str(default_map_path)))
 
         self.status_timeout_sec = float(
             self.get_parameter('status_timeout_sec').value
@@ -61,7 +64,10 @@ class RobotAssignmentNode(Node):
             self.get_parameter('duplicate_goal_tolerance_m').value
         )
 
-        self.map_yaml_path = Path(os.path.expanduser(self.get_parameter('map_yaml_path').value)).resolve()
+        configured_map_path = Path(os.path.expanduser(self.get_parameter('map_yaml_path').value))
+        self.map_yaml_path = (configured_map_path if configured_map_path.is_absolute() else project_root / configured_map_path).resolve()
+        if not self.map_yaml_path.is_file():
+            self.map_yaml_path = default_map_path.resolve()
         self.map_min_x, self.map_max_x, self.map_min_y, self.map_max_y = self.load_map_bounds()
 
         # robot_id -> (RobotStatus, 마지막 수신 시각)
@@ -186,12 +192,6 @@ class RobotAssignmentNode(Node):
 
         return age_sec <= self.status_timeout_sec
 
-    @staticmethod
-    def is_robot_busy(status: RobotStatus) -> bool:     # 로봇 상태가 작업 중인지 판단
-        current_task_id = str(getattr(status, 'current_task_id', '')).strip()
-
-        return bool(current_task_id)
-
     def is_managed_robot_busy(self, robot_id: str) -> bool:
         return self.managed_states.get(robot_id, 'DOCKED') != 'DOCKED'
 
@@ -216,7 +216,7 @@ class RobotAssignmentNode(Node):
                 continue
 
             # 3. 현재 작업 여부 검사
-            if self.is_robot_busy(status) or self.is_managed_robot_busy(robot_id):
+            if self.is_managed_robot_busy(robot_id):
                 continue
 
             # 4. 최소 배터리 검사
@@ -255,7 +255,7 @@ class RobotAssignmentNode(Node):
         if not fresh_statuses:      # 유효한 시간 범위 내에 통신이 들어온 로봇 상태가 없는 경우
             return 'AMR_OFFLINE'
 
-        idle_statuses = [status for robot_id, (status, received_at) in self.robot_statuses.items() if self.is_status_fresh(received_at, now) and not self.is_robot_busy(status) and not self.is_managed_robot_busy(robot_id)]
+        idle_statuses = [status for robot_id, (status, received_at) in self.robot_statuses.items() if self.is_status_fresh(received_at, now) and not self.is_managed_robot_busy(robot_id)]
 
         if not idle_statuses:       # 로봇이 모두 작업 중인 경우
             return 'ALL_AMR_BUSY'

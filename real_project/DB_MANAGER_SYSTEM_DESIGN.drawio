@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-08-07T15:30:00.000Z" agent="Codex" version="24.7.17">
+  <diagram id="db-manager-system" name="DB Manager 시스템 설계도">
+    <mxGraphModel dx="1600" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="title" value="DB Manager Node 시스템 설계도" style="text;html=1;align=center;verticalAlign=middle;fontSize=26;fontStyle=1;fontColor=#1F2937;" vertex="1" parent="1">
+          <mxGeometry x="450" y="20" width="700" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="subtitle" value="ROS 2 인터페이스 → 데이터 결합·판단 → SQLite 저장 → HMI 조회" style="text;html=1;align=center;verticalAlign=middle;fontSize=14;fontColor=#64748B;" vertex="1" parent="1">
+          <mxGeometry x="450" y="65" width="700" height="30" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="robot" value="&lt;b&gt;AMR robot5 / robot11&lt;/b&gt;&lt;br&gt;&lt;br&gt;로봇 센서·상태 원천" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;strokeWidth=2;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="40" y="150" width="210" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="allocation" value="&lt;b&gt;AMR Allocation Node&lt;/b&gt;&lt;br&gt;&lt;br&gt;AMR 배정 결과" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#7C3AED;strokeWidth=2;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="40" y="310" width="210" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="task" value="&lt;b&gt;Task Manager Node&lt;/b&gt;&lt;br&gt;&lt;br&gt;Task·로봇 상태 전환" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=2;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="40" y="470" width="210" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="errorsource" value="&lt;b&gt;오류 발생 노드&lt;/b&gt;&lt;br&gt;&lt;br&gt;로봇·배정·Task 등" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#DC2626;strokeWidth=2;fontSize=15;" vertex="1" parent="1">
+          <mxGeometry x="40" y="630" width="210" height="100" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="topic_status" value="&lt;b&gt;/robot_status&lt;/b&gt;&lt;br&gt;RobotStatus&lt;hr&gt;robot_id&lt;br&gt;battery&lt;br&gt;x · y · yaw&lt;br&gt;&lt;font color=&quot;#0284C7&quot;&gt;QoS: BEST_EFFORT&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0F9FF;strokeColor=#38BDF8;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="300" y="125" width="220" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="topic_assignment" value="&lt;b&gt;/robot_assignment&lt;/b&gt;&lt;br&gt;RobotAssignment&lt;hr&gt;assigned · assigned_at&lt;br&gt;robot_id&lt;br&gt;target_x · target_y" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F3FF;strokeColor=#A78BFA;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="300" y="300" width="220" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="topic_task" value="&lt;b&gt;/task/state&lt;/b&gt;&lt;br&gt;TaskState&lt;hr&gt;task_id · robot_id&lt;br&gt;state · previous_state&lt;br&gt;goal_type · target · detail" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#F59E0B;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="300" y="455" width="220" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="topic_error" value="&lt;b&gt;/robot_error&lt;/b&gt;&lt;br&gt;RobotError&lt;hr&gt;robot_id&lt;br&gt;task_id (없으면 NULL)&lt;br&gt;error_code" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF2F2;strokeColor=#F87171;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="300" y="620" width="220" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="dbmanager" value="&lt;b&gt;db_manager_node&lt;/b&gt;" style="swimlane;html=1;rounded=1;startSize=42;fillColor=#F8FAFC;strokeColor=#334155;strokeWidth=3;fontSize=18;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="580" y="115" width="360" height="650" as="geometry"/>
+        </mxCell>
+        <mxCell id="status_cache" value="&lt;b&gt;최신 로봇 상태 보관&lt;/b&gt;&lt;br&gt;robot_id별 최신 RobotStatus&lt;br&gt;마지막 수신 시각" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontSize=13;" vertex="1" parent="dbmanager">
+          <mxGeometry x="30" y="70" width="300" height="85" as="geometry"/>
+        </mxCell>
+        <mxCell id="online_calc" value="&lt;b&gt;통신 상태 계산&lt;/b&gt;&lt;br&gt;최근 수신 간격 &lt; 5초 → ONLINE&lt;br&gt;그 외 → OFFLINE" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#10B981;fontSize=13;" vertex="1" parent="dbmanager">
+          <mxGeometry x="30" y="180" width="300" height="85" as="geometry"/>
+        </mxCell>
+        <mxCell id="task_cache" value="&lt;b&gt;Task 상태 보관&lt;/b&gt;&lt;br&gt;robot_id별 최신 TaskState&lt;br&gt;state · task_id의 기준 데이터" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;fontSize=13;" vertex="1" parent="dbmanager">
+          <mxGeometry x="30" y="290" width="300" height="85" as="geometry"/>
+        </mxCell>
+        <mxCell id="merge" value="&lt;b&gt;1초마다 상태 데이터 결합&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#0284C7&quot;&gt;로봇:&lt;/font&gt; ID · 배터리 · 위치 · 방향&lt;br&gt;&lt;font color=&quot;#D97706&quot;&gt;Task Manager:&lt;/font&gt; state · current_task_id&lt;br&gt;&lt;font color=&quot;#059669&quot;&gt;DB Manager:&lt;/font&gt; online · recorded_at" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#475569;strokeWidth=2;fontSize=13;" vertex="1" parent="dbmanager">
+          <mxGeometry x="30" y="400" width="300" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="immediate" value="&lt;b&gt;이벤트 즉시 저장&lt;/b&gt;&lt;br&gt;배정 결과 → Task 생성&lt;br&gt;Task 전환 → Task 갱신&lt;br&gt;오류 → 오류 로그 생성" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7ED;strokeColor=#EA580C;fontSize=13;" vertex="1" parent="dbmanager">
+          <mxGeometry x="30" y="535" width="300" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="database" value="&lt;b&gt;SQLite · amr.db&lt;/b&gt;" style="swimlane;html=1;rounded=1;startSize=42;fillColor=#F8FAFC;strokeColor=#0F766E;strokeWidth=3;fontSize=18;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="115" width="340" height="650" as="geometry"/>
+        </mxCell>
+        <mxCell id="table_status" value="&lt;b&gt;robot_status_logs&lt;/b&gt;&lt;br&gt;robot_id · online · state&lt;br&gt;current_task_id&lt;br&gt;battery · position_x/y · yaw&lt;br&gt;recorded_at" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ECFEFF;strokeColor=#0891B2;fontSize=13;" vertex="1" parent="database">
+          <mxGeometry x="25" y="65" width="290" height="115" as="geometry"/>
+        </mxCell>
+        <mxCell id="table_tasks" value="&lt;b&gt;tasks&lt;/b&gt;&lt;br&gt;task_id · assigned_robot_id&lt;br&gt;destination_id · state · result&lt;br&gt;created_at · completed_at" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#D97706;fontSize=13;" vertex="1" parent="database">
+          <mxGeometry x="25" y="210" width="290" height="105" as="geometry"/>
+        </mxCell>
+        <mxCell id="table_error" value="&lt;b&gt;error_logs&lt;/b&gt;&lt;br&gt;error_id · robot_id&lt;br&gt;task_id · error_code · occurred_at" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEF2F2;strokeColor=#DC2626;fontSize=13;" vertex="1" parent="database">
+          <mxGeometry x="25" y="345" width="290" height="90" as="geometry"/>
+        </mxCell>
+        <mxCell id="table_destination" value="&lt;b&gt;destinations&lt;/b&gt;&lt;br&gt;destination_id · destination_name&lt;br&gt;position_x · position_y&lt;br&gt;&lt;font color=&quot;#64748B&quot;&gt;배정 목표와 목적지 ID 연결&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FDFA;strokeColor=#0D9488;fontSize=13;" vertex="1" parent="database">
+          <mxGeometry x="25" y="465" width="290" height="95" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="backend" value="&lt;b&gt;HMI Backend Node&lt;/b&gt;&lt;br&gt;최신 로봇 상태·Task·오류·테이블 조회" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=2;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="825" width="340" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="hmi" value="&lt;b&gt;React HMI&lt;/b&gt;&lt;br&gt;지도 관제 · 상태창 · DB 관제" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;strokeWidth=2;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="1010" y="965" width="340" height="80" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="legend" value="&lt;b&gt;데이터 소유권&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#0284C7&quot;&gt;■ 로봇 원천 데이터&lt;/font&gt;&amp;nbsp;&amp;nbsp; &lt;font color=&quot;#D97706&quot;&gt;■ Task Manager 데이터&lt;/font&gt;&amp;nbsp;&amp;nbsp; &lt;font color=&quot;#059669&quot;&gt;■ DB Manager 계산 데이터&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;fontSize=13;align=center;" vertex="1" parent="1">
+          <mxGeometry x="330" y="835" width="600" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e1" value="발행" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#0284C7;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="robot" target="topic_status"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e2" value="구독" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#0284C7;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="topic_status" target="status_cache"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e3" value="발행" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#7C3AED;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="allocation" target="topic_assignment"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e4" value="구독" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#7C3AED;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="topic_assignment" target="immediate"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e5" value="발행" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#D97706;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="task" target="topic_task"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e6" value="구독" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#D97706;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="topic_task" target="task_cache"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e7" value="발행" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#DC2626;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="errorsource" target="topic_error"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e8" value="구독" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#DC2626;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="topic_error" target="immediate"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e9" value="수신 시각" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#10B981;fontSize=12;" edge="1" parent="1" source="status_cache" target="online_calc"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e10" value="1초 주기 결합" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#475569;fontSize=12;" edge="1" parent="1" source="online_calc" target="merge"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e11" value="state · task_id" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#D97706;fontSize=12;" edge="1" parent="1" source="task_cache" target="merge"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e12" value="INSERT · 1초" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#0891B2;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="merge" target="table_status"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e13" value="INSERT / UPDATE" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#D97706;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="immediate" target="table_tasks"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e14" value="INSERT · 즉시" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#DC2626;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="immediate" target="table_error"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e15" value="좌표로 destination_id 조회" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;startArrow=block;startFill=1;endArrow=block;endFill=1;strokeColor=#0D9488;fontSize=12;" edge="1" parent="1" source="immediate" target="table_destination"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e16" value="SELECT · 읽기 전용" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#2563EB;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="database" target="backend"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="e17" value="REST API · JSON" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#16A34A;strokeWidth=2;fontSize=12;" edge="1" parent="1" source="backend" target="hmi"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="db-manager-detail-flow" name="DB 내부 상세 Flow">
+    <mxGraphModel dx="1800" dy="1100" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="d0"/>
+        <mxCell id="d1" parent="d0"/>
+
+        <mxCell id="d_title" value="DB Manager 내부 상세 Flow Chart" style="text;html=1;align=center;verticalAlign=middle;fontSize=26;fontStyle=1;fontColor=#1F2937;" vertex="1" parent="d1"><mxGeometry x="480" y="20" width="840" height="45" as="geometry"/></mxCell>
+        <mxCell id="d_subtitle" value="메시지 수신부터 판단·결합·SQLite 반영까지 (코드 표현 제외)" style="text;html=1;align=center;verticalAlign=middle;fontSize=14;fontColor=#64748B;" vertex="1" parent="d1"><mxGeometry x="480" y="65" width="840" height="30" as="geometry"/></mxCell>
+
+        <mxCell id="lane_status" value="① 로봇 상태 로그 · 1초 주기" style="swimlane;html=1;rounded=1;startSize=36;fillColor=#F0F9FF;strokeColor=#0284C7;strokeWidth=2;fontSize=16;fontStyle=1;" vertex="1" parent="d1"><mxGeometry x="30" y="115" width="1740" height="225" as="geometry"/></mxCell>
+        <mxCell id="s_receive" value="/robot_status 수신&lt;br&gt;&lt;b&gt;RobotStatus&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontSize=13;" vertex="1" parent="lane_status"><mxGeometry x="25" y="75" width="150" height="70" as="geometry"/></mxCell>
+        <mxCell id="s_cache" value="robot_id별&lt;br&gt;&lt;b&gt;최신 상태·수신 시각&lt;/b&gt;&lt;br&gt;메모리 갱신" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0284C7;fontSize=13;" vertex="1" parent="lane_status"><mxGeometry x="215" y="65" width="175" height="90" as="geometry"/></mxCell>
+        <mxCell id="s_timer" value="1초 저장&lt;br&gt;주기 도래" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#059669;fontSize=13;" vertex="1" parent="lane_status"><mxGeometry x="440" y="65" width="120" height="90" as="geometry"/></mxCell>
+        <mxCell id="s_exists" value="수신한 로봇&lt;br&gt;상태가 있는가?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;fontSize=13;" vertex="1" parent="lane_status"><mxGeometry x="610" y="65" width="135" height="90" as="geometry"/></mxCell>
+        <mxCell id="s_online" value="마지막 수신 간격 계산&lt;br&gt;&lt;b&gt;5초 미만: ONLINE&lt;/b&gt;&lt;br&gt;&lt;b&gt;5초 이상: OFFLINE&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#10B981;fontSize=13;" vertex="1" parent="lane_status"><mxGeometry x="795" y="60" width="210" height="100" as="geometry"/></mxCell>
+        <mxCell id="s_task" value="최신 TaskState 결합&lt;br&gt;&lt;b&gt;있음: state·task_id&lt;/b&gt;&lt;br&gt;&lt;b&gt;없음: DOCKED·NULL&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFBEB;strokeColor=#D97706;fontSize=13;" vertex="1" parent="lane_status"><mxGeometry x="1055" y="60" width="210" height="100" as="geometry"/></mxCell>
+        <mxCell id="s_merge" value="최종 상태 행 구성&lt;br&gt;&lt;font color=&quot;#0284C7&quot;&gt;로봇: ID·배터리·Pose&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#D97706&quot;&gt;Task: state·task_id&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#059669&quot;&gt;DB: online·시각&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#475569;strokeWidth=2;fontSize=13;" vertex="1" parent="lane_status"><mxGeometry x="1315" y="55" width="210" height="110" as="geometry"/></mxCell>
+        <mxCell id="s_insert" value="robot_status_logs&lt;br&gt;&lt;b&gt;INSERT + COMMIT&lt;/b&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#CFFAFE;strokeColor=#0891B2;strokeWidth=2;fontSize=13;" vertex="1" parent="lane_status"><mxGeometry x="1570" y="60" width="140" height="100" as="geometry"/></mxCell>
+        <mxCell id="s_none" value="이번 주기 저장 없음" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F5F9;strokeColor=#94A3B8;fontSize=12;" vertex="1" parent="lane_status"><mxGeometry x="605" y="165" width="145" height="35" as="geometry"/></mxCell>
+
+        <mxCell id="lane_assignment" value="② AMR 배정 결과 · 이벤트 즉시 처리" style="swimlane;html=1;rounded=1;startSize=36;fillColor=#F5F3FF;strokeColor=#7C3AED;strokeWidth=2;fontSize=16;fontStyle=1;" vertex="1" parent="d1"><mxGeometry x="30" y="365" width="1740" height="205" as="geometry"/></mxCell>
+        <mxCell id="a_receive" value="/robot_assignment 수신&lt;br&gt;&lt;b&gt;RobotAssignment&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#EDE9FE;strokeColor=#7C3AED;fontSize=13;" vertex="1" parent="lane_assignment"><mxGeometry x="25" y="65" width="175" height="70" as="geometry"/></mxCell>
+        <mxCell id="a_assigned" value="배정 성공인가?&lt;br&gt;&lt;b&gt;assigned = true&lt;/b&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;fontSize=13;" vertex="1" parent="lane_assignment"><mxGeometry x="250" y="55" width="145" height="90" as="geometry"/></mxCell>
+        <mxCell id="a_ignore" value="Task 생성 안 함&lt;br&gt;배정 실패 기록만 출력" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1F5F9;strokeColor=#94A3B8;fontSize=12;" vertex="1" parent="lane_assignment"><mxGeometry x="245" y="150" width="155" height="40" as="geometry"/></mxCell>
+        <mxCell id="a_taskid" value="배정 시각으로&lt;br&gt;&lt;b&gt;task_id 생성&lt;/b&gt;&lt;br&gt;robot_id·목표 좌표 확보" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7C3AED;fontSize=13;" vertex="1" parent="lane_assignment"><mxGeometry x="450" y="55" width="190" height="90" as="geometry"/></mxCell>
+        <mxCell id="a_lookup" value="destinations에서&lt;br&gt;목표 X·Y 일치 여부 조회" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0FDFA;strokeColor=#0D9488;fontSize=13;" vertex="1" parent="lane_assignment"><mxGeometry x="690" y="55" width="200" height="90" as="geometry"/></mxCell>
+        <mxCell id="a_dest" value="목적지가 있는가?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;fontSize=13;" vertex="1" parent="lane_assignment"><mxGeometry x="940" y="55" width="135" height="90" as="geometry"/></mxCell>
+        <mxCell id="a_value" value="있음: destination_id 연결&lt;br&gt;없음: destination_id = NULL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0D9488;fontSize=13;" vertex="1" parent="lane_assignment"><mxGeometry x="1125" y="55" width="220" height="90" as="geometry"/></mxCell>
+        <mxCell id="a_upsert" value="tasks&lt;br&gt;&lt;b&gt;신규 INSERT&lt;/b&gt;&lt;br&gt;동일 task_id면 UPDATE&lt;br&gt;초기 state = ASSIGNED" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=2;fontSize=13;" vertex="1" parent="lane_assignment"><mxGeometry x="1410" y="45" width="180" height="110" as="geometry"/></mxCell>
+        <mxCell id="a_commit" value="COMMIT&lt;br&gt;Task 생성 완료" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontSize=13;" vertex="1" parent="lane_assignment"><mxGeometry x="1630" y="65" width="90" height="70" as="geometry"/></mxCell>
+
+        <mxCell id="lane_task" value="③ Task 상태 전환 · 이벤트 즉시 처리" style="swimlane;html=1;rounded=1;startSize=36;fillColor=#FFFBEB;strokeColor=#D97706;strokeWidth=2;fontSize=16;fontStyle=1;" vertex="1" parent="d1"><mxGeometry x="30" y="595" width="1740" height="190" as="geometry"/></mxCell>
+        <mxCell id="t_receive" value="/task/state 수신&lt;br&gt;&lt;b&gt;TaskState&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;fontSize=13;" vertex="1" parent="lane_task"><mxGeometry x="25" y="60" width="165" height="70" as="geometry"/></mxCell>
+        <mxCell id="t_cache" value="robot_id별&lt;br&gt;&lt;b&gt;최신 TaskState 갱신&lt;/b&gt;&lt;br&gt;상태 로그 결합에 사용" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#D97706;fontSize=13;" vertex="1" parent="lane_task"><mxGeometry x="240" y="50" width="210" height="90" as="geometry"/></mxCell>
+        <mxCell id="t_terminal" value="종료 상태인가?&lt;br&gt;&lt;b&gt;DOCKED / ERROR&lt;/b&gt;" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;fontSize=13;" vertex="1" parent="lane_task"><mxGeometry x="510" y="50" width="155" height="90" as="geometry"/></mxCell>
+        <mxCell id="t_time" value="종료 상태&lt;br&gt;completed_at = 현재 시각" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#DC2626;fontSize=13;" vertex="1" parent="lane_task"><mxGeometry x="735" y="42" width="190" height="65" as="geometry"/></mxCell>
+        <mxCell id="t_keep" value="진행 상태&lt;br&gt;completed_at 유지" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#10B981;fontSize=13;" vertex="1" parent="lane_task"><mxGeometry x="735" y="112" width="190" height="55" as="geometry"/></mxCell>
+        <mxCell id="t_values" value="저장 데이터 구성&lt;br&gt;task_id · robot_id · state&lt;br&gt;result = detail" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#475569;fontSize=13;" vertex="1" parent="lane_task"><mxGeometry x="995" y="50" width="210" height="90" as="geometry"/></mxCell>
+        <mxCell id="t_upsert" value="tasks&lt;br&gt;&lt;b&gt;없으면 INSERT&lt;/b&gt;&lt;br&gt;&lt;b&gt;있으면 상태 UPDATE&lt;/b&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#FEF3C7;strokeColor=#D97706;strokeWidth=2;fontSize=13;" vertex="1" parent="lane_task"><mxGeometry x="1280" y="45" width="180" height="100" as="geometry"/></mxCell>
+        <mxCell id="t_commit" value="COMMIT&lt;br&gt;상태 전환 반영" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontSize=13;" vertex="1" parent="lane_task"><mxGeometry x="1530" y="60" width="145" height="70" as="geometry"/></mxCell>
+
+        <mxCell id="lane_error" value="④ 오류 로그 · 이벤트 즉시 처리" style="swimlane;html=1;rounded=1;startSize=36;fillColor=#FEF2F2;strokeColor=#DC2626;strokeWidth=2;fontSize=16;fontStyle=1;" vertex="1" parent="d1"><mxGeometry x="30" y="810" width="1740" height="175" as="geometry"/></mxCell>
+        <mxCell id="r_receive" value="/robot_error 수신&lt;br&gt;&lt;b&gt;RobotError&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FEE2E2;strokeColor=#DC2626;fontSize=13;" vertex="1" parent="lane_error"><mxGeometry x="25" y="55" width="170" height="70" as="geometry"/></mxCell>
+        <mxCell id="r_task" value="task_id가 있는가?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;fontSize=13;" vertex="1" parent="lane_error"><mxGeometry x="270" y="45" width="145" height="90" as="geometry"/></mxCell>
+        <mxCell id="r_value" value="있음: task_id 유지&lt;br&gt;없음/빈 문자열: NULL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#DC2626;fontSize=13;" vertex="1" parent="lane_error"><mxGeometry x="500" y="55" width="210" height="70" as="geometry"/></mxCell>
+        <mxCell id="r_fk" value="Task 연결 가능 시 FK 유지&lt;br&gt;Task 없는 시스템 오류도 저장 가능" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF7ED;strokeColor=#EA580C;fontSize=13;" vertex="1" parent="lane_error"><mxGeometry x="790" y="50" width="240" height="80" as="geometry"/></mxCell>
+        <mxCell id="r_insert" value="error_logs&lt;br&gt;&lt;b&gt;INSERT&lt;/b&gt;&lt;br&gt;robot_id · task_id&lt;br&gt;error_code · occurred_at" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#FEE2E2;strokeColor=#DC2626;strokeWidth=2;fontSize=13;" vertex="1" parent="lane_error"><mxGeometry x="1120" y="40" width="190" height="100" as="geometry"/></mxCell>
+        <mxCell id="r_commit" value="즉시 COMMIT&lt;br&gt;오류 기록 완료" style="ellipse;whiteSpace=wrap;html=1;fillColor=#DCFCE7;strokeColor=#16A34A;fontSize=13;" vertex="1" parent="lane_error"><mxGeometry x="1400" y="55" width="155" height="70" as="geometry"/></mxCell>
+
+        <mxCell id="read_flow" value="&lt;b&gt;HMI 조회는 저장 흐름과 분리&lt;/b&gt;&lt;br&gt;HMI Backend가 amr.db를 SELECT → REST JSON으로 React HMI에 제공 · DB Manager는 조회 API를 직접 제공하지 않음" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DBEAFE;strokeColor=#2563EB;strokeWidth=2;fontSize=14;align=center;" vertex="1" parent="d1"><mxGeometry x="310" y="1025" width="1180" height="75" as="geometry"/></mxCell>
+        <mxCell id="ownership" value="&lt;b&gt;최종 컬럼 소유권&lt;/b&gt;　&lt;font color=&quot;#0284C7&quot;&gt;AMR: robot_id · battery · position_x/y · yaw&lt;/font&gt;　|　&lt;font color=&quot;#D97706&quot;&gt;Task Manager: state · current_task_id&lt;/font&gt;　|　&lt;font color=&quot;#059669&quot;&gt;DB Manager: online · recorded_at&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#CBD5E1;fontSize=13;align=center;" vertex="1" parent="d1"><mxGeometry x="260" y="1120" width="1280" height="50" as="geometry"/></mxCell>
+
+        <mxCell id="se1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#0284C7;strokeWidth=2;" edge="1" parent="lane_status" source="s_receive" target="s_cache"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="se2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#059669;strokeWidth=2;" edge="1" parent="lane_status" source="s_cache" target="s_timer"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="se3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#475569;" edge="1" parent="lane_status" source="s_timer" target="s_exists"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="se4" value="예" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#16A34A;" edge="1" parent="lane_status" source="s_exists" target="s_online"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="se5" value="아니오" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#94A3B8;" edge="1" parent="lane_status" source="s_exists" target="s_none"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="se6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#10B981;" edge="1" parent="lane_status" source="s_online" target="s_task"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="se7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#D97706;" edge="1" parent="lane_status" source="s_task" target="s_merge"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="se8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#0891B2;strokeWidth=2;" edge="1" parent="lane_status" source="s_merge" target="s_insert"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="ae1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#7C3AED;strokeWidth=2;" edge="1" parent="lane_assignment" source="a_receive" target="a_assigned"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ae2" value="예" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#16A34A;" edge="1" parent="lane_assignment" source="a_assigned" target="a_taskid"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ae3" value="아니오" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#94A3B8;" edge="1" parent="lane_assignment" source="a_assigned" target="a_ignore"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ae4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#7C3AED;" edge="1" parent="lane_assignment" source="a_taskid" target="a_lookup"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ae5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#0D9488;" edge="1" parent="lane_assignment" source="a_lookup" target="a_dest"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ae6" value="결과 반영" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#0D9488;" edge="1" parent="lane_assignment" source="a_dest" target="a_value"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ae7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#D97706;strokeWidth=2;" edge="1" parent="lane_assignment" source="a_value" target="a_upsert"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="ae8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#16A34A;" edge="1" parent="lane_assignment" source="a_upsert" target="a_commit"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="te1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#D97706;strokeWidth=2;" edge="1" parent="lane_task" source="t_receive" target="t_cache"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="te2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#D97706;" edge="1" parent="lane_task" source="t_cache" target="t_terminal"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="te3" value="예" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#DC2626;" edge="1" parent="lane_task" source="t_terminal" target="t_time"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="te4" value="아니오" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#10B981;" edge="1" parent="lane_task" source="t_terminal" target="t_keep"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="te5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#475569;" edge="1" parent="lane_task" source="t_time" target="t_values"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="te6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#475569;" edge="1" parent="lane_task" source="t_keep" target="t_values"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="te7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#D97706;strokeWidth=2;" edge="1" parent="lane_task" source="t_values" target="t_upsert"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="te8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#16A34A;" edge="1" parent="lane_task" source="t_upsert" target="t_commit"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <mxCell id="re1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#DC2626;strokeWidth=2;" edge="1" parent="lane_error" source="r_receive" target="r_task"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="re2" value="정규화" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#DC2626;" edge="1" parent="lane_error" source="r_task" target="r_value"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="re3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#EA580C;" edge="1" parent="lane_error" source="r_value" target="r_fk"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="re4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#DC2626;strokeWidth=2;" edge="1" parent="lane_error" source="r_fk" target="r_insert"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="re5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#16A34A;" edge="1" parent="lane_error" source="r_insert" target="r_commit"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

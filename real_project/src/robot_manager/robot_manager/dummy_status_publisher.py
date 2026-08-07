@@ -1,93 +1,196 @@
-    #!/usr/bin/env python3
+#!/usr/bin/env python3
 import math
 import random
+
 import rclpy
+from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
+from std_msgs.msg import Bool
 
-from robot_status.msg import RobotError, RobotStatus
+from robot_status.msg import AssignmentGoal, NavigationResult, RobotError, RobotStatus, TaskState
 
 
 class DummyStatusPublisher(Node):
+    """HMI/Task Manager 명령에 반응하는 2대의 간단한 AMR 시뮬레이터."""
+
     def __init__(self):
         super().__init__('dummy_status_publisher')
-
-        # Best Effort QoS 설정 (db_manager_node와 일치)
-        qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
-
-        # 퍼블리셔 생성
-        self.status_pub = self.create_publisher(RobotStatus, '/robot_status', qos_profile)
+        qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
+        self.status_pub = self.create_publisher(RobotStatus, '/robot_status', qos)
         self.error_pub = self.create_publisher(RobotError, '/robot_error', 10)
+        self.navigation_result_pub = self.create_publisher(NavigationResult, '/navigation/result', 10)
+        self.assignment_goal_pub = self.create_publisher(AssignmentGoal, '/assignment_goal', 10)
+        self.task_state_sub = self.create_subscription(TaskState, '/task/state', self.task_state_callback, 10)
 
-        # 상태 발행 타이머 (1초마다 발행 -> 1Hz)
-        self.status_timer = self.create_timer(1.0, self.publish_status)
+        self.declare_parameter('linear_speed', 0.22)
+        self.declare_parameter('angular_speed', 1.2)
+        self.declare_parameter('arrival_tolerance', 0.08)
+        self.declare_parameter('random_goal_delay', 10.0)
+        self.declare_parameter('map_min_x', -5.4)
+        self.declare_parameter('map_max_x', 0.6)
+        self.declare_parameter('map_min_y', -5.65)
+        self.declare_parameter('map_max_y', 1.5)
+        self.linear_speed = float(self.get_parameter('linear_speed').value)
+        self.angular_speed = float(self.get_parameter('angular_speed').value)
+        self.arrival_tolerance = float(self.get_parameter('arrival_tolerance').value)
+        self.random_goal_delay = float(self.get_parameter('random_goal_delay').value)
+        self.bounds = tuple(float(self.get_parameter(name).value) for name in ('map_min_x', 'map_max_x', 'map_min_y', 'map_max_y'))
 
-        # map2.yaml 기준 지도 경계. margin만큼 안쪽에서만 움직인다.
-        self.declare_parameter('map_min_x', -5.31)
-        self.declare_parameter('map_max_x', 0.59)
-        self.declare_parameter('map_min_y', -5.673)
-        self.declare_parameter('map_max_y', 1.377)
-        self.declare_parameter('map_margin', 0.2)
-        self.map_min_x = float(self.get_parameter('map_min_x').value)
-        self.map_max_x = float(self.get_parameter('map_max_x').value)
-        self.map_min_y = float(self.get_parameter('map_min_y').value)
-        self.map_max_y = float(self.get_parameter('map_max_y').value)
-        self.map_margin = float(self.get_parameter('map_margin').value)
-
-        # 15초마다 30% 확률로 더미 오류를 발행한다.
-        self.error_timer = self.create_timer(15.0, self.publish_error_sample)
-
-        # 테스트용 가상 데이터 초기화
-        self.tick = 0
         self.robots = {
-            'robot5': {'battery': 95.0, 'x': -3.6, 'y': -3.5, 'yaw': 0.0, 'radius': 1.0},
-            'robot11': {'battery': 80.0, 'x': -1.5, 'y': -3.0, 'yaw': 3.14, 'radius': 0.8}
+            'robot5': self.make_robot(0.0, 0.0, 0.0, 95.0),
+            'robot11': self.make_robot(-2.235, -5.022, -1.528, 80.0),
         }
+        for robot_id in self.robots:
+            self.create_subscription(Bool, f'/{robot_id}/pause/request', lambda msg, rid=robot_id: self.pause_callback(rid, msg), 10)
+            self.create_subscription(Bool, f'/{robot_id}/dock/request', lambda msg, rid=robot_id: self.dock_callback(rid, msg), 10)
+            self.create_subscription(Twist, f'/{robot_id}/cmd_vel', lambda msg, rid=robot_id: self.cmd_vel_callback(rid, msg), 10)
 
-        self.get_logger().info('Dummy Status Publisher가 시작되었습니다. (로봇 ID: 5, 11)')
+        self.last_update = self.get_clock().now()
+        self.random_goal_timer = self.create_timer(self.random_goal_delay, self.publish_random_assignment_goal)
+        self.create_timer(0.1, self.update_simulation)
+        self.create_timer(1.0, self.publish_status)
+        self.create_timer(15.0, self.publish_error_sample)
+        self.get_logger().info('Dummy AMR Simulator 시작: robot5, robot11')
+
+    def publish_random_assignment_goal(self):
+        """노드 시작 후 한 번만 임의 좌표를 AMR 배정 노드에 요청한다."""
+        self.random_goal_timer.cancel()
+        min_x, max_x, min_y, max_y = self.bounds
+        margin = 0.3
+        goal = AssignmentGoal()
+        goal.x = random.uniform(min_x + margin, max_x - margin)
+        goal.y = random.uniform(min_y + margin, max_y - margin)
+        self.assignment_goal_pub.publish(goal)
+        self.get_logger().info(f'자동 AMR 배정 요청: x={goal.x:.3f}, y={goal.y:.3f}')
+
+    @staticmethod
+    def make_robot(x, y, yaw, battery):
+        return {'x': x, 'y': y, 'yaw': yaw, 'battery': battery, 'dock': (x, y, yaw), 'docked': True, 'paused': False, 'state': 'DOCKED', 'task_id': '', 'goal_type': '', 'target': None, 'completed_goal': None, 'result_sent': False, 'cmd_linear': 0.0, 'cmd_angular': 0.0, 'cmd_until': 0.0}
+
+    @staticmethod
+    def normalize_angle(angle):
+        return math.atan2(math.sin(angle), math.cos(angle))
+
+    def pause_callback(self, robot_id, msg):
+        robot = self.robots[robot_id]
+        robot['paused'] = bool(msg.data)
+        if robot['paused']:
+            robot['cmd_linear'] = robot['cmd_angular'] = 0.0
+
+    def dock_callback(self, robot_id, msg):
+        robot = self.robots[robot_id]
+        if msg.data:
+            robot['docked'] = False
+            robot['target'] = robot['dock']
+            robot['goal_type'] = robot['goal_type'] or 'MANUAL_DOCK'
+            robot['result_sent'] = False
+        else:
+            robot['docked'] = False
+            if robot['goal_type'] == 'MANUAL_DOCK':
+                robot['target'] = None
+                robot['goal_type'] = ''
+
+    def cmd_vel_callback(self, robot_id, msg):
+        robot = self.robots[robot_id]
+        if robot['paused'] or robot['docked']:
+            return
+        robot['cmd_linear'] = float(msg.linear.x)
+        robot['cmd_angular'] = float(msg.angular.z)
+        robot['cmd_until'] = self.get_clock().now().nanoseconds / 1e9 + 0.35
+
+    def task_state_callback(self, msg):
+        robot = self.robots.get(str(msg.robot_id))
+        if robot is None:
+            return
+        goal_key = (msg.task_id, msg.goal_type)
+        robot['state'] = msg.state
+        robot['task_id'] = msg.task_id
+        robot['paused'] = msg.state == 'PAUSED'
+        if msg.state in ('ASSIGNED', 'TRANSPORTING', 'RETURNING') and msg.goal_type and robot['completed_goal'] != goal_key:
+            robot['target'] = (float(msg.target_x), float(msg.target_y), float(msg.target_yaw))
+            robot['goal_type'] = msg.goal_type
+            robot['docked'] = False
+            robot['result_sent'] = False
+        elif msg.state == 'DOCKED':
+            robot['target'] = None
+            robot['docked'] = True
+
+    def update_simulation(self):
+        now = self.get_clock().now()
+        dt = min(0.2, max(0.0, (now - self.last_update).nanoseconds / 1e9))
+        self.last_update = now
+        now_sec = now.nanoseconds / 1e9
+        for robot_id, robot in self.robots.items():
+            if robot['paused']:
+                continue
+            if now_sec <= robot['cmd_until']:
+                robot['yaw'] = self.normalize_angle(robot['yaw'] + robot['cmd_angular'] * dt)
+                self.move_linear(robot, robot['cmd_linear'] * dt)
+                self.consume_battery(robot, dt, abs(robot['cmd_linear']) > 0.001 or abs(robot['cmd_angular']) > 0.001)
+            elif robot['target'] is not None:
+                self.move_to_target(robot_id, robot, dt)
+
+    def move_linear(self, robot, distance):
+        min_x, max_x, min_y, max_y = self.bounds
+        robot['x'] = max(min_x, min(max_x, robot['x'] + math.cos(robot['yaw']) * distance))
+        robot['y'] = max(min_y, min(max_y, robot['y'] + math.sin(robot['yaw']) * distance))
+
+    def move_to_target(self, robot_id, robot, dt):
+        target_x, target_y, target_yaw = robot['target']
+        dx, dy = target_x - robot['x'], target_y - robot['y']
+        distance = math.hypot(dx, dy)
+        if distance <= self.arrival_tolerance:
+            robot['x'], robot['y'], robot['yaw'] = target_x, target_y, self.normalize_angle(target_yaw)
+            robot['target'] = None
+            robot['docked'] = robot['goal_type'] in ('TO_DOCK', 'MANUAL_DOCK')
+            if robot['goal_type'] in ('TO_WORKER', 'TO_DESTINATION', 'TO_DOCK') and not robot['result_sent']:
+                self.publish_navigation_result(robot_id, robot)
+                robot['completed_goal'] = (robot['task_id'], robot['goal_type'])
+            robot['result_sent'] = True
+            return
+        desired_yaw = math.atan2(dy, dx)
+        yaw_error = self.normalize_angle(desired_yaw - robot['yaw'])
+        robot['yaw'] = self.normalize_angle(robot['yaw'] + max(-self.angular_speed * dt, min(self.angular_speed * dt, yaw_error)))
+        if abs(yaw_error) < 0.45:
+            self.move_linear(robot, min(self.linear_speed * dt, distance))
+            self.consume_battery(robot, dt, True)
+
+    @staticmethod
+    def consume_battery(robot, dt, moving):
+        if moving:
+            robot['battery'] = max(5.0, robot['battery'] - 0.01 * dt)
+        elif robot['docked']:
+            robot['battery'] = min(100.0, robot['battery'] + 0.05 * dt)
+
+    def publish_navigation_result(self, robot_id, robot):
+        msg = NavigationResult()
+        msg.stamp = self.get_clock().now().to_msg()
+        msg.task_id = robot['task_id']
+        msg.robot_id = robot_id
+        msg.goal_type = robot['goal_type']
+        msg.success = True
+        msg.error_code = ''
+        self.navigation_result_pub.publish(msg)
 
     def publish_status(self):
-        """로봇 5와 11의 가상 위치 및 배터리 정보 퍼블리시"""
-        self.tick += 1
-
-        for robot_id, data in self.robots.items():
+        for robot_id, robot in self.robots.items():
+            if robot['docked'] and not robot['paused']:
+                self.consume_battery(robot, 1.0, False)
             msg = RobotStatus()
             msg.robot_id = robot_id
-            msg.current_task_id = ''
-
-            # 원형으로 움직이는 가상 궤적 및 Yaw 변화 계산
-            radius = data['radius']
-            angle = (self.tick * 0.05) % (2 * math.pi)
-
-            raw_x = data['x'] + radius * math.cos(angle)
-            raw_y = data['y'] + radius * math.sin(angle)
-            msg.x = round(max(self.map_min_x + self.map_margin, min(self.map_max_x - self.map_margin, raw_x)), 2)
-            msg.y = round(max(self.map_min_y + self.map_margin, min(self.map_max_y - self.map_margin, raw_y)), 2)
-            msg.yaw = round(angle, 2)
-
-            # 배터리 소모 모사 (0.05%씩 감소)
-            data['battery'] = max(10.0, data['battery'] - 0.05)
-            msg.battery = round(data['battery'], 1)
-
+            msg.battery = round(robot['battery'], 1)
+            msg.x, msg.y, msg.yaw = round(robot['x'], 3), round(robot['y'], 3), round(robot['yaw'], 3)
             self.status_pub.publish(msg)
-            self.get_logger().info(
-                f'[ID: {msg.robot_id}] Status Pub -> Bat: {msg.battery}%, X: {msg.x}, Y: {msg.y}, Yaw: {msg.yaw}'
-            )
 
     def publish_error_sample(self):
-        """테스트용 랜덤 오류를 30% 확률로 발행."""
         if random.random() >= 0.3:
             return
-
-        error_msg = RobotError()
-        error_msg.robot_id = random.choice(['robot5', 'robot11'])
-        # 존재하지 않는 임의 task_id는 DB 외래키 오류를 만들므로 비워 둔다.
-        error_msg.task_id = ''
-        error_msg.error_code = random.choice(['E-101 (Battery Low)', 'E-202 (Motor Overheat)', 'E-301 (Obstacle Blocked)'])
-        self.error_pub.publish(error_msg)
-        self.get_logger().warn(
-            f'[ID: {error_msg.robot_id}] Error Pub -> Code: {error_msg.error_code}'
-        )
+        msg = RobotError()
+        msg.robot_id = random.choice(list(self.robots))
+        msg.task_id = self.robots[msg.robot_id]['task_id']
+        msg.error_code = random.choice(['E-101_BATTERY_LOW', 'E-202_MOTOR_OVERHEAT', 'E-301_OBSTACLE_BLOCKED'])
+        self.error_pub.publish(msg)
 
 
 def main(args=None):
@@ -99,7 +202,8 @@ def main(args=None):
         pass
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == '__main__':
