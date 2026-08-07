@@ -37,7 +37,9 @@
 
 **전제조건**: 이 토픽의 발행 쪽(`origin/feature/amr_person_tracking` 브랜치의 `reid_tracking_node.py`)은 아직 이 브랜치에 병합되지 않았다. 실제 FOLLOWING 통합 테스트는 그 브랜치가 병합된 뒤에나 가능하다.
 
-**메시지 유효성 검증**: `reid_tracking_node.py`는 추적 중인 사람이 없을 때도 매 프레임 `PoseStamped`를 발행하며, 이때 `position=(0,0,0)`, `orientation=(0,0,0,0)`(정규화되지 않은 무효 쿼터니언)으로 나간다. 이 노드는 `orientation`이 유효한 쿼터니언(모든 성분이 0인 경우 제외)이 아니면 해당 메시지를 무시하고 Nav2 goal을 보내지 않는다 — 안 그러면 사람이 없을 때 로봇이 map 원점으로 이동을 시도할 수 있다.
+**메시지 유효성 검증**: `reid_tracking_node.py`는 추적 중인 사람이 없을 때도 매 프레임 `PoseStamped`를 발행하며, 이때 아무 필드도 채우지 않은 갓 생성된 메시지가 그대로 나간다. 즉 `position=(0,0,0)`이고 `orientation`은 `geometry_msgs/msg/Quaternion.msg`의 IDL 기본값인 `(0,0,0,1)` — **전부 0이 아니라 완벽히 유효한 항등(identity) 쿼터니언**이다. 따라서 쿼터니언 유효성만으로는 이 "추적 대상 없음" 메시지를 걸러낼 수 없다.
+
+이 노드는 `pose_utils.is_followable_pose()`로 검증한다: **`position`이 정확히 `(0,0,0)`이면 거부**(추적 대상 없음의 실제 신호)하고, 추가로 전 성분이 0인 쿼터니언도 방어적으로 거부한다. 검증에 실패한 메시지는 무시하고 Nav2 goal을 보내지 않는다 — 안 그러면 사람이 없을 때 로봇이 map 원점으로 이동을 시도한다.
 
 ### 발행
 
