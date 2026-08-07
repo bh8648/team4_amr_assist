@@ -1,11 +1,12 @@
 import rclpy
-from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from sensor_msgs.msg import BatteryState
 from unittest.mock import Mock
 
 from std_msgs.msg import Bool
 
 from robot_bridge.robot5_bridge_node import Robot5BridgeNode
+from robot_status.msg import TaskState
 
 
 def _amcl_msg(x, y, yaw_w=1.0, yaw_z=0.0):
@@ -138,11 +139,6 @@ def test_dock_request_skips_when_action_server_not_ready():
     finally:
         node.destroy_node()
         rclpy.shutdown()
-
-
-from geometry_msgs.msg import PoseStamped
-
-from robot_status.msg import TaskState
 
 
 def _valid_person_pose(x=1.0, y=2.0):
