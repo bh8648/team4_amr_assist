@@ -1,3 +1,5 @@
+import os
+from glob import glob
 from setuptools import find_packages, setup
 
 package_name = 'robot_manager'
@@ -10,6 +12,7 @@ setup(
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -23,6 +26,8 @@ setup(
             'db_manager_node = robot_manager.db_manager_node:main',
             'hmi_backend_node = robot_manager.hmi_backend_node:main',
             'robot_assignment_node = robot_manager.robot_assignment_node:main',
+            'task_manager_node = robot_manager.task_manager_node:main',
+            'deadlock_prevention_node = robot_manager.deadlock_prevention_node:main',
             'dummy_publisher = robot_manager.dummy_status_publisher:main',
         ],
     },

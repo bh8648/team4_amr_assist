@@ -24,11 +24,6 @@ htmlcov/
 /amr_delivery_ui/frontend/.oxlintrc.json
 /amr_delivery_ui/frontend/src/assets/
 
-# The old Node mock backend is no longer used. Keep only the Nav2 map files.
-/amr_delivery_ui/backend/*
-!/amr_delivery_ui/backend/maps/
-!/amr_delivery_ui/backend/maps/**
-
 # HMI design documents and one-off utilities are not needed at runtime.
 /amr_delivery_ui/docs/
 /amr_delivery_ui/scripts/

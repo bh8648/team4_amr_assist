@@ -3,10 +3,10 @@ import './App.css';
 import { robotApi } from './api/robotApi';
 import { renderFleetMap, worldToCanvas } from './mapRenderer';
 
-const LABELS = { AVAILABLE: '대기', IDLE: '대기', ASSIGNED: '작업 배정', NAVIGATING_TO_WORKER: '작업자에게 이동', FOLLOWING: '작업자 동행', WAITING_FOR_ROUTE: '경로 생성', DELIVERING: '배송 중', RETURNING: '복귀 중', DOCKING: '도킹 중', DOCKED: '도킹 완료', UNDOCKING: '언도킹 중', ERROR: '오류' };
-const ACTIVE = new Set(['WAITING_FOR_ROUTE', 'DELIVERING', 'FOLLOWING', 'ASSIGNED', 'NAVIGATING_TO_WORKER']);
+const LABELS = { AVAILABLE: '대기', IDLE: '대기', ASSIGNED: '작업자에게 이동', FOLLOWING: '작업자 추종', TRANSPORTING: '배송 중', RETURNING: '복귀 중', PAUSED: '일시정지', DOCKED: '도킹 완료', ERROR: '오류' };
+const ACTIVE = new Set(['ASSIGNED', 'FOLLOWING', 'TRANSPORTING', 'RETURNING', 'PAUSED']);
 const IDLE = new Set(['AVAILABLE', 'IDLE']);
-const TASK_LABELS = { REQUESTED: '요청 접수', ACCEPTED: '작업 승인', WAITING_FOR_ROUTE: '경로 생성', RUNNING: '실행 중', DELIVERING: '배송 중', FOLLOWING: '동행 중', COMPLETED: '완료', DELIVERED: '완료', CANCELLED: '취소', FAILED: '실패' };
+const TASK_LABELS = { ASSIGNED: '작업자에게 이동', FOLLOWING: '작업자 추종', TRANSPORTING: '배송 중', RETURNING: '복귀 중', PAUSED: '일시정지', DOCKED: '완료', ERROR: '오류' };
 
 function LoginScreen({ onLogin }) {
   const [username, setUsername] = useState('');
@@ -21,7 +21,7 @@ function LoginScreen({ onLogin }) {
       const result = await robotApi.login(username, password);
       sessionStorage.setItem('hmi_auth_token', result.token);
       onLogin();
-    } catch (_) {
+    } catch {
       setError('아이디 또는 비밀번호가 올바르지 않습니다.');
     } finally {
       setSubmitting(false);
@@ -40,7 +40,15 @@ function taskInfo(robot) {
 function FleetMap({ robots, selectedId, onSelect }) {
   const canvasRef = useRef(null);
   const [map, setMap] = useState(null);
-  useEffect(() => { robotApi.getMap().then(setMap).catch(() => setMap(null)); }, []);
+  useEffect(() => {
+    let alive = true;
+    const refreshMap = () => robotApi.getMap()
+      .then((data) => alive && setMap(data))
+      .catch(() => alive && setMap(null));
+    refreshMap();
+    const timer = setInterval(refreshMap, 3000);
+    return () => { alive = false; clearInterval(timer); };
+  }, []);
   useEffect(() => { if (map) renderFleetMap(canvasRef.current, map, robots, selectedId); }, [map, robots, selectedId]);
   const click = (event) => {
     if (!map) return;
@@ -54,7 +62,6 @@ function FleetMap({ robots, selectedId, onSelect }) {
   return <section className="map-workspace"><header><div><strong>내비게이션 지도</strong><small>MAP FRAME · LIVE</small></div><div className="map-tabs">{robots.map((robot) => <button key={robot.robot_id} className={selectedId === robot.robot_id ? 'active' : ''} onClick={() => onSelect(robot.robot_id)}>{robot.robot_id.toUpperCase()}</button>)}</div></header><div className="map-stage">{map ? <canvas ref={canvasRef} onClick={click} aria-label="AMR 실시간 위치 지도" /> : <span>운영 지도를 연결하는 중입니다.</span>}</div><footer><i /> 지도와 로봇 좌표는 DB 최신 상태를 기준으로 갱신됩니다.</footer></section>;
 }
 
-const hostStream = (url) => url?.replace('localhost', window.location.hostname);
 function LaptopCameraTile() {
   const videoRef = useRef(null);
   const [cameraState, setCameraState] = useState('loading');
@@ -151,16 +158,6 @@ function DatabaseWorkspace() {
   return <section className="database-workspace"><header><div><strong>데이터베이스 관제</strong><small>AMR.DB · READ ONLY · LIVE</small></div><span><i />{tableData.rows.length} ROWS</span></header><nav>{tables.map((table) => <button key={table.name} className={selectedTable === table.name ? 'active' : ''} onClick={() => setSelectedTable(table.name)}><strong>{table.name}</strong><small>{table.count}건</small></button>)}</nav><div className="database-table-wrap">{error ? <div className="database-empty">{error}</div> : <table><thead><tr>{tableData.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead><tbody>{tableData.rows.map((row, index) => <tr key={`${selectedTable}-${index}`}>{tableData.columns.map((column) => <td key={column}>{row[column] == null ? <span className="db-null">NULL</span> : String(row[column])}</td>)}</tr>)}</tbody></table>}{!error && tableData.rows.length === 0 && <div className="database-empty">저장된 데이터가 없습니다.</div>}</div><footer><i /> 최근 데이터 최대 100건을 읽기 전용으로 표시합니다.</footer></section>;
 }
 
-function RgbdPopup({ robot, onSelect, onClose }) {
-  const robotId = robot.robot_id;
-  const key = `VITE_${robotId.toUpperCase()}_RGBD_URL`;
-  const url = hostStream(import.meta.env[key]);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [robotId, url]);
-  const distance = Number.isFinite(robot.worker_distance) ? `${robot.worker_distance.toFixed(2)} m` : '측정 대기';
-  return <div className="rgbd-overlay" role="dialog" aria-modal="true" aria-label={`${robotId.toUpperCase()} RGB-D 영상 관제`} onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="rgbd-popup"><header><div><small>AMR VISION MONITOR</small><h2>{robotId.toUpperCase()} · RGB-D 실시간 영상</h2></div><button onClick={onClose} aria-label="RGB-D 영상 닫기">×</button></header><div className="rgbd-toolbar"><div className="rgbd-switch">{['amr1', 'amr2'].map((id) => <button key={id} className={id === robotId ? 'active' : ''} onClick={() => onSelect(id)}>{id.toUpperCase()}</button>)}</div><div className="distance-readout"><small>작업자 거리</small><strong>{distance}</strong></div></div><div className="rgbd-feed">{url && !failed ? <img src={url} alt={`${robotId.toUpperCase()} RGB-D 실시간 영상`} onError={() => setFailed(true)} /> : <span><b>RGB-D 영상 연결 대기</b><small>{url ? '스트림 응답을 확인하세요.' : '영상 URL이 설정되지 않았습니다.'}</small></span>}</div><footer><span>{url && !failed ? '● LIVE STREAM' : '● WAITING'}</span><code>/{robotId}/oak/rgb/image_raw</code></footer></section></div>;
-}
-
 function RobotPanel({ robot, selected, onSelect }) {
   const { task, state, active } = taskInfo(robot);
   const batteryLevel = robot.battery <= 20 ? 'battery-critical' : robot.battery <= 40 ? 'battery-warning' : '';
@@ -190,7 +187,6 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [view, setView] = useState('map');
-  const [rgbdRobot, setRgbdRobot] = useState(null);
   useEffect(() => {
     const expire = () => setAuthenticated(false);
     window.addEventListener('hmi-auth-expired', expire);
@@ -206,11 +202,17 @@ export default function App() {
   if (!authenticated) return <LoginScreen onLogin={() => setAuthenticated(true)} />;
   const selected = robots.find((robot) => robot.robot_id === selectedId);
   const execute = async (action, message) => { setBusy(true); try { await action(); setNotice(message); } catch (error) { setNotice(`실행 실패 · ${error.message}`); } finally { setBusy(false); setTimeout(() => setNotice(''), 2300); } };
+  const logout = () => {
+    sessionStorage.removeItem('hmi_auth_token');
+    setAuthenticated(false);
+    setRobots([]);
+    setSelectedId(null);
+  };
   const selectedTask = selected ? taskInfo(selected) : null;
   const teleopReady = selected && IDLE.has(selected.mode) && !selected.docked && !selected.estopped;
 
   return <div className="operations-app">
-    <header className="app-header"><div className="title"><span>AMR</span><div><h1>중앙 관리 제어</h1><small>관리자 대시보드</small></div></div><div className="view-toggle"><button className={view === 'map' ? 'active' : ''} onClick={() => setView('map')}>지도 관제</button><button className={view === 'video' ? 'active' : ''} onClick={() => setView('video')}>영상 관제</button><button className={view === 'database' ? 'active' : ''} onClick={() => setView('database')}>DB 관제</button></div><div className="global-status"><span className={connected ? '' : 'offline'}><i />{connected ? 'DB · GATEWAY 연결' : '연결 확인 중'}</span><b>{robots.filter((robot) => !robot.estopped).length}/{robots.length} 운용 가능</b><button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? '라이트' : '다크'}</button></div></header>
+    <header className="app-header"><div className="title"><span>AMR</span><div><h1>중앙 관리 제어</h1><small>관리자 대시보드</small></div></div><div className="view-toggle"><button className={view === 'map' ? 'active' : ''} onClick={() => setView('map')}>지도 관제</button><button className={view === 'video' ? 'active' : ''} onClick={() => setView('video')}>영상 관제</button><button className={view === 'database' ? 'active' : ''} onClick={() => setView('database')}>DB 관제</button></div><div className="global-status"><span className={connected ? '' : 'offline'}><i />{connected ? 'DB · GATEWAY 연결' : '연결 확인 중'}</span><b>{robots.filter((robot) => !robot.estopped).length}/{robots.length} 운용 가능</b><button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? '라이트' : '다크'}</button><button className="logout-button" onClick={logout}>로그아웃</button></div></header>
 
     <main className="dashboard-layout">
       <aside className="robot-rail"><header><strong>로봇 현황</strong><small>자동 배정 시스템</small></header><div>{robots.map((robot) => <RobotPanel key={robot.robot_id} robot={robot} selected={selectedId === robot.robot_id} onSelect={setSelectedId} />)}</div><footer><i /> 로봇을 선택하면 우측 제어가 전환됩니다.</footer></aside>
@@ -228,11 +230,9 @@ export default function App() {
           <section className="teleop-box"><header><div><strong>텔레옵</strong><small>{teleopReady ? '누르는 동안 이동' : '대기·언도킹 상태 전용'}</small></div><span className={teleopReady ? 'ready' : ''}>{teleopReady ? 'READY' : 'LOCKED'}</span></header><div className="teleop"><span /><TeleopButton label="↑" linear={0.18} disabled={!teleopReady} robotId={selected.robot_id} /><span /><TeleopButton label="↶" angular={0.8} disabled={!teleopReady} robotId={selected.robot_id} /><TeleopButton label="■" disabled={!IDLE.has(selected.mode)} robotId={selected.robot_id} /><TeleopButton label="↷" angular={-0.8} disabled={!teleopReady} robotId={selected.robot_id} /><span /><TeleopButton label="↓" linear={-0.15} disabled={!teleopReady} robotId={selected.robot_id} /></div></section>
 
           <section className="task-queue"><header><strong>현재 작업</strong><small>{robots.filter((robot) => taskInfo(robot).active).length}건</small></header>{robots.map((robot) => { const info = taskInfo(robot); return <div key={robot.robot_id}><i className={info.active ? '' : 'idle'} /><span><strong>{robot.robot_id.toUpperCase()}</strong><small>{info.active ? TASK_LABELS[info.state] || info.state || LABELS[robot.mode] : '배정 대기'}</small></span><b>{info.active ? '진행' : '대기'}</b></div>; })}</section>
-          <section className="rgbd-launcher"><header><strong>AMR RGB-D</strong><small>팝업 영상 관제</small></header><div>{robots.map((robot) => <button key={robot.robot_id} className={rgbdRobot === robot.robot_id ? 'active' : ''} onClick={() => setRgbdRobot((id) => id === robot.robot_id ? null : robot.robot_id)}>{robot.robot_id.toUpperCase()} 영상</button>)}</div></section>
         </> : <div className="empty">로봇 상태를 불러오는 중입니다.</div>}
       </aside>
     </main>
-    {rgbdRobot && <RgbdPopup robot={robots.find((robot) => robot.robot_id === rgbdRobot)} onSelect={setRgbdRobot} onClose={() => setRgbdRobot(null)} />}
     {notice && <div className="toast">{notice}</div>}
   </div>;
 }

@@ -15,6 +15,11 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RobotStatus.msg"
   "msg/AssignmentGoal.msg"
   "msg/RobotAssignment.msg"
+  "msg/RobotError.msg"
+  "msg/TaskCommand.msg"
+  "msg/TaskState.msg"
+  "msg/NavigationResult.msg"
+  "msg/DeadlockPermission.msg"
   DEPENDENCIES builtin_interfaces
 )
 

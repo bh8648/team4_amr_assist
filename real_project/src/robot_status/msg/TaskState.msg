@@ -1,0 +1,10 @@
+builtin_interfaces/Time stamp
+string task_id
+string robot_id
+string state
+string previous_state
+string goal_type
+float32 target_x
+float32 target_y
+float32 target_yaw
+string detail

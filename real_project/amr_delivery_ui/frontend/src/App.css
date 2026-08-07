@@ -57,3 +57,5 @@
 .db-null { color: #9aa7ab; font-style: italic; }
 .database-empty { display: grid; min-height: 180px; place-items: center; color: #7b898e; }
 .database-workspace > footer { padding: 11px 18px; border-top: 1px solid rgba(100,120,128,.15); color: #75868c; font-size: 11px; }
+.global-status .logout-button { border-color: rgba(194,59,50,.35); color: #c23b32; }
+.global-status .logout-button:hover { border-color: #c23b32; background: rgba(194,59,50,.08); }
