@@ -2,7 +2,7 @@
 from typing import Optional
 
 import rclpy
-from geometry_msgs.msg import PoseWithCovarianceStamped
+from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from irobot_create_msgs.action import Dock, Undock
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
@@ -11,9 +11,9 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import BatteryState
 from std_msgs.msg import Bool
 
-from robot_status.msg import RobotStatus
+from robot_status.msg import RobotStatus, TaskState
 
-from robot_bridge.pose_utils import build_robot_status, quaternion_to_yaw
+from robot_bridge.pose_utils import build_robot_status, is_valid_quaternion, quaternion_to_yaw
 
 ROBOT_ID = 'robot5'
 
@@ -28,6 +28,9 @@ class Robot5BridgeNode(Node):
         self.latest_y: Optional[float] = None
         self.latest_yaw: Optional[float] = None
         self.latest_battery_percent: Optional[float] = None
+
+        self.current_task_state: str = ''
+        self.nav_generation = 0
 
         self.amcl_sub = self.create_subscription(
             PoseWithCovarianceStamped, f'/{ROBOT_ID}/amcl_pose', self.amcl_pose_callback, 10)
@@ -49,6 +52,11 @@ class Robot5BridgeNode(Node):
 
         self.dock_client = ActionClient(self, Dock, f'/{ROBOT_ID}/dock')
         self.undock_client = ActionClient(self, Undock, f'/{ROBOT_ID}/undock')
+
+        self.target_person_pose_sub = self.create_subscription(
+            PoseStamped, f'/{ROBOT_ID}/target_person_pose', self.target_person_pose_callback, 10)
+        self.task_state_sub = self.create_subscription(
+            TaskState, '/task/state', self.task_state_callback, 10)
 
         self.get_logger().info(f'{ROBOT_ID} 브릿지 노드 시작')
 
@@ -112,6 +120,43 @@ class Robot5BridgeNode(Node):
             return
         goal_handle.get_result_async().add_done_callback(
             lambda result: self.get_logger().info(f'undock 결과: is_docked={result.result().result.is_docked}'))
+
+    def task_state_callback(self, msg: TaskState) -> None:
+        if msg.robot_id == ROBOT_ID:
+            self.current_task_state = msg.state
+
+    def target_person_pose_callback(self, msg: PoseStamped) -> None:
+        if self.current_task_state != 'FOLLOWING':
+            return
+        orientation = msg.pose.orientation
+        if not is_valid_quaternion(orientation.x, orientation.y, orientation.z, orientation.w):
+            self.get_logger().warn('무효한 target_person_pose 무시 (추적 대상 없음)')
+            return
+        self._send_follow_goal(msg)
+
+    def _send_follow_goal(self, pose: PoseStamped) -> None:
+        if not self.nav_client.wait_for_server(timeout_sec=0.2):
+            self.get_logger().warn('navigate_to_pose 액션 서버 대기 중')
+            return
+        if self.nav_goal_handle is not None:
+            self.nav_goal_handle.cancel_goal_async()
+            self.nav_goal_handle = None
+        goal = NavigateToPose.Goal()
+        goal.pose = pose
+        goal.pose.header.stamp = self.get_clock().now().to_msg()
+        self.nav_generation += 1
+        generation = self.nav_generation
+        future = self.nav_client.send_goal_async(goal)
+        future.add_done_callback(lambda result: self._follow_goal_response_callback(result, generation))
+
+    def _follow_goal_response_callback(self, future, generation: int) -> None:
+        if generation != self.nav_generation:
+            return
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self.get_logger().warn('follow goal 거부됨')
+            return
+        self.nav_goal_handle = goal_handle
 
 
 def main(args=None):

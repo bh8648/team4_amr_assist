@@ -138,3 +138,110 @@ def test_dock_request_skips_when_action_server_not_ready():
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
+
+from geometry_msgs.msg import PoseStamped
+
+from robot_status.msg import TaskState
+
+
+def _valid_person_pose(x=1.0, y=2.0):
+    msg = PoseStamped()
+    msg.header.frame_id = 'map'
+    msg.pose.position.x = x
+    msg.pose.position.y = y
+    msg.pose.orientation.w = 1.0
+    return msg
+
+
+def _invalid_person_pose():
+    msg = PoseStamped()
+    msg.pose.orientation.w = 0.0  # orientation 전부 0.0 = 무효
+    return msg
+
+
+def test_task_state_callback_filters_by_robot_id():
+    rclpy.init()
+    node = Robot5BridgeNode()
+    try:
+        other_robot = TaskState()
+        other_robot.robot_id = 'robot11'
+        other_robot.state = 'FOLLOWING'
+        node.task_state_callback(other_robot)
+        assert node.current_task_state == ''
+
+        this_robot = TaskState()
+        this_robot.robot_id = 'robot5'
+        this_robot.state = 'FOLLOWING'
+        node.task_state_callback(this_robot)
+        assert node.current_task_state == 'FOLLOWING'
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_target_person_pose_ignored_when_not_following():
+    rclpy.init()
+    node = Robot5BridgeNode()
+    try:
+        node.nav_client = Mock()
+        node.current_task_state = 'TRANSPORTING'
+
+        node.target_person_pose_callback(_valid_person_pose())
+
+        node.nav_client.send_goal_async.assert_not_called()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_target_person_pose_ignored_when_invalid_quaternion():
+    rclpy.init()
+    node = Robot5BridgeNode()
+    try:
+        node.nav_client = Mock()
+        node.current_task_state = 'FOLLOWING'
+
+        node.target_person_pose_callback(_invalid_person_pose())
+
+        node.nav_client.send_goal_async.assert_not_called()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_target_person_pose_sends_goal_when_following_and_valid():
+    rclpy.init()
+    node = Robot5BridgeNode()
+    try:
+        node.nav_client = Mock()
+        node.nav_client.wait_for_server.return_value = True
+        node.current_task_state = 'FOLLOWING'
+
+        node.target_person_pose_callback(_valid_person_pose(x=3.0, y=4.0))
+
+        node.nav_client.send_goal_async.assert_called_once()
+        sent_goal = node.nav_client.send_goal_async.call_args[0][0]
+        assert sent_goal.pose.pose.position.x == 3.0
+        assert sent_goal.pose.pose.position.y == 4.0
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_target_person_pose_cancels_previous_goal_before_resend():
+    rclpy.init()
+    node = Robot5BridgeNode()
+    try:
+        node.nav_client = Mock()
+        node.nav_client.wait_for_server.return_value = True
+        node.current_task_state = 'FOLLOWING'
+        previous_handle = Mock()
+        node.nav_goal_handle = previous_handle
+
+        node.target_person_pose_callback(_valid_person_pose())
+
+        previous_handle.cancel_goal_async.assert_called_once()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
