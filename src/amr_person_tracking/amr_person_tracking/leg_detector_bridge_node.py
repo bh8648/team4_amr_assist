@@ -59,6 +59,7 @@ import tf2_geometry_msgs  # noqa: F401  (PointStamped tf2 변환 등록)
 
 from amr_person_tracking.leg_detection_utils import (
     StaticBackgroundFilter, scan_to_points, cluster_points, filter_leg_clusters, pair_legs)
+from amr_person_tracking.predictive_utils import LegKalmanTracker
 from amr_person_tracking.tracking_utils import Track, assign_tracks, stamp_to_sec
 
 MARKER_NS_SPHERES = 'leg_detections'
@@ -99,13 +100,20 @@ class LegDetectorBridgeNode(Node):
         self.declare_parameter('leg_circle_fit_rms_max', 0.01)
 
         # 원형적합만으론 책상/의자 다리(진짜 원통형이라 형상으로 구별 불가)를 못 거른다 -
-        # "계속 같은 자리에 있다"는 시간적 근거로 추가 제외한다 (StaticBackgroundFilter).
-        # 짝짓기(pair_legs) 이전의 개별 다리 위치 기준으로 판단한다 - 짝지어진 중심점은
-        # 스캔마다 어떤 후보끼리 묶이느냐에 따라 튀어서(실측으로 확인) "정지"와 "사람의 미세
-        # 이동"을 구분할 수 없었다(leg_detection_utils.StaticBackgroundFilter 문서 참고).
+        # "계속 같은 자리에 있다"는 시간적 근거로 추가 제외한다. 짝짓기(pair_legs) 이전의
+        # 개별 다리 위치마다 등속도 칼만필터(LegKalmanTracker)를 붙여 속도를 추정하고,
+        # 누적 나이 >= confirm_duration_sec 이고 속도 <= stationary_speed_threshold 이면
+        # StaticBackgroundFilter에 정적 배경으로 등록한다. 칼만필터라 관측 공백(occlusion)이
+        # 있어도 상태가 리셋되지 않는다 - 이전에 시도했던 "그리드 셀 연속관측(공백 있으면
+        # 리셋)" 방식이 사람이 반복해서 물체를 가리는 상황에서 실패한 걸 보완한 설계다
+        # (leg_detection_utils.StaticBackgroundFilter / predictive_utils.LegKalmanTracker 문서 참고).
         self.declare_parameter('background_filter_enabled', True)
         self.declare_parameter('background_confirm_duration_sec', 3.0)
-        self.declare_parameter('background_max_gap_sec', 1.0)
+        self.declare_parameter('background_stationary_speed_threshold', 0.01)
+        self.declare_parameter('background_leg_match_gate', 0.10)
+        self.declare_parameter('background_leg_kf_timeout', 5.0)
+        self.declare_parameter('background_kf_process_noise', 0.01)
+        self.declare_parameter('background_kf_measurement_noise', 0.0025)
         self.declare_parameter('background_cell_size', 0.05)
         self.declare_parameter('background_exclusion_radius', 0.10)
 
@@ -147,8 +155,14 @@ class LegDetectorBridgeNode(Node):
         self.background_filter = StaticBackgroundFilter(
             cell_size=self.get_parameter('background_cell_size').value,
             exclusion_radius=self.get_parameter('background_exclusion_radius').value,
+        ) if self.background_filter_enabled else None
+        self.leg_stationarity_tracker = LegKalmanTracker(
+            match_gate=self.get_parameter('background_leg_match_gate').value,
             confirm_duration_sec=self.get_parameter('background_confirm_duration_sec').value,
-            max_gap_sec=self.get_parameter('background_max_gap_sec').value,
+            stationary_speed_threshold=self.get_parameter('background_stationary_speed_threshold').value,
+            kf_timeout_sec=self.get_parameter('background_leg_kf_timeout').value,
+            process_noise=self.get_parameter('background_kf_process_noise').value,
+            measurement_noise=self.get_parameter('background_kf_measurement_noise').value,
         ) if self.background_filter_enabled else None
 
         self.track_gating_max_speed = self.get_parameter('track_gating_max_speed').value
@@ -210,8 +224,9 @@ class LegDetectorBridgeNode(Node):
                 legs_map.append((pt_map.point.x, pt_map.point.y))
 
         if self.background_filter_enabled:
-            for x, y in legs_map:
-                self.background_filter.observe(x, y, stamp)
+            newly_stationary = self.leg_stationarity_tracker.update(legs_map, stamp)
+            for x, y in newly_stationary:
+                self.background_filter.confirm_static(x, y)
             legs_map = [p for p in legs_map if not self.background_filter.is_background(*p)]
 
         persons = pair_legs(legs_map, self.leg_pair_max_distance, self.allow_single_leg_detection)

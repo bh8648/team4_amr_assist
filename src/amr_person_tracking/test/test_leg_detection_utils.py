@@ -106,64 +106,38 @@ def test_filter_leg_clusters_flat_wall_rejected_either_way():
 # 실측(my_new_bag2, 168개 스캔)에서, 원형적합 통과 후보 중 다수가 로봇 근거리(0.4~1.2m)의
 # 몇몇 위치에 전체 스캔의 56~97% 빈도로 반복 등장함을 확인했다 - 실제 책상/의자 다리였다.
 #
-# [설계 변경 이력] 처음엔 "노드 시작 후 N초 학습 후 고정" -> "사람/다리쌍 트랙 단위로 상시
-# confirm_static()" 순으로 바뀌었는데, 후자도 실측 재검증(같은 bag 11~14초/22~25초 구간)에서
-# 문제가 드러났다: 짝짓기(pair_legs)된 중심점은 스캔마다 어떤 후보끼리 묶이느냐에 따라
-# 5~10cm씩 튀어서(정지한 물체인데도) 사람의 실제 미세 이동과 구분이 안 됐다. 그래서 지금은
-# 짝짓기 이전의 개별 다리 위치를 그리드 셀 단위로 상시 관측하는 observe(x, y, stamp) 방식
-# 이다 - 같은 셀이 max_gap_sec 이내 간격으로 confirm_duration_sec 이상 끊김 없이 관측되면
-# 그 셀을 정적 배경으로 확정한다.
+# [설계 변경 이력] "언제 확정할지"를 판단하는 로직은 이 클래스 안에 있다가(고정 학습창 ->
+# person 트랙 단위 -> 그리드 셀 연속관측 순으로 변경) predictive_utils.LegKalmanTracker로
+# 옮겨갔다 - 자세한 이유는 클래스 docstring 참고. 이 클래스는 이제 "확정된 위치 집합 저장
+# + 근접 판정"만 담당하는 얇은 저장소라 테스트도 단순하다 (LegKalmanTracker 자체 테스트는
+# test_predictive_utils.py).
 # ---------------------------------------------------------------------------
 
-def test_static_background_filter_confirms_after_continuous_observation():
-    f = StaticBackgroundFilter(cell_size=0.05, exclusion_radius=0.10,
-                                confirm_duration_sec=3.0, max_gap_sec=1.0)
-    for t in (0.0, 1.0, 2.0, 2.9):
-        f.observe(0.43, 0.40, t)
-        assert f.is_background(0.43, 0.40) is False  # 아직 3초 안 됨
+def test_static_background_filter_confirmed_position_excludes_nearby():
+    f = StaticBackgroundFilter(cell_size=0.05, exclusion_radius=0.10)
+    f.confirm_static(0.43, 0.40)
 
-    f.observe(0.43, 0.40, 3.0)  # 첫 관측(t=0)부터 3.0초 경과 - 확정
     assert f.is_background(0.43, 0.40) is True
-    assert f.is_background(0.46, 0.42) is True   # exclusion_radius 이내는 근처도 배경 취급
-    assert f.is_background(1.0, 1.0) is False    # 관측된 적 없는 위치
-
-
-def test_static_background_filter_gap_resets_continuous_run():
-    f = StaticBackgroundFilter(cell_size=0.05, exclusion_radius=0.10,
-                                confirm_duration_sec=3.0, max_gap_sec=1.0)
-    f.observe(0.0, 0.0, 0.0)
-    f.observe(0.0, 0.0, 2.9)   # 간격 2.9s > max_gap_sec(1.0s) - 연속 구간이 끊긴다
-    assert f.is_background(0.0, 0.0) is False
-    f.observe(0.0, 0.0, 5.8)   # 2.9에서 다시 시작(run_start=5.8) - 아직 3.0초 안 지남
-    assert f.is_background(0.0, 0.0) is False
-    for t in (6.5, 7.5, 8.5):  # 매 간격 <= max_gap_sec(1.0s) - 연속 구간 유지
-        f.observe(0.0, 0.0, t)
-    assert f.is_background(0.0, 0.0) is False  # run_start(5.8)부터 아직 3.0초 안 됨
-    f.observe(0.0, 0.0, 8.9)  # run_start(5.8)부터 3.1초 경과 - 확정
-    assert f.is_background(0.0, 0.0) is True
-
-
-def test_static_background_filter_slow_drift_never_confirms():
-    """사람이 서 있어도 실측상 초당 ~1.5cm씩 계속 드리프트한다 - 그리드 셀(5cm) 경계를
-    수 초 안에 넘나들며 한 셀에 3초 연속 머물지 못해야 배경으로 오인되지 않는다."""
-    f = StaticBackgroundFilter(cell_size=0.05, exclusion_radius=0.10,
-                                confirm_duration_sec=3.0, max_gap_sec=1.0)
-    drift_per_sec = 0.02  # 5cm 셀을 2.5초마다 넘는 속도 - 실측 1.5cm/s보다도 빠르게 잡아 여유를 둠
-    for i in range(100):
-        t = i * 0.13
-        f.observe(drift_per_sec * t, 0.0, t)
-    assert f.static_cell_count == 0
+    assert f.is_background(0.46, 0.42) is True  # exclusion_radius 이내는 근처도 배경 취급
+    assert f.is_background(1.0, 1.0) is False   # 확정된 적 없는 위치
 
 
 def test_static_background_filter_position_outside_radius_not_excluded():
-    f = StaticBackgroundFilter(cell_size=0.05, exclusion_radius=0.10, confirm_duration_sec=1.0)
-    f.observe(0.0, 0.0, 0.0)
-    f.observe(0.0, 0.0, 1.0)
+    f = StaticBackgroundFilter(cell_size=0.05, exclusion_radius=0.10)
+    f.confirm_static(0.0, 0.0)
     assert f.is_background(0.0, 0.0) is True
     assert f.is_background(0.5, 0.5) is False  # exclusion_radius(0.10m) 밖
 
 
-def test_static_background_filter_never_observed_never_excludes():
+def test_static_background_filter_nothing_confirmed_never_excludes():
     f = StaticBackgroundFilter()
     assert f.static_cell_count == 0
     assert f.is_background(0.0, 0.0) is False
+
+
+def test_static_background_filter_confirm_is_idempotent():
+    f = StaticBackgroundFilter(cell_size=0.05, exclusion_radius=0.10)
+    f.confirm_static(0.2, 0.2)
+    f.confirm_static(0.2, 0.2)  # 같은 위치를 여러 번 확정해도 안전해야 한다
+    assert f.static_cell_count == 1
+    assert f.is_background(0.2, 0.2) is True

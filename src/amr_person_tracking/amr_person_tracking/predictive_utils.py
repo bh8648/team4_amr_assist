@@ -93,6 +93,104 @@ def approach_speed(robot_x, robot_y, track_x, track_y, vx, vy):
     return vx * ux + vy * uy
 
 
+class LegKalmanTracker:
+    """짝짓기(pair_legs) 이전의 개별 라이다 다리 후보를 프레임 간에 매칭해 등속도 칼만필터로
+    속도를 추정한다 - leg_detector_bridge_node가 StaticBackgroundFilter에 "이 위치를 정적
+    배경으로 확정해도 되는지" 판단하는 데 쓴다 (leg_detection_utils.StaticBackgroundFilter의
+    설계 변경 이력 참고).
+
+    이전 두 설계(사람/다리쌍 단위 정지 판정, 그리드 셀 연속관측)가 모두 실패한 이유는 공통적으로
+    "관측이 한 번이라도 끊기거나(occlusion) 짝짓기 상대가 바뀌면 판정이 흐트러진다"는 것이었다.
+    칼만필터는 관측 사이 간격(dt)이 커져도(사람이 잠깐 가려서 몇 스캔 건너뜀) 그 구간만큼
+    공정잡음(Q)이 커질 뿐 상태(위치/속도) 자체가 리셋되지 않는다 - 다시 보였을 때 위치가
+    그대로면 속도 추정도 그대로 0에 가깝게 유지된다. 그래서 "처음 본 뒤 누적 나이 >=
+    confirm_duration_sec 이고 지금 추정 속도 <= stationary_speed_threshold"를 정지 확정
+    기준으로 쓰면, 사람이 물체 앞을 반복해서 오가며 매번 공백을 만들어도(실측으로 확인된 실패
+    사례) 결국 확정된다 - 그리드 셀 방식처럼 공백마다 타이머가 리셋되지 않기 때문이다.
+
+    stationary_speed_threshold 기본값(0.01m/s)은 이전 세션에서 실측한 "서 있는 사람"의 위치
+    드리프트(~7초에 ~10.6cm, 약 0.015m/s)보다 낮게 잡아, 실제 사람은 이 기준을 만족하지
+    못하게 여유를 뒀다.
+    """
+
+    def __init__(self, match_gate=0.10, confirm_duration_sec=3.0,
+                 stationary_speed_threshold=0.01, kf_timeout_sec=5.0,
+                 process_noise=0.01, measurement_noise=0.0025):
+        self.match_gate = match_gate
+        self.confirm_duration_sec = confirm_duration_sec
+        self.stationary_speed_threshold = stationary_speed_threshold
+        self.kf_timeout_sec = kf_timeout_sec
+        self.process_noise = process_noise
+        self.measurement_noise = measurement_noise
+        self._kalman = {}   # leg_id -> ConstantVelocityKalman2D
+        self._created = {}  # leg_id -> 최초 관측 시각
+        self._next_id = 1
+
+    def update(self, leg_positions, stamp):
+        """이번 스캔의 개별 다리 후보 (x, y) 리스트를 매칭/갱신하고, 지금 막 "정지 확정" 조건을
+        만족한 위치들의 목록을 반환한다 (호출자가 StaticBackgroundFilter.confirm_static()에
+        넘기면 됨 - 이미 확정된 위치를 다시 반환해도 confirm_static()은 멱등이라 안전하다)."""
+        matched_ids = self._match(leg_positions)
+        stationary = []
+        for (x, y), leg_id in zip(leg_positions, matched_ids):
+            if leg_id is None:
+                leg_id = self._next_id
+                self._next_id += 1
+                self._kalman[leg_id] = ConstantVelocityKalman2D(
+                    x, y, stamp,
+                    process_noise=self.process_noise,
+                    measurement_noise=self.measurement_noise)
+                self._created[leg_id] = stamp
+            else:
+                self._kalman[leg_id].update(x, y, stamp)
+
+            kf = self._kalman[leg_id]
+            age = stamp - self._created[leg_id]
+            if age >= self.confirm_duration_sec and kf.speed() <= self.stationary_speed_threshold:
+                stationary.append(kf.position())
+
+        self._prune(stamp)
+        return stationary
+
+    def _match(self, leg_positions):
+        """이번 스캔의 다리 후보들을 기존 칼만필터에 배타적(1:1)으로, 가까운 것부터 그리디로
+        배정한다. tracking_utils.assign_tracks와 같은 패턴이지만 Track이 아니라
+        ConstantVelocityKalman2D를 다루므로 여기 별도로 둔다."""
+        n = len(leg_positions)
+        results = [None] * n
+        claimed = set()
+        pending = set(range(n))
+
+        while pending:
+            best = None  # (dist, idx, leg_id)
+            for idx in pending:
+                x, y = leg_positions[idx]
+                best_id, best_dist = None, None
+                for lid, kf in self._kalman.items():
+                    if lid in claimed:
+                        continue
+                    kx, ky = kf.position()
+                    d = math.hypot(x - kx, y - ky)
+                    if d <= self.match_gate and (best_dist is None or d < best_dist):
+                        best_id, best_dist = lid, d
+                if best_id is not None and (best is None or best_dist < best[0]):
+                    best = (best_dist, idx, best_id)
+            if best is None:
+                break
+            _, idx, lid = best
+            results[idx] = lid
+            claimed.add(lid)
+            pending.discard(idx)
+
+        return results
+
+    def _prune(self, stamp):
+        stale = [lid for lid, kf in self._kalman.items() if stamp - kf.last_stamp > self.kf_timeout_sec]
+        for lid in stale:
+            del self._kalman[lid]
+            del self._created[lid]
+
+
 def ring_points(cx, cy, z, radius, count):
     """cx, cy를 중심으로 반경 radius인 원 둘레에 count개 점 + 중심점 1개를 반환한다."""
     points = [(cx, cy, z)]

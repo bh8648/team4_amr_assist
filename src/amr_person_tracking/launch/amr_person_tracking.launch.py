@@ -74,13 +74,18 @@ def generate_launch_description():
         DeclareLaunchArgument('leg_circle_fit_radius_max', default_value='0.20'),
         DeclareLaunchArgument('leg_circle_fit_rms_max', default_value='0.01'),
         # 원형적합만으론 못 거르는 책상/의자 다리(진짜 원통형) 대응 - "계속 같은 자리"라는
-        # 시간적 근거로 추가 제외. before/after 비교를 위해 끌 수 있게 뒀다. 고정 학습 창 없이
-        # 그리드 셀 단위로 상시 확인한다 - 학습 구간 동안 사람에게 가려졌던 물체도 나중에
-        # 드러나는 즉시 confirm_duration만 채우면 배경으로 확정된다 (leg_detection_utils.
-        # StaticBackgroundFilter 참고).
+        # 시간적 근거로 추가 제외. before/after 비교를 위해 끌 수 있게 뒀다. 개별 다리 후보마다
+        # 등속도 칼만필터(LegKalmanTracker)로 속도를 추정해, 누적 나이가 confirm_duration_sec
+        # 이상이고 속도가 stationary_speed_threshold 이하면 배경으로 확정한다 - 관측 공백
+        # (occlusion)이 있어도 칼만필터 상태가 리셋되지 않아, 사람이 물체 앞을 반복해서 오가도
+        # 결국 확정된다 (predictive_utils.LegKalmanTracker 문서 참고).
         DeclareLaunchArgument('background_filter_enabled', default_value='true'),
         DeclareLaunchArgument('background_confirm_duration_sec', default_value='3.0'),
-        DeclareLaunchArgument('background_max_gap_sec', default_value='1.0'),
+        DeclareLaunchArgument('background_stationary_speed_threshold', default_value='0.01'),
+        DeclareLaunchArgument('background_leg_match_gate', default_value='0.10'),
+        DeclareLaunchArgument('background_leg_kf_timeout', default_value='5.0'),
+        DeclareLaunchArgument('background_kf_process_noise', default_value='0.01'),
+        DeclareLaunchArgument('background_kf_measurement_noise', default_value='0.0025'),
         DeclareLaunchArgument('background_cell_size', default_value='0.05'),
         DeclareLaunchArgument('background_exclusion_radius', default_value='0.10'),
         # RGB/Depth 교차검증용 증거영상 녹화 시에만 켠다 (depth_view_republisher_node).
@@ -180,7 +185,11 @@ def generate_launch_description():
             'leg_circle_fit_rms_max': LaunchConfiguration('leg_circle_fit_rms_max'),
             'background_filter_enabled': LaunchConfiguration('background_filter_enabled'),
             'background_confirm_duration_sec': LaunchConfiguration('background_confirm_duration_sec'),
-            'background_max_gap_sec': LaunchConfiguration('background_max_gap_sec'),
+            'background_stationary_speed_threshold': LaunchConfiguration('background_stationary_speed_threshold'),
+            'background_leg_match_gate': LaunchConfiguration('background_leg_match_gate'),
+            'background_leg_kf_timeout': LaunchConfiguration('background_leg_kf_timeout'),
+            'background_kf_process_noise': LaunchConfiguration('background_kf_process_noise'),
+            'background_kf_measurement_noise': LaunchConfiguration('background_kf_measurement_noise'),
             'background_cell_size': LaunchConfiguration('background_cell_size'),
             'background_exclusion_radius': LaunchConfiguration('background_exclusion_radius'),
         }],

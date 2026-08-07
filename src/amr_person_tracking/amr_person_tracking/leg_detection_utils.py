@@ -206,70 +206,41 @@ class StaticBackgroundFilter:
     근거리(0.4~1.2m)의 몇몇 위치에 전체 스캔의 56~97%라는 압도적 빈도로 반복 등장했다 - 실제
     사람이라면 불가능한 지속성이고, 실제로 그 위치엔 책상/의자 다리가 있었다.
 
-    [설계 변경 이력 1] 처음엔 "노드 시작 후 N초만 학습하고 그 뒤로는 고정" 방식이었는데, 그
-    학습 구간 동안 사람이 그 물체를 가리고 있으면 라이다가 못 봐서 영영 배경으로 못 배우는
-    문제가 실측(같은 my_new_bag2, 11~14초/22~25초 구간)에서 확인됐다.
-
-    [설계 변경 이력 2] 그래서 "사람/다리쌍(person) 트랙이 confirm_duration_sec 이상 거의 안
-    움직이면 confirm_static()" 방식으로 바꿨는데, 실측 재검증(같은 구간)에서 새 문제가
-    드러났다 - pair_legs()의 다리쌍 매칭은 매 스캔 그때그때 가장 가까운 후보끼리 그리디로
-    묶기 때문에, 완전히 정지한 책상다리 하나여도 근처 다른 후보 유무에 따라 "짝지어진
-    중심점"이 스캔마다 5~10cm씩 튀었다(실측으로 확인) - 사람의 실제 이동(정지 시 초당
-    ~1.5cm)과 크기가 겹쳐서, 사람/다리쌍 단위로는 이 흔들림과 진짜 이동을 구분할 방법이
-    없었다. 반면 짝짓기 이전의 개별 다리 클러스터 중심점(raw leg)은 실측상 같은 물체면
-    스캔마다 1cm 이내로 안정적이었다 - 그래서 이 클래스는 이제 짝짓기 이전 개별 다리 위치를
-    입력으로 받는다(leg_detector_bridge_node가 filter_leg_clusters 직후, pair_legs 이전에
-    observe()를 호출하고, 배경으로 확정된 다리는 pair_legs에 넘기기 전에 제외한다).
-
-    [동작] 같은 그리드 셀에서 관측이 max_gap_sec 이내 간격으로 계속 이어지면 "연속 관측 중"으로
-    보고, 그 연속 구간이 confirm_duration_sec 이상 지속되면 그 셀을 정적 배경으로 확정한다.
-    관측 간격이 max_gap_sec을 넘으면(물체가 한동안 안 보였다 다시 보임) 그 시점부터 연속
-    구간을 새로 센다. 노드 시작 시점과 무관하게 언제든 새로 나타난 정적 물체를 계속 편입시킬
-    수 있고, 한 번 확정되면 그 세션 내내 유지된다.
-
-    한계: 사람이 stationary_move_threshold보다 훨씬 작게(그리드 셀 하나 폭, 기본 5cm 이내)
-    confirm_duration_sec 이상 완전히 제자리에 서 있으면 배경으로 오인될 수 있다 - 실측상
-    "정지"라고 부르는 상황에서도 사람 위치는 수 cm/s로 계속 드리프트하는 걸 확인했지만,
-    극단적으로 미동조차 없는 경우까지 완벽히 보장하진 못한다(원래 person-level 설계도 같은
-    한계를 안고 있었다 - 이번 변경으로 새로 생긴 한계가 아니다).
+    [설계 변경 이력]
+    1) "노드 시작 후 N초만 학습하고 그 뒤로는 고정" - 학습 구간 동안 사람이 물체를 가리면
+       영영 배경으로 못 배우는 문제 확인 (실측 11~14초/22~25초 구간).
+    2) "사람/다리쌍(person) 트랙이 안 움직이면 확정" - pair_legs()의 그리디 짝짓기가 스캔마다
+       다른 후보와 묶여 완전히 정지한 물체의 "짝지어진 중심점"도 5~10cm씩 튀는 게 확인돼,
+       사람의 실제 정지 드리프트(초당 ~1.5cm)와 크기가 겹쳐 구분 불가.
+    3) "짝짓기 이전 개별 다리 위치를 그리드 셀 단위 상시 관측, 끊김(gap) 있으면 리셋" - 반복
+       재검증(my_new_bag2 끝부분)에서, 사람이 그 물체 앞을 자주 오가며 매번 1초 넘는 공백을
+       만들면 짧은 세션 안에 끊김 없는 3초를 못 채워 계속 미확정으로 남는 걸 확인.
+    4) (현재) 이 클래스는 이제 "확정된 위치 집합 저장 + 근접 판정"만 담당하는 얇은 저장소다.
+       "언제 확정할지" 판단은 predictive_utils.LegKalmanTracker가 개별 다리 후보별 등속도
+       칼만필터로 맡는다 - 칼만필터는 관측 사이 공백(occlusion)이 있어도 그 구간만큼 공정
+       잡음이 커질 뿐 상태가 리셋되지 않으므로, 위 3)의 gap-reset 문제를 구조적으로 피한다.
+       leg_detector_bridge_node가 LegKalmanTracker.update()가 "정지 확정"이라고 돌려주는
+       위치에 대해 confirm_static()을 호출한다.
     """
 
-    def __init__(self, cell_size=0.05, exclusion_radius=0.10,
-                 confirm_duration_sec=3.0, max_gap_sec=1.0):
+    def __init__(self, cell_size=0.05, exclusion_radius=0.10):
         self.cell_size = cell_size
         self.exclusion_radius = exclusion_radius
-        self.confirm_duration_sec = confirm_duration_sec
-        self.max_gap_sec = max_gap_sec
         self._static_cells = set()
-        self._cell_run_start = {}   # cell -> 현재 연속 관측 구간의 시작 시각
-        self._cell_last_seen = {}   # cell -> 가장 최근 관측 시각
 
     def _cell(self, x, y):
         return (round(x / self.cell_size), round(y / self.cell_size))
 
-    def observe(self, x, y, stamp):
-        """이 위치가 이번 스캔(시각 stamp)에 관측됐음을 기록하고, 같은 셀이
-        confirm_duration_sec 이상 끊김 없이(매 관측 간격 <= max_gap_sec) 계속 관측됐으면
-        정적 배경으로 확정한다. 이미 확정된 셀에 다시 호출해도 안전하다(무동작)."""
-        cell = self._cell(x, y)
-        if cell in self._static_cells:
-            self._cell_last_seen[cell] = stamp
-            return
-
-        last_seen = self._cell_last_seen.get(cell)
-        if last_seen is None or (stamp - last_seen) > self.max_gap_sec:
-            self._cell_run_start[cell] = stamp  # 끊겼다 - 연속 구간 새로 시작
-        self._cell_last_seen[cell] = stamp
-
-        if stamp - self._cell_run_start[cell] >= self.confirm_duration_sec:
-            self._static_cells.add(cell)
+    def confirm_static(self, x, y):
+        """이 위치를 정적 배경으로 (그 세션 동안) 영구 등록한다. 여러 번 불러도 안전하다."""
+        self._static_cells.add(self._cell(x, y))
 
     @property
     def static_cell_count(self):
         return len(self._static_cells)
 
     def is_background(self, x, y):
-        """(x, y)가 observe()로 확정된 정적 배경 위치의 exclusion_radius 이내면 True."""
+        """(x, y)가 confirm_static()으로 확정된 정적 배경 위치의 exclusion_radius 이내면 True."""
         if not self._static_cells:
             return False
         span = int(math.ceil(self.exclusion_radius / self.cell_size)) + 1
