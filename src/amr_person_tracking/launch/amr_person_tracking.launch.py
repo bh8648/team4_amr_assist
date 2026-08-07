@@ -90,6 +90,10 @@ def generate_launch_description():
         DeclareLaunchArgument('background_exclusion_radius', default_value='0.10'),
         # RGB/Depth 교차검증용 증거영상 녹화 시에만 켠다 (depth_view_republisher_node).
         DeclareLaunchArgument('publish_depth_view', default_value='false'),
+        # reid_tracking_node end-to-end 검증 시에만 켠다 (mock_webcam_publisher_node) - 실제
+        # 웹캠 로컬라이제이션 스트림이 없는 이 워크스페이스에서, 라이다 다리검출 출력에 노이즈를
+        # 더해 "독립 출처"처럼 재발행해 웹캠->OAK-D->라이다 융합 경로를 실제로 돌려본다.
+        DeclareLaunchArgument('publish_mock_webcam', default_value='false'),
     ]
 
     namespace = LaunchConfiguration('namespace')
@@ -195,6 +199,21 @@ def generate_launch_description():
         }],
     )
 
+    # reid_tracking_node end-to-end 검증용 - 평소엔 필요 없어 기본 꺼짐. 실제 웹캠 로컬라이제이션
+    # 스트림이 없어, 라이다 다리검출 출력에 노이즈+지연을 더해 "독립 출처"처럼 재발행한다.
+    mock_webcam_publisher = Node(
+        package='amr_person_tracking',
+        executable='mock_webcam_publisher_node',
+        name='mock_webcam_publisher_node',
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('publish_mock_webcam')),
+        parameters=[{
+            'leg_detections_topic': leg_detections_topic,
+            'webcam_detections_topic': LaunchConfiguration('webcam_detections_topic'),
+            'map_frame': LaunchConfiguration('map_frame'),
+        }],
+    )
+
     reid_tracking = Node(
         package='amr_person_tracking',
         executable='reid_tracking_node',
@@ -226,4 +245,4 @@ def generate_launch_description():
 
     return LaunchDescription(
         args + [oakd_detector, debug_viewer, depth_view_republisher, leg_detector_bridge,
-                reid_tracking, predictive_avoidance])
+                mock_webcam_publisher, reid_tracking, predictive_avoidance])
