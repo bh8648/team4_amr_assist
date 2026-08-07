@@ -3,9 +3,12 @@ from typing import Optional
 
 import rclpy
 from geometry_msgs.msg import PoseWithCovarianceStamped
+from nav2_msgs.action import NavigateToPose
+from rclpy.action import ActionClient
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import BatteryState
+from std_msgs.msg import Bool
 
 from robot_status.msg import RobotStatus
 
@@ -33,6 +36,13 @@ class Robot5BridgeNode(Node):
         self.status_pub = self.create_publisher(RobotStatus, '/robot_status', status_qos)
         self.status_timer = self.create_timer(1.0, self.publish_robot_status)
 
+        self.nav_goal_handle = None
+
+        self.pause_sub = self.create_subscription(
+            Bool, f'/{ROBOT_ID}/pause/request', self.pause_callback, 10)
+
+        self.nav_client = ActionClient(self, NavigateToPose, f'/{ROBOT_ID}/navigate_to_pose')
+
         self.get_logger().info(f'{ROBOT_ID} 브릿지 노드 시작')
 
     def amcl_pose_callback(self, msg: PoseWithCovarianceStamped) -> None:
@@ -54,6 +64,11 @@ class Robot5BridgeNode(Node):
         msg = self.build_status_message()
         if msg is not None:
             self.status_pub.publish(msg)
+
+    def pause_callback(self, msg: Bool) -> None:
+        if msg.data and self.nav_goal_handle is not None:
+            self.nav_goal_handle.cancel_goal_async()
+            self.nav_goal_handle = None
 
 
 def main(args=None):

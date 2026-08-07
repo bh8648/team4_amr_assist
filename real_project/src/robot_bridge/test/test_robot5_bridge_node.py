@@ -1,6 +1,9 @@
 import rclpy
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from sensor_msgs.msg import BatteryState
+from unittest.mock import Mock
+
+from std_msgs.msg import Bool
 
 from robot_bridge.robot5_bridge_node import Robot5BridgeNode
 
@@ -40,6 +43,49 @@ def test_build_status_message_after_pose_and_battery():
         assert status.y == -2.0
         assert status.battery == 75.0
         assert status.current_task_id == ''
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_pause_true_cancels_active_goal():
+    rclpy.init()
+    node = Robot5BridgeNode()
+    try:
+        fake_goal_handle = Mock()
+        node.nav_goal_handle = fake_goal_handle
+
+        node.pause_callback(Bool(data=True))
+
+        fake_goal_handle.cancel_goal_async.assert_called_once()
+        assert node.nav_goal_handle is None
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_pause_true_without_active_goal_does_nothing():
+    rclpy.init()
+    node = Robot5BridgeNode()
+    try:
+        node.pause_callback(Bool(data=True))  # 예외 없이 통과해야 함
+        assert node.nav_goal_handle is None
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_pause_false_does_not_touch_goal():
+    rclpy.init()
+    node = Robot5BridgeNode()
+    try:
+        fake_goal_handle = Mock()
+        node.nav_goal_handle = fake_goal_handle
+
+        node.pause_callback(Bool(data=False))
+
+        fake_goal_handle.cancel_goal_async.assert_not_called()
+        assert node.nav_goal_handle is fake_goal_handle
     finally:
         node.destroy_node()
         rclpy.shutdown()
