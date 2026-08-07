@@ -89,3 +89,52 @@ def test_pause_false_does_not_touch_goal():
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
+
+def test_dock_request_true_sends_dock_goal():
+    rclpy.init()
+    node = Robot5BridgeNode()
+    try:
+        node.dock_client = Mock()
+        node.dock_client.wait_for_server.return_value = True
+        node.undock_client = Mock()
+
+        node.dock_callback(Bool(data=True))
+
+        node.dock_client.send_goal_async.assert_called_once()
+        node.undock_client.send_goal_async.assert_not_called()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_dock_request_false_sends_undock_goal():
+    rclpy.init()
+    node = Robot5BridgeNode()
+    try:
+        node.dock_client = Mock()
+        node.undock_client = Mock()
+        node.undock_client.wait_for_server.return_value = True
+
+        node.dock_callback(Bool(data=False))
+
+        node.undock_client.send_goal_async.assert_called_once()
+        node.dock_client.send_goal_async.assert_not_called()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_dock_request_skips_when_action_server_not_ready():
+    rclpy.init()
+    node = Robot5BridgeNode()
+    try:
+        node.dock_client = Mock()
+        node.dock_client.wait_for_server.return_value = False
+
+        node.dock_callback(Bool(data=True))
+
+        node.dock_client.send_goal_async.assert_not_called()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()

@@ -3,6 +3,7 @@ from typing import Optional
 
 import rclpy
 from geometry_msgs.msg import PoseWithCovarianceStamped
+from irobot_create_msgs.action import Dock, Undock
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.node import Node
@@ -43,6 +44,12 @@ class Robot5BridgeNode(Node):
 
         self.nav_client = ActionClient(self, NavigateToPose, f'/{ROBOT_ID}/navigate_to_pose')
 
+        self.dock_sub = self.create_subscription(
+            Bool, f'/{ROBOT_ID}/dock/request', self.dock_callback, 10)
+
+        self.dock_client = ActionClient(self, Dock, f'/{ROBOT_ID}/dock')
+        self.undock_client = ActionClient(self, Undock, f'/{ROBOT_ID}/undock')
+
         self.get_logger().info(f'{ROBOT_ID} 브릿지 노드 시작')
 
     def amcl_pose_callback(self, msg: PoseWithCovarianceStamped) -> None:
@@ -69,6 +76,42 @@ class Robot5BridgeNode(Node):
         if msg.data and self.nav_goal_handle is not None:
             self.nav_goal_handle.cancel_goal_async()
             self.nav_goal_handle = None
+
+    def dock_callback(self, msg: Bool) -> None:
+        if msg.data:
+            self._send_dock_goal()
+        else:
+            self._send_undock_goal()
+
+    def _send_dock_goal(self) -> None:
+        if not self.dock_client.wait_for_server(timeout_sec=0.2):
+            self.get_logger().warn('dock 액션 서버 대기 중')
+            return
+        future = self.dock_client.send_goal_async(Dock.Goal())
+        future.add_done_callback(self._dock_response_callback)
+
+    def _send_undock_goal(self) -> None:
+        if not self.undock_client.wait_for_server(timeout_sec=0.2):
+            self.get_logger().warn('undock 액션 서버 대기 중')
+            return
+        future = self.undock_client.send_goal_async(Undock.Goal())
+        future.add_done_callback(self._undock_response_callback)
+
+    def _dock_response_callback(self, future) -> None:
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self.get_logger().warn('dock goal 거부됨')
+            return
+        goal_handle.get_result_async().add_done_callback(
+            lambda result: self.get_logger().info(f'dock 결과: is_docked={result.result().result.is_docked}'))
+
+    def _undock_response_callback(self, future) -> None:
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self.get_logger().warn('undock goal 거부됨')
+            return
+        goal_handle.get_result_async().add_done_callback(
+            lambda result: self.get_logger().info(f'undock 결과: is_docked={result.result().result.is_docked}'))
 
 
 def main(args=None):
