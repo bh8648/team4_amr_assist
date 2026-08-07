@@ -6,3 +6,12 @@
 
 # superpowers subagent-driven-development scratch workspace
 /.superpowers/
+
+# colcon을 잘못된 작업 디렉터리에서 실행했을 때 저장소 루트에 남는 빌드 산출물
+/build/
+/install/
+/log/
+
+# 삭제 대기 중인 파일 보관소 (TRASH-FILES.md에 사유 기록)
+/TRASH/
+/TRASH-FILES.md

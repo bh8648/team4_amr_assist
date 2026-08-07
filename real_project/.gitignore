@@ -11,6 +11,7 @@
 .coverage
 htmlcov/
 /src/**/test/
+!/src/robot_bridge/test/
 
 # HMI frontend dependencies and build outputs
 /amr_delivery_ui/frontend/node_modules/
