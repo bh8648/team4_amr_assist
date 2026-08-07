@@ -34,12 +34,20 @@ class DebugViewerNode(Node):
 
         self.declare_parameter('image_topic', '/robot5/vision/oakd_detector/debug/compressed')
         self.declare_parameter('window_name', 'oakd_detector debug')
+        # 로스백 재생처럼 원본 프레임 간격이 넓을 때(sync_slop 매칭 실패로 초당 1장 미만) 창이
+        # 멈춘 것처럼 보이는 걸 막기 위한 최소 창 크기. 원본이 더 크면 원본 크기를 따른다.
+        self.declare_parameter('window_width', 960)
+        self.declare_parameter('window_height', 960)
 
         self.window_name = self.get_parameter('window_name').value
         image_topic = self.get_parameter('image_topic').value
+        window_width = self.get_parameter('window_width').value
+        window_height = self.get_parameter('window_height').value
+        self.latest_frame = None
 
         try:
             cv2.namedWindow(self.window_name, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(self.window_name, window_width, window_height)
         except cv2.error as exc:
             self.get_logger().error(
                 f'디스플레이에 창을 띄울 수 없습니다 ({exc}). '
@@ -50,14 +58,23 @@ class DebugViewerNode(Node):
         self.create_subscription(
             CompressedImage, image_topic, self.on_image, qos_profile_sensor_data)
 
+        # 새 프레임 도착 여부와 무관하게 일정 주기로 GUI 이벤트 루프를 돌린다. on_image에서만
+        # waitKey를 부르면 프레임 간격이 넓을 때(로스백 sync 매칭 희소) 그 사이 동안 창이
+        # OS에 "응답 없음"으로 보여 마치 멈춘 것처럼 보인다.
+        self.create_timer(0.03, self._pump_gui)
+
         self.get_logger().info(f'debug_viewer_node 시작 | {image_topic} -> 창 "{self.window_name}"')
 
     def on_image(self, msg: CompressedImage):
         frame = cv2.imdecode(np.frombuffer(msg.data, np.uint8), cv2.IMREAD_COLOR)
         if frame is None:
             return
-        cv2.imshow(self.window_name, frame)
-        # imshow가 실제로 그리려면 GUI 이벤트 루프를 한 번 돌려줘야 한다.
+        self.latest_frame = frame
+
+    def _pump_gui(self):
+        if self.latest_frame is not None:
+            cv2.imshow(self.window_name, self.latest_frame)
+        # imshow가 실제로 그리고 창이 살아있게 하려면 GUI 이벤트 루프를 계속 돌려줘야 한다.
         cv2.waitKey(1)
 
     def destroy_node(self):

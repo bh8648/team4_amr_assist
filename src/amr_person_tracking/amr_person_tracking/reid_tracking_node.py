@@ -71,9 +71,9 @@ from geometry_msgs.msg import PoseStamped
 
 from amr_person_tracking.tracking_utils import (
     Track,
+    assign_tracks,
     distance,
     extract_person_position,
-    match_track,
     stamp_to_sec,
     velocity_similarity,
 )
@@ -181,6 +181,7 @@ class ReidTrackingNode(Node):
         self.update_tracks(msg, source='webcam')
 
     def update_tracks(self, msg: Detection3DArray, source: str):
+        entries = []
         for det in msg.detections:
             pos = extract_person_position(det)
             if pos is None:
@@ -189,9 +190,17 @@ class ReidTrackingNode(Node):
             # 발행 쪽(oakd_detector_node/leg_detector_bridge_node) 관례상 det.header는 항상
             # 배열 header와 동일하게 채워져 있다.
             stamp = stamp_to_sec(det.header.stamp)
+            entries.append((x, y, stamp))
 
-            track_id = match_track(
-                self.tracks, x, y, stamp, self.gating_max_speed, self.gating_min_gate)
+        # 한 메시지 안 서로 다른 검출이 같은 트랙을 중복으로 차지하지 않도록, 이번 콜백에
+        # 들어온 검출 전체를 놓고 한 번에 배타적으로 배정한다. 게이팅은 배열 header의 공통
+        # 시점(batch_stamp) 기준으로 모든 기존 트랙을 일관되게 예측해 비교한다.
+        batch_stamp = stamp_to_sec(msg.header.stamp)
+        positions = [(x, y) for x, y, _ in entries]
+        track_ids = assign_tracks(
+            self.tracks, positions, batch_stamp, self.gating_max_speed, self.gating_min_gate)
+
+        for (x, y, stamp), track_id in zip(entries, track_ids):
             if track_id is None:
                 track_id = self._next_track_id
                 self._next_track_id += 1
@@ -264,6 +273,18 @@ class ReidTrackingNode(Node):
             self._handle_unlocked(followed, positions, stamp)
 
         self._update_leg_last_seen(positions, stamp)
+
+        # 카메라(웹캠/OAK-D)가 끊긴 동안에도 라이다 단독 락온 갱신이 외부로 계속 나가야 한다 -
+        # 이 발행이 없으면 update_tracks(카메라 콜백)에서만 발행되므로, 카메라가 안 보이는
+        # 초근접/가려짐 구간에서 tracked_detections/target_pose가 조용히 멈춘 것처럼 보인다.
+        # _maybe_select_followed_track()/_prune_tracks()는 여기서 부르지 않는다 - 그건 "아직
+        # 추종 대상이 없을 때 초기 선정"을 위한 카메라 경로 전용 로직이라, 이미 followed_track_id가
+        # 있다는 전제로 진입하는 이 라이다 경로에서 다시 실행하면 락온 로직과 충돌할 수 있다.
+        # locked_leg_id가 None이면(이번 프레임에 유실/스왑으로 막 리셋됐거나 애초에 미락온)
+        # 실제로 갱신된 새 위치가 없으므로 발행하지 않는다.
+        if self.locked_leg_id is not None:
+            self.publish_tracked(msg.header)
+            self.publish_target_pose(msg.header)
 
         # (전제조건) 이 매칭은 라이다/웹캠 검출이 모두 동일 map 좌표계로 변환되어 있다는 전제
         # 하에 동작한다. 매칭이 계속 실패하면 로봇 localization(AMCL 등) 드리프트를 먼저
@@ -359,14 +380,18 @@ class ReidTrackingNode(Node):
 
     def publish_tracked(self, header):
         msg = Detection3DArray()
-        msg.header = header
+        # header를 통째로 대입(참조 공유)하면 안 된다 - leg_detector_bridge_node에서 같은
+        # 패턴이 원본 header 객체를 오염시키는 버그였던 것과 동일한 위험을 안고 있다. 지금은
+        # 아래에서 바로 map_frame으로 다시 세팅해서 우연히 값이 맞아떨어지지만, 일관되게
+        # 값만 복사한다.
+        msg.header.stamp = header.stamp
         msg.header.frame_id = self.map_frame
         msg.detections = [self._make_detection3d(tr, header) for tr in self.tracks.values()]
         self.tracked_pub.publish(msg)
 
     def _make_detection3d(self, track, header):
         det = Detection3D()
-        det.header = header
+        det.header.stamp = header.stamp
         det.header.frame_id = self.map_frame
 
         hyp = ObjectHypothesisWithPose()
@@ -387,7 +412,7 @@ class ReidTrackingNode(Node):
 
     def publish_target_pose(self, header):
         pose = PoseStamped()
-        pose.header = header
+        pose.header.stamp = header.stamp
         pose.header.frame_id = self.map_frame
         if self.followed_track_id is not None and self.followed_track_id in self.tracks:
             track = self.tracks[self.followed_track_id]

@@ -59,6 +59,32 @@ def generate_launch_description():
         ),
         # 예측 회피 노드가 접근 대상 반영 방식을 고를 파라미터: pointcloud | costmap_params | both
         DeclareLaunchArgument('avoidance_mode', default_value='pointcloud'),
+        # 전역 좌표계. 각 노드가 tf2 조회/출력 frame_id에 사용한다. AMCL/nav2가 없는 로스백
+        # 재생 테스트에서는 map 프레임이 존재하지 않으므로 odom으로 넘겨야 tf lookup이 성공한다.
+        DeclareLaunchArgument('map_frame', default_value='map'),
+        # 로스백 재생 시 odom/tf가 센서 타임스탬프보다 뒤처지는 구간에서 정확한 시각 대신
+        # 최신 tf로 폴백할지 여부. 실물 로봇에선 false 유지, 로스백 테스트에선 true 권장.
+        DeclareLaunchArgument('tf_allow_latest_fallback', default_value='false'),
+        # debug_viewer_node 창 크기 (원본 프레임이 704x704라 기본값 그대로면 작게 보인다)
+        DeclareLaunchArgument('debug_window_width', default_value='960'),
+        DeclareLaunchArgument('debug_window_height', default_value='960'),
+        # 다리검출 원형적합(곡률) 필터. before/after 증거영상 비교를 위해 끌 수 있게 뒀다 -
+        # false면 옛 동작(폭만 검사, 벽 모서리 오검출 재현)으로 돌아간다.
+        DeclareLaunchArgument('leg_circularity_filter_enabled', default_value='true'),
+        DeclareLaunchArgument('leg_circle_fit_radius_max', default_value='0.20'),
+        DeclareLaunchArgument('leg_circle_fit_rms_max', default_value='0.01'),
+        # 원형적합만으론 못 거르는 책상/의자 다리(진짜 원통형) 대응 - "계속 같은 자리"라는
+        # 시간적 근거로 추가 제외. before/after 비교를 위해 끌 수 있게 뒀다. 고정 학습 창 없이
+        # 그리드 셀 단위로 상시 확인한다 - 학습 구간 동안 사람에게 가려졌던 물체도 나중에
+        # 드러나는 즉시 confirm_duration만 채우면 배경으로 확정된다 (leg_detection_utils.
+        # StaticBackgroundFilter 참고).
+        DeclareLaunchArgument('background_filter_enabled', default_value='true'),
+        DeclareLaunchArgument('background_confirm_duration_sec', default_value='3.0'),
+        DeclareLaunchArgument('background_max_gap_sec', default_value='1.0'),
+        DeclareLaunchArgument('background_cell_size', default_value='0.05'),
+        DeclareLaunchArgument('background_exclusion_radius', default_value='0.10'),
+        # RGB/Depth 교차검증용 증거영상 녹화 시에만 켠다 (depth_view_republisher_node).
+        DeclareLaunchArgument('publish_depth_view', default_value='false'),
     ]
 
     namespace = LaunchConfiguration('namespace')
@@ -72,6 +98,7 @@ def generate_launch_description():
     diagnostics_topic = PathJoinSubstitution(['/', namespace, 'diagnostics'])
     debug_image_topic = PathJoinSubstitution(['/', namespace, 'vision/oakd_detector/debug/compressed'])
     leg_marker_topic = PathJoinSubstitution(['/', namespace, 'vision/leg_detections/markers'])
+    depth_view_topic = PathJoinSubstitution(['/', namespace, 'oakd/stereo/depth_view/compressed'])
 
     # tf2의 TransformListener는 노드 네임스페이스와 무관하게 절대경로 /tf, /tf_static을 구독한다.
     # 터틀봇4는 tf를 네임스페이스 아래(/robot5/tf)로 발행하므로 remap이 없으면 tf 버퍼가 비어
@@ -100,6 +127,8 @@ def generate_launch_description():
             'diagnostics_topic': diagnostics_topic,
             'debug_image_topic': debug_image_topic,
             'publish_debug_image': LaunchConfiguration('publish_debug_image'),
+            'map_frame': LaunchConfiguration('map_frame'),
+            'tf_allow_latest_fallback': LaunchConfiguration('tf_allow_latest_fallback'),
         }],
     )
 
@@ -114,6 +143,22 @@ def generate_launch_description():
         parameters=[{
             'image_topic': debug_image_topic,
             'window_name': 'oakd_detector debug',
+            'window_width': LaunchConfiguration('debug_window_width'),
+            'window_height': LaunchConfiguration('debug_window_height'),
+        }],
+    )
+
+    # RGB/Depth 교차검증 증거영상 녹화용. 평소엔 필요 없어 기본 꺼짐 - RViz Image 디스플레이가
+    # 특수 처리 없이 볼 수 있게 depth를 컬러맵 입힌 평범한 jpeg로 재발행한다.
+    depth_view_republisher = Node(
+        package='amr_person_tracking',
+        executable='depth_view_republisher_node',
+        name='depth_view_republisher_node',
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('publish_depth_view')),
+        parameters=[{
+            'depth_topic': LaunchConfiguration('depth_topic'),
+            'depth_view_topic': depth_view_topic,
         }],
     )
 
@@ -128,6 +173,16 @@ def generate_launch_description():
             'leg_detections_topic': leg_detections_topic,
             'publish_markers': LaunchConfiguration('publish_markers'),
             'marker_topic': leg_marker_topic,
+            'map_frame': LaunchConfiguration('map_frame'),
+            'tf_allow_latest_fallback': LaunchConfiguration('tf_allow_latest_fallback'),
+            'leg_circularity_filter_enabled': LaunchConfiguration('leg_circularity_filter_enabled'),
+            'leg_circle_fit_radius_max': LaunchConfiguration('leg_circle_fit_radius_max'),
+            'leg_circle_fit_rms_max': LaunchConfiguration('leg_circle_fit_rms_max'),
+            'background_filter_enabled': LaunchConfiguration('background_filter_enabled'),
+            'background_confirm_duration_sec': LaunchConfiguration('background_confirm_duration_sec'),
+            'background_max_gap_sec': LaunchConfiguration('background_max_gap_sec'),
+            'background_cell_size': LaunchConfiguration('background_cell_size'),
+            'background_exclusion_radius': LaunchConfiguration('background_exclusion_radius'),
         }],
     )
 
@@ -142,6 +197,7 @@ def generate_launch_description():
             'leg_detections_topic': leg_detections_topic,
             'tracked_detections_topic': tracked_topic,
             'target_pose_topic': target_pose_topic,
+            'map_frame': LaunchConfiguration('map_frame'),
         }],
     )
 
@@ -155,8 +211,10 @@ def generate_launch_description():
             'predicted_points_topic': predicted_points_topic,
             'local_costmap_param_service': costmap_param_service,
             'avoidance_mode': LaunchConfiguration('avoidance_mode'),
+            'map_frame': LaunchConfiguration('map_frame'),
         }],
     )
 
     return LaunchDescription(
-        args + [oakd_detector, debug_viewer, leg_detector_bridge, reid_tracking, predictive_avoidance])
+        args + [oakd_detector, debug_viewer, depth_view_republisher, leg_detector_bridge,
+                reid_tracking, predictive_avoidance])

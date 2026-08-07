@@ -14,6 +14,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.py')),
+        (os.path.join('share', package_name, 'rviz'), glob('rviz/*.rviz')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -33,6 +34,7 @@ setup(
             'leg_detector_bridge_node = amr_person_tracking.leg_detector_bridge_node:main',
             'reid_tracking_node = amr_person_tracking.reid_tracking_node:main',
             'predictive_avoidance_node = amr_person_tracking.predictive_avoidance_node:main',
+            'depth_view_republisher_node = amr_person_tracking.depth_view_republisher_node:main',
         ],
     },
 )
