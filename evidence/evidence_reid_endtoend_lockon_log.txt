@@ -1,0 +1,8 @@
+[depth_view_republisher_node-2] [INFO] [1786104511.805335887] [depth_view_republisher_node]: depth_view_republisher_node 시작 | /robot5/oakd/stereo/image_raw/compressedDepth -> /robot5/oakd/stereo/depth_view/compressed
+[reid_tracking_node-5] [INFO] [1786104511.830594448] [reid_tracking_node]: reid_tracking_node 시작 | oakd=/robot5/vision/detections_3d webcam=/vision/webcam/detections_3d leg=/robot5/vision/leg_detections_3d -> /robot5/vision/tracked_detections_3d, /robot5/target_person_pose
+[predictive_avoidance_node-6] [INFO] [1786104511.847221621] [predictive_avoidance_node]: predictive_avoidance_node 시작 | /robot5/vision/tracked_detections_3d -> /robot5/vision/predicted_obstacle_points / /robot5/local_costmap/local_costmap/set_parameters (mode=pointcloud)
+[oakd_detector_node-1] [INFO] [1786104512.805778353] [oakd_detector_node]: oakd_detector_node 시작 | ns=robot5 rgb=/robot5/oakd/rgb/image_raw/compressed depth=/robot5/oakd/stereo/image_raw/compressedDepth -> /robot5/vision/detections_3d (slop=0.05s, process_every_n=1)
+[reid_tracking_node-5] [INFO] [1786104589.724772418] [reid_tracking_node]: 라이다 락온 확정: leg_5 -> track 1
+[reid_tracking_node-5] [WARN] [1786104594.990459882] [reid_tracking_node]: 라이다 락온 id leg_5 유실 - 재매칭 진입
+[reid_tracking_node-5] [INFO] [1786104601.935021758] [reid_tracking_node]: 라이다 락온 확정: leg_18 -> track 2
+[reid_tracking_node-5] [WARN] [1786104605.928907001] [reid_tracking_node]: 라이다 락온 id leg_18 유실 - 재매칭 진입
