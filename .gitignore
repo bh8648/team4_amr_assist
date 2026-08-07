@@ -3,3 +3,9 @@ install/
 log/
 __pycache__/
 *.pyc
+
+# 모델 가중치/학습 산출물/데이터셋 - 용량이 커서 git에 안 넣고 로컬로만 둠
+*.pt
+*.onnx
+datasets/
+runs/

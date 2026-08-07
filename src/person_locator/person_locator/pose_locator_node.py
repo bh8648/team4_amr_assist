@@ -28,6 +28,7 @@ from ultralytics import YOLO
 # 로컬 헬퍼 함수들 - 실제 계산/로직은 vision_utils.py 참고
 from person_locator.vision_utils import (
     apply_homography,
+    crop_person_bbox,
     crop_square_roi,
     decode_jpeg,
     encode_jpeg,
@@ -89,6 +90,17 @@ class PoseLocatorNode(Node):
         # AMR이 구독하는 "지금 이 사람이 부름" 이벤트 좌표
         self.declare_parameter('call_position_topic', 'person/call_position')
 
+        # --- 하이바 판별(hardhat_detector 패키지) 연동 파라미터 ---
+        # 사람 bounding box를 그대로 크롭해서 넘김(crop_person_bbox 참고) -
+        # 처음엔 얼굴 keypoint만 좁게 크롭했는데, 오버헤드/광각 카메라처럼
+        # 사람이 화면에서 작게 잡히면 얼굴 keypoint 신뢰도가 안 나와서
+        # 크롭 자체가 계속 스킵되는 문제가 있었음 + 학습 데이터도 전체
+        # 장면이었어서 bbox 크롭이 스케일상 더 잘 맞음
+        self.declare_parameter('hardhat_roi_padding_ratio', 0.15)
+        self.declare_parameter('publish_hardhat_roi', True)
+        self.declare_parameter('hardhat_roi_topic', 'person/hardhat_roi/compressed')
+        self.declare_parameter('hardhat_roi_jpeg_quality', 80)
+
         model_path = self.get_parameter('model_path').value
         self.conf_threshold = self.get_parameter('conf_threshold').value
         self.ankle_conf_threshold = self.get_parameter('ankle_conf_threshold').value
@@ -107,6 +119,11 @@ class PoseLocatorNode(Node):
         self.wrist_roi_jpeg_quality = self.get_parameter('wrist_roi_jpeg_quality').value
         call_trigger_topic = self.get_parameter('call_trigger_topic').value
         call_position_topic = self.get_parameter('call_position_topic').value
+
+        self.hardhat_roi_padding_ratio = self.get_parameter('hardhat_roi_padding_ratio').value
+        self.publish_hardhat_roi = self.get_parameter('publish_hardhat_roi').value
+        hardhat_roi_topic = self.get_parameter('hardhat_roi_topic').value
+        self.hardhat_roi_jpeg_quality = self.get_parameter('hardhat_roi_jpeg_quality').value
 
         # homography 행렬은 시작할 때 미리 로드함 - 파일이 없거나 형식이
         # 이상하면 나중에 조용히 이상한 좌표를 publish하는 대신
@@ -140,6 +157,10 @@ class PoseLocatorNode(Node):
         self.wrist_roi_pub = (
             self.create_publisher(CompressedImage, wrist_roi_topic, 1)
             if self.publish_wrist_roi else None
+        )
+        self.hardhat_roi_pub = (
+            self.create_publisher(CompressedImage, hardhat_roi_topic, 1)
+            if self.publish_hardhat_roi else None
         )
         self.call_position_pub = self.create_publisher(
             PointStamped, call_position_topic, qos
@@ -244,6 +265,12 @@ class PoseLocatorNode(Node):
                     if roi.size > 0:
                         roi_msg = encode_jpeg(roi, quality=self.wrist_roi_jpeg_quality)
                         self.wrist_roi_pub.publish(roi_msg)
+
+            if self.publish_hardhat_roi:
+                hardhat_roi = crop_person_bbox(frame, box_xyxy, self.hardhat_roi_padding_ratio)
+                if hardhat_roi.size > 0:
+                    hardhat_roi_msg = encode_jpeg(hardhat_roi, quality=self.hardhat_roi_jpeg_quality)
+                    self.hardhat_roi_pub.publish(hardhat_roi_msg)
         else:
             # 이번 프레임에 아무도 검출 안 됨 - 다음에 검출되는 사람이
             # 누구든 새로 잡을 수 있도록 락을 풀고, 오래된/마지막으로

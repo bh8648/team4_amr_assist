@@ -54,6 +54,7 @@ LEFT_WRIST_IDX = 9
 RIGHT_WRIST_IDX = 10
 
 
+
 def apply_homography(u, v, H):
     """픽셀 (u, v)를 homography 행렬 H(3x3)로 변환해서 지면 기준 (x, y)를 얻는다.
 
@@ -176,6 +177,39 @@ def extract_wrist_pixel(keypoints_xy, keypoints_conf, conf_threshold=0.5):
     idx = LEFT_WRIST_IDX if left_conf >= right_conf else RIGHT_WRIST_IDX
     u, v = keypoints_xy[idx]
     return float(u), float(v)
+
+
+def crop_person_bbox(frame, box_xyxy, padding_ratio=0.15):
+    """YOLO-pose가 이미 계산해둔 사람 bounding box를 그대로 크롭한다 (hardhat_detector 입력용).
+
+    처음엔 코/눈/귀 keypoint로 얼굴만 좁게 크롭했었는데, 오버헤드/광각
+    카메라처럼 사람이 화면에서 작게 잡히는 환경에서는 얼굴 keypoint
+    신뢰도가 너무 낮아서 크롭 자체가 계속 스킵되는 문제가 있었음. 게다가
+    hardhat_detector의 학습 데이터(datasets/detect_warn)도 얼굴만 잘라낸
+    게 아니라 카메라 전체 장면이었어서, 학습 때 스케일/구도와 비슷하게
+    주는 게 정확도에도 더 유리함.
+
+    box_xyxy는 select_person이 이미 골라낸 검출에서 나온 거라(즉 이미
+    "사람"으로 확정된 검출) extract_wrist_pixel처럼 신뢰도 체크로 스킵할
+    필요가 없음 - 그래서 이 함수는 None을 반환하지 않고, 항상 크롭 결과를
+    돌려준다(padding_ratio만큼 위아래좌우 여유를 둬서 하이바가 박스
+    상단 경계에 딱 붙어 잘리는 것도 어느 정도 방지).
+
+    Returns:
+        크롭된 프레임(BGR numpy array).
+    """
+    x1, y1, x2, y2 = box_xyxy
+    w = x2 - x1
+    h = y2 - y1
+    pad_x = w * padding_ratio
+    pad_y = h * padding_ratio
+
+    frame_h, frame_w = frame.shape[:2]
+    cx1 = max(0, int(x1 - pad_x))
+    cy1 = max(0, int(y1 - pad_y))
+    cx2 = min(frame_w, int(x2 + pad_x))
+    cy2 = min(frame_h, int(y2 + pad_y))
+    return frame[cy1:cy2, cx1:cx2]
 
 
 def crop_square_roi(frame, center_u, center_v, half_size):
