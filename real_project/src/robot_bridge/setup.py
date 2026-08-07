@@ -18,12 +18,12 @@ setup(
     zip_safe=True,
     maintainer='user',
     maintainer_email='user@todo.todo',
-    description='robot5 노트북용 중앙 시스템 연동 브릿지 노드',
+    description='robot11 노트북용 중앙 시스템 연동 브릿지 노드',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'robot5_bridge_node = robot_bridge.robot5_bridge_node:main',
+            'robot11_bridge_node = robot_bridge.robot11_bridge_node:main',
         ],
     },
 )

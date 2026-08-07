@@ -41,8 +41,8 @@ def test_is_followable_pose_accepts_real_target():
 
 
 def test_build_robot_status_fields():
-    msg = build_robot_status('robot5', 87.5, 1.2, -3.4, 0.5)
-    assert msg.robot_id == 'robot5'
+    msg = build_robot_status('robot11', 87.5, 1.2, -3.4, 0.5)
+    assert msg.robot_id == 'robot11'
     assert msg.battery == 87.5
     assert msg.x == 1.2
     assert msg.y == -3.4

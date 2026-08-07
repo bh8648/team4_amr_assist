@@ -1,17 +1,17 @@
-# robot5 브릿지 노드 Implementation Plan
+# robot11 브릿지 노드 Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** robot5 노트북(중앙 PC와 별도 컴퓨터)에서 실행되는 `robot_bridge` ROS2 패키지를 만들어, 중앙 시스템(`task_manager_node`)이 기대하는 `/robot_status` 발행, `pause`/`dock` 명령 처리, FOLLOWING 상태의 사람 추종 목표를 Nav2 goal로 중계하는 역할을 실제로 채운다.
+**Goal:** robot11 노트북(중앙 PC와 별도 컴퓨터)에서 실행되는 `robot_bridge` ROS2 패키지를 만들어, 중앙 시스템(`task_manager_node`)이 기대하는 `/robot_status` 발행, `pause`/`dock` 명령 처리, FOLLOWING 상태의 사람 추종 목표를 Nav2 goal로 중계하는 역할을 실제로 채운다.
 
-**Architecture:** 단일 ROS2 노드(`robot5_bridge_node`)가 AMCL 위치·배터리 상태를 구독해 `/robot_status`를 1Hz로 발행하고, 중앙의 `pause`/`dock` Bool 토픽을 실제 Nav2 goal 취소 및 Create3 Dock/Undock 액션 호출로 연결하며, `/robot5/target_person_pose`를 FOLLOWING 상태에서만 검증 후 Nav2 goal로 전달한다. 순수 변환 로직(쿼터니언→yaw, 유효성 검증, 메시지 빌더)은 별도 모듈(`pose_utils.py`)로 분리해 ROS 스핀 없이 pytest로 테스트한다.
+**Architecture:** 단일 ROS2 노드(`robot11_bridge_node`)가 AMCL 위치·배터리 상태를 구독해 `/robot_status`를 1Hz로 발행하고, 중앙의 `pause`/`dock` Bool 토픽을 실제 Nav2 goal 취소 및 Create3 Dock/Undock 액션 호출로 연결하며, `/robot11/target_person_pose`를 FOLLOWING 상태에서만 검증 후 Nav2 goal로 전달한다. 순수 변환 로직(쿼터니언→yaw, 유효성 검증, 메시지 빌더)은 별도 모듈(`pose_utils.py`)로 분리해 ROS 스핀 없이 pytest로 테스트한다.
 
 **Tech Stack:** ROS2 Humble, rclpy, `nav2_msgs/action/NavigateToPose`, `irobot_create_msgs/action/Dock,Undock`, `sensor_msgs/msg/BatteryState`, `geometry_msgs`, 커스텀 `robot_status` 메시지 패키지, pytest.
 
 ## Global Constraints
 
-- robot_id는 `'robot5'`로 하드코딩한다 (파라미터화하지 않음).
-- `/robot5/target_person_pose`는 이미 `map` 프레임이므로 TF 변환을 하지 않는다.
+- robot_id는 `'robot11'`로 하드코딩한다 (파라미터화하지 않음).
+- `/robot11/target_person_pose`는 이미 `map` 프레임이므로 TF 변환을 하지 않는다.
 - `orientation`이 `(0,0,0,0)`인 `target_person_pose`는 무효 메시지로 취급해 무시한다 (추적 대상 없음 표시).
 - `/robot_status`는 QoS `BEST_EFFORT`, depth 10으로 발행한다 (`db_manager_node`/`dummy_status_publisher`와 동일).
 - `RobotStatus.current_task_id`는 항상 빈 문자열로 발행한다. `RobotStatus.msg` 파일 자체는 수정하지 않는다.
@@ -34,10 +34,10 @@ real_project/src/robot_bridge/
   resource/robot_bridge
   robot_bridge/__init__.py
   robot_bridge/pose_utils.py         # 순수 함수: quaternion_to_yaw, is_valid_quaternion, build_robot_status
-  robot_bridge/robot5_bridge_node.py # 메인 노드
-  launch/robot5_bridge.launch.py
+  robot_bridge/robot11_bridge_node.py # 메인 노드
+  launch/robot11_bridge.launch.py
   test/test_pose_utils.py
-  test/test_robot5_bridge_node.py
+  test/test_robot11_bridge_node.py
 ```
 
 ---
@@ -50,10 +50,10 @@ real_project/src/robot_bridge/
 - Create: `real_project/src/robot_bridge/setup.cfg`
 - Create: `real_project/src/robot_bridge/resource/robot_bridge`
 - Create: `real_project/src/robot_bridge/robot_bridge/__init__.py`
-- Create: `real_project/src/robot_bridge/robot_bridge/robot5_bridge_node.py`
+- Create: `real_project/src/robot_bridge/robot_bridge/robot11_bridge_node.py`
 
 **Interfaces:**
-- Produces: `robot_bridge.robot5_bridge_node.Robot5BridgeNode` (rclpy `Node` 서브클래스, 이후 Task에서 이 클래스에 구독/발행/액션을 추가한다), `main(args=None)` 진입점.
+- Produces: `robot_bridge.robot11_bridge_node.Robot11BridgeNode` (rclpy `Node` 서브클래스, 이후 Task에서 이 클래스에 구독/발행/액션을 추가한다), `main(args=None)` 진입점.
 
 - [ ] **Step 1: package.xml 작성**
 
@@ -63,7 +63,7 @@ real_project/src/robot_bridge/
 <package format="3">
   <name>robot_bridge</name>
   <version>0.0.0</version>
-  <description>robot5 노트북에서 중앙 시스템과 실제 로봇(AMCL/Nav2/Create3)을 연결하는 브릿지 노드</description>
+  <description>robot11 노트북에서 중앙 시스템과 실제 로봇(AMCL/Nav2/Create3)을 연결하는 브릿지 노드</description>
   <maintainer email="user@todo.todo">user</maintainer>
   <license>Apache-2.0</license>
 
@@ -111,12 +111,12 @@ setup(
     zip_safe=True,
     maintainer='user',
     maintainer_email='user@todo.todo',
-    description='robot5 노트북용 중앙 시스템 연동 브릿지 노드',
+    description='robot11 노트북용 중앙 시스템 연동 브릿지 노드',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'robot5_bridge_node = robot_bridge.robot5_bridge_node:main',
+            'robot11_bridge_node = robot_bridge.robot11_bridge_node:main',
         ],
     },
 )
@@ -143,18 +143,18 @@ install_scripts=$base/lib/robot_bridge
 import rclpy
 from rclpy.node import Node
 
-ROBOT_ID = 'robot5'
+ROBOT_ID = 'robot11'
 
 
-class Robot5BridgeNode(Node):
+class Robot11BridgeNode(Node):
     def __init__(self):
-        super().__init__('robot5_bridge_node')
+        super().__init__('robot11_bridge_node')
         self.get_logger().info(f'{ROBOT_ID} 브릿지 노드 시작')
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
@@ -176,9 +176,9 @@ Run:
 cd /home/rokey/team4_amr_assist/real_project
 colcon build --packages-select robot_bridge
 source install/setup.bash
-timeout 2 ros2 run robot_bridge robot5_bridge_node; echo "exit code: $?"
+timeout 2 ros2 run robot_bridge robot11_bridge_node; echo "exit code: $?"
 ```
-Expected: 빌드 성공(`Summary: 1 package finished`), 노드가 `robot5 브릿지 노드 시작` 로그를 찍고 timeout으로 종료(exit code 124) — 크래시 없이 뜬다는 뜻.
+Expected: 빌드 성공(`Summary: 1 package finished`), 노드가 `robot11 브릿지 노드 시작` 로그를 찍고 timeout으로 종료(exit code 124) — 크래시 없이 뜬다는 뜻.
 
 - [ ] **Step 7: Commit**
 
@@ -229,8 +229,8 @@ def test_is_valid_quaternion_accepts_identity():
 
 
 def test_build_robot_status_fields():
-    msg = build_robot_status('robot5', 87.5, 1.2, -3.4, 0.5)
-    assert msg.robot_id == 'robot5'
+    msg = build_robot_status('robot11', 87.5, 1.2, -3.4, 0.5)
+    assert msg.robot_id == 'robot11'
     assert msg.battery == 87.5
     assert msg.x == 1.2
     assert msg.y == -3.4
@@ -302,16 +302,16 @@ git commit -m "robot_bridge: pose_utils 순수 함수(yaw 추출/유효성 검�
 ### Task 3: RobotStatus 발행 (AMCL 위치·배터리 캐싱 + 1Hz 타이머)
 
 **Files:**
-- Modify: `real_project/src/robot_bridge/robot_bridge/robot5_bridge_node.py` (Task 1의 스켈레톤에 구독/발행 추가)
-- Test: `real_project/src/robot_bridge/test/test_robot5_bridge_node.py` (신규)
+- Modify: `real_project/src/robot_bridge/robot_bridge/robot11_bridge_node.py` (Task 1의 스켈레톤에 구독/발행 추가)
+- Test: `real_project/src/robot_bridge/test/test_robot11_bridge_node.py` (신규)
 
 **Interfaces:**
 - Consumes: `pose_utils.quaternion_to_yaw`, `pose_utils.build_robot_status` (Task 2)
 - Produces:
-  - `Robot5BridgeNode.amcl_pose_callback(msg: PoseWithCovarianceStamped) -> None`
-  - `Robot5BridgeNode.battery_callback(msg: BatteryState) -> None`
-  - `Robot5BridgeNode.build_status_message() -> Optional[RobotStatus]` (이후 Task들의 테스트에서도 이 메서드로 발행 내용을 검증한다)
-  - `Robot5BridgeNode.publish_robot_status() -> None`
+  - `Robot11BridgeNode.amcl_pose_callback(msg: PoseWithCovarianceStamped) -> None`
+  - `Robot11BridgeNode.battery_callback(msg: BatteryState) -> None`
+  - `Robot11BridgeNode.build_status_message() -> Optional[RobotStatus]` (이후 Task들의 테스트에서도 이 메서드로 발행 내용을 검증한다)
+  - `Robot11BridgeNode.publish_robot_status() -> None`
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
@@ -320,7 +320,7 @@ import rclpy
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from sensor_msgs.msg import BatteryState
 
-from robot_bridge.robot5_bridge_node import Robot5BridgeNode
+from robot_bridge.robot11_bridge_node import Robot11BridgeNode
 
 
 def _amcl_msg(x, y, yaw_w=1.0, yaw_z=0.0):
@@ -334,7 +334,7 @@ def _amcl_msg(x, y, yaw_w=1.0, yaw_z=0.0):
 
 def test_build_status_message_none_before_data_received():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         assert node.build_status_message() is None
     finally:
@@ -344,7 +344,7 @@ def test_build_status_message_none_before_data_received():
 
 def test_build_status_message_after_pose_and_battery():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.amcl_pose_callback(_amcl_msg(1.5, -2.0))
         battery_msg = BatteryState()
@@ -353,7 +353,7 @@ def test_build_status_message_after_pose_and_battery():
 
         status = node.build_status_message()
         assert status is not None
-        assert status.robot_id == 'robot5'
+        assert status.robot_id == 'robot11'
         assert status.x == 1.5
         assert status.y == -2.0
         assert status.battery == 75.0
@@ -370,13 +370,13 @@ Run:
 cd /home/rokey/team4_amr_assist/real_project
 colcon build --packages-select robot_bridge
 source install/setup.bash
-python3 -m pytest src/robot_bridge/test/test_robot5_bridge_node.py -v
+python3 -m pytest src/robot_bridge/test/test_robot11_bridge_node.py -v
 ```
-Expected: FAIL (`AttributeError: 'Robot5BridgeNode' object has no attribute 'amcl_pose_callback'`)
+Expected: FAIL (`AttributeError: 'Robot11BridgeNode' object has no attribute 'amcl_pose_callback'`)
 
 - [ ] **Step 3: 노드에 구독/발행 로직 추가**
 
-`robot5_bridge_node.py`를 다음으로 전체 교체:
+`robot11_bridge_node.py`를 다음으로 전체 교체:
 
 ```python
 #!/usr/bin/env python3
@@ -392,12 +392,12 @@ from robot_status.msg import RobotStatus
 
 from robot_bridge.pose_utils import build_robot_status, quaternion_to_yaw
 
-ROBOT_ID = 'robot5'
+ROBOT_ID = 'robot11'
 
 
-class Robot5BridgeNode(Node):
+class Robot11BridgeNode(Node):
     def __init__(self):
-        super().__init__('robot5_bridge_node')
+        super().__init__('robot11_bridge_node')
 
         status_qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
 
@@ -439,7 +439,7 @@ class Robot5BridgeNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
@@ -461,7 +461,7 @@ Run:
 cd /home/rokey/team4_amr_assist/real_project
 colcon build --packages-select robot_bridge
 source install/setup.bash
-python3 -m pytest src/robot_bridge/test/test_robot5_bridge_node.py -v
+python3 -m pytest src/robot_bridge/test/test_robot11_bridge_node.py -v
 ```
 Expected: PASS (2 passed)
 
@@ -469,7 +469,7 @@ Expected: PASS (2 passed)
 
 ```bash
 cd /home/rokey/team4_amr_assist
-git add real_project/src/robot_bridge/robot_bridge/robot5_bridge_node.py real_project/src/robot_bridge/test/test_robot5_bridge_node.py
+git add real_project/src/robot_bridge/robot_bridge/robot11_bridge_node.py real_project/src/robot_bridge/test/test_robot11_bridge_node.py
 git commit -m "robot_bridge: AMCL/배터리 캐싱 후 /robot_status 1Hz 발행 추가"
 ```
 
@@ -478,15 +478,15 @@ git commit -m "robot_bridge: AMCL/배터리 캐싱 후 /robot_status 1Hz 발행 
 ### Task 4: pause 처리 (Nav2 goal 취소)
 
 **Files:**
-- Modify: `real_project/src/robot_bridge/robot_bridge/robot5_bridge_node.py`
-- Test: `real_project/src/robot_bridge/test/test_robot5_bridge_node.py`
+- Modify: `real_project/src/robot_bridge/robot_bridge/robot11_bridge_node.py`
+- Test: `real_project/src/robot_bridge/test/test_robot11_bridge_node.py`
 
 **Interfaces:**
-- Produces: `Robot5BridgeNode.pause_callback(msg: Bool) -> None`, `Robot5BridgeNode.nav_client`(`ActionClient`), `Robot5BridgeNode.nav_goal_handle` (다음 Task에서도 이 속성을 공유해서 사용한다)
+- Produces: `Robot11BridgeNode.pause_callback(msg: Bool) -> None`, `Robot11BridgeNode.nav_client`(`ActionClient`), `Robot11BridgeNode.nav_goal_handle` (다음 Task에서도 이 속성을 공유해서 사용한다)
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
-`test_robot5_bridge_node.py`에 추가:
+`test_robot11_bridge_node.py`에 추가:
 
 ```python
 from unittest.mock import Mock
@@ -496,7 +496,7 @@ from std_msgs.msg import Bool
 
 def test_pause_true_cancels_active_goal():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         fake_goal_handle = Mock()
         node.nav_goal_handle = fake_goal_handle
@@ -512,7 +512,7 @@ def test_pause_true_cancels_active_goal():
 
 def test_pause_true_without_active_goal_does_nothing():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.pause_callback(Bool(data=True))  # 예외 없이 통과해야 함
         assert node.nav_goal_handle is None
@@ -523,7 +523,7 @@ def test_pause_true_without_active_goal_does_nothing():
 
 def test_pause_false_does_not_touch_goal():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         fake_goal_handle = Mock()
         node.nav_goal_handle = fake_goal_handle
@@ -539,12 +539,12 @@ def test_pause_false_does_not_touch_goal():
 
 - [ ] **Step 2: 테스트 실행해서 실패 확인**
 
-Run: `python3 -m pytest src/robot_bridge/test/test_robot5_bridge_node.py -v` (source install/setup.bash 먼저)
-Expected: FAIL (`AttributeError: 'Robot5BridgeNode' object has no attribute 'nav_goal_handle'`)
+Run: `python3 -m pytest src/robot_bridge/test/test_robot11_bridge_node.py -v` (source install/setup.bash 먼저)
+Expected: FAIL (`AttributeError: 'Robot11BridgeNode' object has no attribute 'nav_goal_handle'`)
 
 - [ ] **Step 3: pause 로직과 nav_client 추가**
 
-`robot5_bridge_node.py`의 import에 추가:
+`robot11_bridge_node.py`의 import에 추가:
 ```python
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
@@ -571,14 +571,14 @@ from std_msgs.msg import Bool
 
 - [ ] **Step 4: 테스트 실행해서 통과 확인**
 
-Run: `python3 -m pytest src/robot_bridge/test/test_robot5_bridge_node.py -v`
+Run: `python3 -m pytest src/robot_bridge/test/test_robot11_bridge_node.py -v`
 Expected: PASS (5 passed)
 
 - [ ] **Step 5: Commit**
 
 ```bash
 cd /home/rokey/team4_amr_assist
-git add real_project/src/robot_bridge/robot_bridge/robot5_bridge_node.py real_project/src/robot_bridge/test/test_robot5_bridge_node.py
+git add real_project/src/robot_bridge/robot_bridge/robot11_bridge_node.py real_project/src/robot_bridge/test/test_robot11_bridge_node.py
 git commit -m "robot_bridge: pause/request 수신 시 Nav2 goal 취소 추가"
 ```
 
@@ -587,20 +587,20 @@ git commit -m "robot_bridge: pause/request 수신 시 Nav2 goal 취소 추가"
 ### Task 5: dock/undock 처리 (Create3 Dock/Undock 액션 호출)
 
 **Files:**
-- Modify: `real_project/src/robot_bridge/robot_bridge/robot5_bridge_node.py`
-- Test: `real_project/src/robot_bridge/test/test_robot5_bridge_node.py`
+- Modify: `real_project/src/robot_bridge/robot_bridge/robot11_bridge_node.py`
+- Test: `real_project/src/robot_bridge/test/test_robot11_bridge_node.py`
 
 **Interfaces:**
-- Produces: `Robot5BridgeNode.dock_callback(msg: Bool) -> None`, `Robot5BridgeNode.dock_client`, `Robot5BridgeNode.undock_client`
+- Produces: `Robot11BridgeNode.dock_callback(msg: Bool) -> None`, `Robot11BridgeNode.dock_client`, `Robot11BridgeNode.undock_client`
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
-`test_robot5_bridge_node.py` 파일 하단에 추가:
+`test_robot11_bridge_node.py` 파일 하단에 추가:
 
 ```python
 def test_dock_request_true_sends_dock_goal():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.dock_client = Mock()
         node.dock_client.wait_for_server.return_value = True
@@ -617,7 +617,7 @@ def test_dock_request_true_sends_dock_goal():
 
 def test_dock_request_false_sends_undock_goal():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.dock_client = Mock()
         node.undock_client = Mock()
@@ -634,7 +634,7 @@ def test_dock_request_false_sends_undock_goal():
 
 def test_dock_request_skips_when_action_server_not_ready():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.dock_client = Mock()
         node.dock_client.wait_for_server.return_value = False
@@ -649,8 +649,8 @@ def test_dock_request_skips_when_action_server_not_ready():
 
 - [ ] **Step 2: 테스트 실행해서 실패 확인**
 
-Run: `python3 -m pytest src/robot_bridge/test/test_robot5_bridge_node.py -v`
-Expected: FAIL (`AttributeError: 'Robot5BridgeNode' object has no attribute 'dock_client'`)
+Run: `python3 -m pytest src/robot_bridge/test/test_robot11_bridge_node.py -v`
+Expected: FAIL (`AttributeError: 'Robot11BridgeNode' object has no attribute 'dock_client'`)
 
 - [ ] **Step 3: dock/undock 로직 추가**
 
@@ -709,14 +709,14 @@ from irobot_create_msgs.action import Dock, Undock
 
 - [ ] **Step 4: 테스트 실행해서 통과 확인**
 
-Run: `python3 -m pytest src/robot_bridge/test/test_robot5_bridge_node.py -v`
+Run: `python3 -m pytest src/robot_bridge/test/test_robot11_bridge_node.py -v`
 Expected: PASS (8 passed)
 
 - [ ] **Step 5: Commit**
 
 ```bash
 cd /home/rokey/team4_amr_assist
-git add real_project/src/robot_bridge/robot_bridge/robot5_bridge_node.py real_project/src/robot_bridge/test/test_robot5_bridge_node.py
+git add real_project/src/robot_bridge/robot_bridge/robot11_bridge_node.py real_project/src/robot_bridge/test/test_robot11_bridge_node.py
 git commit -m "robot_bridge: dock/request 수신 시 실제 Dock/Undock 액션 호출 추가"
 ```
 
@@ -725,16 +725,16 @@ git commit -m "robot_bridge: dock/request 수신 시 실제 Dock/Undock 액션 �
 ### Task 6: FOLLOWING 상태에서 target_person_pose를 Nav2 goal로 전달
 
 **Files:**
-- Modify: `real_project/src/robot_bridge/robot_bridge/robot5_bridge_node.py`
-- Test: `real_project/src/robot_bridge/test/test_robot5_bridge_node.py`
+- Modify: `real_project/src/robot_bridge/robot_bridge/robot11_bridge_node.py`
+- Test: `real_project/src/robot_bridge/test/test_robot11_bridge_node.py`
 
 **Interfaces:**
 - Consumes: `pose_utils.is_valid_quaternion` (Task 2)
-- Produces: `Robot5BridgeNode.task_state_callback(msg: TaskState) -> None`, `Robot5BridgeNode.target_person_pose_callback(msg: PoseStamped) -> None`, `Robot5BridgeNode.current_task_state: str`
+- Produces: `Robot11BridgeNode.task_state_callback(msg: TaskState) -> None`, `Robot11BridgeNode.target_person_pose_callback(msg: PoseStamped) -> None`, `Robot11BridgeNode.current_task_state: str`
 
 - [ ] **Step 1: 실패하는 테스트 작성**
 
-`test_robot5_bridge_node.py` 파일 하단에 추가:
+`test_robot11_bridge_node.py` 파일 하단에 추가:
 
 ```python
 from geometry_msgs.msg import PoseStamped
@@ -759,16 +759,16 @@ def _invalid_person_pose():
 
 def test_task_state_callback_filters_by_robot_id():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         other_robot = TaskState()
-        other_robot.robot_id = 'robot11'
+        other_robot.robot_id = 'robot5'
         other_robot.state = 'FOLLOWING'
         node.task_state_callback(other_robot)
         assert node.current_task_state == ''
 
         this_robot = TaskState()
-        this_robot.robot_id = 'robot5'
+        this_robot.robot_id = 'robot11'
         this_robot.state = 'FOLLOWING'
         node.task_state_callback(this_robot)
         assert node.current_task_state == 'FOLLOWING'
@@ -779,7 +779,7 @@ def test_task_state_callback_filters_by_robot_id():
 
 def test_target_person_pose_ignored_when_not_following():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.nav_client = Mock()
         node.current_task_state = 'TRANSPORTING'
@@ -794,7 +794,7 @@ def test_target_person_pose_ignored_when_not_following():
 
 def test_target_person_pose_ignored_when_invalid_quaternion():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.nav_client = Mock()
         node.current_task_state = 'FOLLOWING'
@@ -809,7 +809,7 @@ def test_target_person_pose_ignored_when_invalid_quaternion():
 
 def test_target_person_pose_sends_goal_when_following_and_valid():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.nav_client = Mock()
         node.nav_client.wait_for_server.return_value = True
@@ -828,7 +828,7 @@ def test_target_person_pose_sends_goal_when_following_and_valid():
 
 def test_target_person_pose_cancels_previous_goal_before_resend():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.nav_client = Mock()
         node.nav_client.wait_for_server.return_value = True
@@ -846,8 +846,8 @@ def test_target_person_pose_cancels_previous_goal_before_resend():
 
 - [ ] **Step 2: 테스트 실행해서 실패 확인**
 
-Run: `python3 -m pytest src/robot_bridge/test/test_robot5_bridge_node.py -v`
-Expected: FAIL (`AttributeError: 'Robot5BridgeNode' object has no attribute 'current_task_state'`)
+Run: `python3 -m pytest src/robot_bridge/test/test_robot11_bridge_node.py -v`
+Expected: FAIL (`AttributeError: 'Robot11BridgeNode' object has no attribute 'current_task_state'`)
 
 - [ ] **Step 3: FOLLOWING 추종 로직 추가**
 
@@ -915,14 +915,14 @@ from robot_bridge.pose_utils import build_robot_status, is_valid_quaternion, qua
 
 - [ ] **Step 4: 테스트 실행해서 통과 확인**
 
-Run: `python3 -m pytest src/robot_bridge/test/test_robot5_bridge_node.py -v`
+Run: `python3 -m pytest src/robot_bridge/test/test_robot11_bridge_node.py -v`
 Expected: PASS (13 passed)
 
 - [ ] **Step 5: Commit**
 
 ```bash
 cd /home/rokey/team4_amr_assist
-git add real_project/src/robot_bridge/robot_bridge/robot5_bridge_node.py real_project/src/robot_bridge/test/test_robot5_bridge_node.py
+git add real_project/src/robot_bridge/robot_bridge/robot11_bridge_node.py real_project/src/robot_bridge/test/test_robot11_bridge_node.py
 git commit -m "robot_bridge: FOLLOWING 상태에서 target_person_pose를 Nav2 goal로 전달"
 ```
 
@@ -931,10 +931,10 @@ git commit -m "robot_bridge: FOLLOWING 상태에서 target_person_pose를 Nav2 g
 ### Task 7: launch 파일
 
 **Files:**
-- Create: `real_project/src/robot_bridge/launch/robot5_bridge.launch.py`
+- Create: `real_project/src/robot_bridge/launch/robot11_bridge.launch.py`
 
 **Interfaces:**
-- Consumes: `robot_bridge` 패키지의 `robot5_bridge_node` executable (Task 1~6)
+- Consumes: `robot_bridge` 패키지의 `robot11_bridge_node` executable (Task 1~6)
 
 - [ ] **Step 1: launch 파일 작성**
 
@@ -945,7 +945,7 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     return LaunchDescription([
-        Node(package='robot_bridge', executable='robot5_bridge_node', name='robot5_bridge_node', output='screen'),
+        Node(package='robot_bridge', executable='robot11_bridge_node', name='robot11_bridge_node', output='screen'),
     ])
 ```
 
@@ -956,19 +956,19 @@ Run:
 cd /home/rokey/team4_amr_assist/real_project
 colcon build --packages-select robot_bridge
 source install/setup.bash
-ros2 launch robot_bridge robot5_bridge.launch.py &
+ros2 launch robot_bridge robot11_bridge.launch.py &
 sleep 2
-ros2 node list | grep robot5_bridge_node
+ros2 node list | grep robot11_bridge_node
 kill %1
 ```
-Expected: `ros2 node list` 출력에 `/robot5_bridge_node`가 보인다.
+Expected: `ros2 node list` 출력에 `/robot11_bridge_node`가 보인다.
 
 - [ ] **Step 3: Commit**
 
 ```bash
 cd /home/rokey/team4_amr_assist
-git add real_project/src/robot_bridge/launch/robot5_bridge.launch.py
-git commit -m "robot_bridge: robot5_bridge_node launch 파일 추가"
+git add real_project/src/robot_bridge/launch/robot11_bridge.launch.py
+git commit -m "robot_bridge: robot11_bridge_node launch 파일 추가"
 ```
 
 ---
@@ -1017,13 +1017,13 @@ git commit -m "robot_bridge: 린트 경고 정리"
 
 ### Task 9: 실물 로봇 검증 (사용자와 함께 진행 — AI 단독 실행 금지)
 
-**이 태스크는 코드 작성이 없다.** `docs/superpowers/specs/2026-08-07-robot5-bridge-node-design.md`의 "테스트 방침" 섹션에 정의된 수동 체크리스트를 그대로 수행한다. Global Constraints에 명시된 대로, 이 단계는 로봇이 실제로 움직이므로 사용자가 로봇 옆에서 비상정지를 쥐고 각 단계를 직접 트리거·확인하며 함께 진행해야 한다. AI가 로봇 노트북에 원격으로 접속해 이 단계를 혼자 실행하고 판단하지 않는다.
+**이 태스크는 코드 작성이 없다.** `docs/superpowers/specs/2026-08-07-robot11-bridge-node-design.md`의 "테스트 방침" 섹션에 정의된 수동 체크리스트를 그대로 수행한다. Global Constraints에 명시된 대로, 이 단계는 로봇이 실제로 움직이므로 사용자가 로봇 옆에서 비상정지를 쥐고 각 단계를 직접 트리거·확인하며 함께 진행해야 한다. AI가 로봇 노트북에 원격으로 접속해 이 단계를 혼자 실행하고 판단하지 않는다.
 
 - [ ] **Step 1**: `amr_person_tracking` 브랜치를 병합했는지 확인 (안 됐으면 FOLLOWING 관련 항목은 스킵하고 나머지만 진행)
-- [ ] **Step 2**: robot5 노트북에서 `ros2 launch robot_bridge robot5_bridge.launch.py` 실행, AMCL·Nav2·Create3 드라이버가 이미 떠 있는 상태에서 중앙 PC의 `/robot_status`에 실제 위치·배터리가 찍히는지 **사용자가 직접 확인**
-- [ ] **Step 3**: `/robot5/pause/request`에 `True` 발행 시 진행 중이던 Nav2 goal이 취소되는지 **사용자가 로봇 옆에서 직접 확인**
-- [ ] **Step 4**: `/robot5/dock/request` True/False 각각 발행 — **도킹 스테이션 근처에서, 사용자가 함께, 최초엔 저속/근접 상태로** `/robot5/dock`, `/robot5/undock` 액션이 정상 동작하는지 확인
-- [ ] **Step 5**: FOLLOWING이 아닌 상태에서 `/robot5/target_person_pose`를 보내도 Nav2 goal이 전송되지 않는지 확인
+- [ ] **Step 2**: robot11 노트북에서 `ros2 launch robot_bridge robot11_bridge.launch.py` 실행, AMCL·Nav2·Create3 드라이버가 이미 떠 있는 상태에서 중앙 PC의 `/robot_status`에 실제 위치·배터리가 찍히는지 **사용자가 직접 확인**
+- [ ] **Step 3**: `/robot11/pause/request`에 `True` 발행 시 진행 중이던 Nav2 goal이 취소되는지 **사용자가 로봇 옆에서 직접 확인**
+- [ ] **Step 4**: `/robot11/dock/request` True/False 각각 발행 — **도킹 스테이션 근처에서, 사용자가 함께, 최초엔 저속/근접 상태로** `/robot11/dock`, `/robot11/undock` 액션이 정상 동작하는지 확인
+- [ ] **Step 5**: FOLLOWING이 아닌 상태에서 `/robot11/target_person_pose`를 보내도 Nav2 goal이 전송되지 않는지 확인
 - [ ] **Step 6**: FOLLOWING 상태에서 `target_person_pose`가 갱신될 때마다 Nav2 goal이 교체되는지 **사용자가 로봇 옆에서 추종 동작을 감독하며** 확인
 
 모든 항목이 확인되면 이 브랜치를 `superpowers:finishing-a-development-branch` 스킬로 정리한다.

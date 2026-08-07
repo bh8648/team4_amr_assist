@@ -3,7 +3,7 @@
 <package format="3">
   <name>robot_bridge</name>
   <version>0.0.0</version>
-  <description>robot5 노트북에서 중앙 시스템과 실제 로봇(AMCL/Nav2/Create3)을 연결하는 브릿지 노드</description>
+  <description>robot11 노트북에서 중앙 시스템과 실제 로봇(AMCL/Nav2/Create3)을 연결하는 브릿지 노드</description>
   <maintainer email="user@todo.todo">user</maintainer>
   <license>Apache-2.0</license>
 

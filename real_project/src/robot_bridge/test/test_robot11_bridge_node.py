@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 from std_msgs.msg import Bool
 
-from robot_bridge.robot5_bridge_node import Robot5BridgeNode
+from robot_bridge.robot11_bridge_node import Robot11BridgeNode
 from robot_status.msg import TaskState
 
 
@@ -21,7 +21,7 @@ def _amcl_msg(x, y, yaw_w=1.0, yaw_z=0.0):
 
 def test_build_status_message_none_before_data_received():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         assert node.build_status_message() is None
     finally:
@@ -31,7 +31,7 @@ def test_build_status_message_none_before_data_received():
 
 def test_build_status_message_after_pose_and_battery():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.amcl_pose_callback(_amcl_msg(1.5, -2.0))
         battery_msg = BatteryState()
@@ -40,7 +40,7 @@ def test_build_status_message_after_pose_and_battery():
 
         status = node.build_status_message()
         assert status is not None
-        assert status.robot_id == 'robot5'
+        assert status.robot_id == 'robot11'
         assert status.x == 1.5
         assert status.y == -2.0
         assert status.battery == 75.0
@@ -52,7 +52,7 @@ def test_build_status_message_after_pose_and_battery():
 
 def test_pause_true_cancels_active_goal():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         fake_goal_handle = Mock()
         node.nav_goal_handle = fake_goal_handle
@@ -68,7 +68,7 @@ def test_pause_true_cancels_active_goal():
 
 def test_pause_true_without_active_goal_does_nothing():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.pause_callback(Bool(data=True))  # 예외 없이 통과해야 함
         assert node.nav_goal_handle is None
@@ -79,7 +79,7 @@ def test_pause_true_without_active_goal_does_nothing():
 
 def test_pause_false_does_not_touch_goal():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         fake_goal_handle = Mock()
         node.nav_goal_handle = fake_goal_handle
@@ -95,7 +95,7 @@ def test_pause_false_does_not_touch_goal():
 
 def test_dock_request_true_sends_dock_goal():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.dock_client = Mock()
         node.dock_client.wait_for_server.return_value = True
@@ -112,7 +112,7 @@ def test_dock_request_true_sends_dock_goal():
 
 def test_dock_request_false_sends_undock_goal():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.dock_client = Mock()
         node.undock_client = Mock()
@@ -129,7 +129,7 @@ def test_dock_request_false_sends_undock_goal():
 
 def test_dock_request_skips_when_action_server_not_ready():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.dock_client = Mock()
         node.dock_client.wait_for_server.return_value = False
@@ -168,16 +168,16 @@ def _no_target_person_pose():
 
 def test_task_state_callback_filters_by_robot_id():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         other_robot = TaskState()
-        other_robot.robot_id = 'robot11'
+        other_robot.robot_id = 'robot5'
         other_robot.state = 'FOLLOWING'
         node.task_state_callback(other_robot)
         assert node.current_task_state == ''
 
         this_robot = TaskState()
-        this_robot.robot_id = 'robot5'
+        this_robot.robot_id = 'robot11'
         this_robot.state = 'FOLLOWING'
         node.task_state_callback(this_robot)
         assert node.current_task_state == 'FOLLOWING'
@@ -188,7 +188,7 @@ def test_task_state_callback_filters_by_robot_id():
 
 def test_target_person_pose_ignored_when_not_following():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.nav_client = Mock()
         node.current_task_state = 'TRANSPORTING'
@@ -203,7 +203,7 @@ def test_target_person_pose_ignored_when_not_following():
 
 def test_target_person_pose_ignored_when_invalid_quaternion():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.nav_client = Mock()
         node.current_task_state = 'FOLLOWING'
@@ -218,7 +218,7 @@ def test_target_person_pose_ignored_when_invalid_quaternion():
 
 def test_target_person_pose_ignored_when_position_is_origin():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.nav_client = Mock()
         node.nav_client.server_is_ready.return_value = True
@@ -237,7 +237,7 @@ def test_target_person_pose_ignored_when_position_is_origin():
 
 def test_target_person_pose_sends_goal_when_following_and_valid():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.nav_client = Mock()
         node.nav_client.server_is_ready.return_value = True
@@ -256,7 +256,7 @@ def test_target_person_pose_sends_goal_when_following_and_valid():
 
 def test_target_person_pose_cancels_previous_goal_before_resend():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.nav_client = Mock()
         node.nav_client.server_is_ready.return_value = True
@@ -274,7 +274,7 @@ def test_target_person_pose_cancels_previous_goal_before_resend():
 
 def test_target_person_pose_ignored_when_frame_id_is_not_map():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.nav_client = Mock()
         node.nav_client.server_is_ready.return_value = True
@@ -292,7 +292,7 @@ def test_target_person_pose_ignored_when_frame_id_is_not_map():
 
 def test_follow_goal_uses_non_blocking_server_check():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.nav_client = Mock()
         node.nav_client.server_is_ready.return_value = False
@@ -310,7 +310,7 @@ def test_follow_goal_uses_non_blocking_server_check():
 
 def test_follow_goal_does_not_mutate_received_message():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.nav_client = Mock()
         node.nav_client.server_is_ready.return_value = True
@@ -331,7 +331,7 @@ def test_follow_goal_does_not_mutate_received_message():
 
 def test_pause_during_in_flight_goal_cancels_late_accepted_goal():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.nav_client = Mock()
         node.nav_client.server_is_ready.return_value = True
@@ -360,7 +360,7 @@ def test_pause_during_in_flight_goal_cancels_late_accepted_goal():
 
 def test_follow_goal_handle_cleared_when_navigation_result_arrives():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         node.nav_client = Mock()
         node.nav_client.server_is_ready.return_value = True
@@ -387,7 +387,7 @@ def test_follow_goal_handle_cleared_when_navigation_result_arrives():
 
 def test_battery_subscription_uses_best_effort_qos():
     rclpy.init()
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         assert node.battery_sub.qos_profile.reliability == ReliabilityPolicy.BEST_EFFORT
         # amcl_pose는 Nav2 AMCL 기본값(RELIABLE) 그대로 둔다

@@ -2,6 +2,8 @@
 /build/
 /install/
 /log/
+/TRASH/
+/TRASH-FILES.md
 
 # Python generated files
 **/__pycache__/

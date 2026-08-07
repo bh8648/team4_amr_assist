@@ -16,12 +16,12 @@ from robot_status.msg import RobotStatus, TaskState
 
 from robot_bridge.pose_utils import build_robot_status, is_followable_pose, quaternion_to_yaw
 
-ROBOT_ID = 'robot5'
+ROBOT_ID = 'robot11'
 
 
-class Robot5BridgeNode(Node):
+class Robot11BridgeNode(Node):
     def __init__(self):
-        super().__init__('robot5_bridge_node')
+        super().__init__('robot11_bridge_node')
 
         status_qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
 
@@ -188,7 +188,7 @@ class Robot5BridgeNode(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = Robot5BridgeNode()
+    node = Robot11BridgeNode()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
