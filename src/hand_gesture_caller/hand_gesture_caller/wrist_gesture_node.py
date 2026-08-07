@@ -150,8 +150,8 @@ class WristGestureNode(Node):
         # openness ratio 히스테리시스 밴드 - compute_openness_ratio 주석 참고.
         # 기본값은 경험적 값이라 실측(디버그 오버레이로 실제 ratio 로그 찍어서)
         # 후 튜닝 필요할 수 있음
-        self.declare_parameter('open_ratio_threshold', 1.8)
-        self.declare_parameter('closed_ratio_threshold', 1.3)
+        self.declare_parameter('open_ratio_threshold', 1.7)
+        self.declare_parameter('closed_ratio_threshold', 1.0)
         # OPEN->CLOSED, CLOSED->OPEN 각 단계 전환에 허용하는 최대 시간(초) -
         # 이보다 오래 걸리면 의도치 않은 손 모양 변화로 보고 리셋
         self.declare_parameter('phase_timeout_sec', 1.5)

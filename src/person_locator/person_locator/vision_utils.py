@@ -142,7 +142,7 @@ def extract_standing_pixel(keypoints_xy, keypoints_conf, box_xyxy, ankle_conf_th
     return u, v
 
 
-def extract_wrist_pixel(keypoints_xy, keypoints_conf, conf_threshold=0.5):
+def extract_wrist_pixel(keypoints_xy, keypoints_conf, conf_threshold=0.5, locked_side=None):
     """제스처 인식용으로 손 ROI를 자를 중심 픽셀 (u, v)를 고른다.
 
     extract_standing_pixel과 달리 bbox fallback이 없다 - 발목은 "바닥에 닿는
@@ -151,13 +151,25 @@ def extract_wrist_pixel(keypoints_xy, keypoints_conf, conf_threshold=0.5):
     둘 다 신뢰도 미달이면 그냥 None을 반환해서 호출하는 쪽이 이번 프레임은
     건너뛰게 한다.
 
+    locked_side로 select_person(locked_track_id)과 같은 원칙의 락온을 적용함:
+    왼쪽/오른쪽 신뢰도가 서로 비슷하면 프레임마다 근소한 차이로 승자가
+    바뀌면서 크롭 위치 자체가 왼쪽<->오른쪽으로 계속 튀는 문제가 있었음 -
+    이미 락온된 쪽이 있고 그 쪽이 여전히 신뢰도 기준을 넘으면, 다른 쪽이
+    이번 프레임에 근소하게 더 높더라도 갈아타지 않고 그대로 유지한다.
+    락온된 쪽이 더 이상 안 보일 때만(신뢰도 미달) 그때 다시 둘 중 더 나은
+    쪽으로 새로 고른다.
+
     Args:
         keypoints_xy: (17, 2) 형태의 array - extract_standing_pixel과 동일.
         keypoints_conf: (17,) 형태의 array 또는 None.
         conf_threshold: 손목 keypoint를 믿을 수 있는 최소 신뢰도.
+        locked_side: 이전 프레임에 락온했던 쪽('left'/'right'), 아직 락온
+            안 했으면 None.
 
     Returns:
-        (u, v) 튜플, 또는 신뢰할 만한 손목이 없으면 None.
+        (u, v, side) 튜플 - side는 이번에 고른 쪽('left'/'right')이라 호출하는
+        쪽이 다음 프레임 locked_side로 그대로 넘기면 됨. 신뢰할 만한 손목이
+        하나도 없으면 None.
     """
     if keypoints_conf is None:
         return None
@@ -168,15 +180,24 @@ def extract_wrist_pixel(keypoints_xy, keypoints_conf, conf_threshold=0.5):
     left_ok = left_conf >= conf_threshold
     right_ok = right_conf >= conf_threshold
 
+    if locked_side == 'left' and left_ok:
+        u, v = keypoints_xy[LEFT_WRIST_IDX]
+        return float(u), float(v), 'left'
+    if locked_side == 'right' and right_ok:
+        u, v = keypoints_xy[RIGHT_WRIST_IDX]
+        return float(u), float(v), 'right'
+
     if not left_ok and not right_ok:
         return None
 
-    # 둘 다 보이면 더 확실하게 보이는 쪽 하나만 고름 - 발목 중점과 달리
-    # 두 손목은 서로 멀리 떨어져 있을 수 있어서 평균 내면 손도 아닌
-    # 엉뚱한 중간 지점을 크롭하게 됨
-    idx = LEFT_WRIST_IDX if left_conf >= right_conf else RIGHT_WRIST_IDX
+    # 락온된 쪽이 없거나(첫 검출) 락온된 쪽이 이번 프레임엔 신뢰도 미달 -
+    # 둘 중 더 확실하게 보이는 쪽으로 새로 고름. 발목 중점과 달리 두 손목은
+    # 서로 멀리 떨어져 있을 수 있어서 평균 내면 손도 아닌 엉뚱한 중간
+    # 지점을 크롭하게 되므로 하나만 고른다
+    side = 'left' if left_conf >= right_conf else 'right'
+    idx = LEFT_WRIST_IDX if side == 'left' else RIGHT_WRIST_IDX
     u, v = keypoints_xy[idx]
-    return float(u), float(v)
+    return float(u), float(v), side
 
 
 def crop_person_bbox(frame, box_xyxy, padding_ratio=0.15):

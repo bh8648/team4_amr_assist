@@ -175,6 +175,11 @@ class PoseLocatorNode(Node):
         # 지금 "락온"해서 따라가고 있는 사람의 트래커 id
         # (vision_utils.select_person 참고) - None이면 아직 아무도 락온 안 한 것
         self.locked_track_id = None
+        # 지금 락온해서 크롭하고 있는 손목 쪽('left'/'right') -
+        # (vision_utils.extract_wrist_pixel 참고) - None이면 아직 안 정해짐.
+        # 사람 락이 풀리면 같이 리셋해서, 다음에 새로 락온되는 사람에 대해
+        # 처음부터 다시 고르게 함
+        self.locked_wrist_side = None
         self.frame_count = 0
         # call_trigger_callback이 쓸 "마지막으로 계산된 map (x, y)" -
         # 프레임 콜백과 트리거 콜백이 비동기로 들어오므로 여기 저장해뒀다가 씀.
@@ -255,10 +260,12 @@ class PoseLocatorNode(Node):
 
             if self.publish_wrist_roi:
                 wrist_pixel = extract_wrist_pixel(
-                    keypoints_xy, keypoints_conf, self.wrist_conf_threshold
+                    keypoints_xy, keypoints_conf, self.wrist_conf_threshold,
+                    self.locked_wrist_side,
                 )
                 if wrist_pixel is not None:
-                    wu, wv = wrist_pixel
+                    wu, wv, side = wrist_pixel
+                    self.locked_wrist_side = side
                     roi = crop_square_roi(frame, wu, wv, self.wrist_roi_half_size)
                     # 손목이 프레임 가장자리 바로 바깥이면 크롭 결과가
                     # 비어있을 수 있음(crop_square_roi 참고) - 그러면 그냥 건너뜀
@@ -276,6 +283,9 @@ class PoseLocatorNode(Node):
             # 누구든 새로 잡을 수 있도록 락을 풀고, 오래된/마지막으로
             # 알던 위치는 일부러 publish하지 않음
             self.locked_track_id = None
+            # 사람이 바뀔 수 있으니 손목 락도 같이 풀어서, 새 사람에 대해
+            # 처음부터 다시 고르게 함
+            self.locked_wrist_side = None
             # 락이 풀렸으니 트리거가 와도 더 이상 유효하지 않은 옛 위치를
             # 쏘지 않도록 같이 비움
             self.last_person_point = None
