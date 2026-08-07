@@ -35,6 +35,7 @@ setup(
             'compute_homography_from_points = person_locator.compute_homography_from_points:main',
             'pose_locator_node = person_locator.pose_locator_node:main',
             'person_tf_broadcaster_node = person_locator.person_tf_broadcaster_node:main',
+            'call_position_nav_test = person_locator.call_position_nav_test:main',
         ],
     },
 )
