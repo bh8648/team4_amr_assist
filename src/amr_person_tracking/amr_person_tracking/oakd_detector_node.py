@@ -398,7 +398,7 @@ class OakdDetectorNode(Node):
             self._stat_grades[grade] = self._stat_grades.get(grade, 0) + 1
 
             detections.append(self._make_detection3d(pt_map, box_conf, grade, trunc, track_id, rgb_msg.header))
-            overlay_items.append((u, v, grade, distance))
+            overlay_items.append((u, v, grade, distance, track_id))
 
         return detections, nearest, overlay_items
 
@@ -556,11 +556,21 @@ class OakdDetectorNode(Node):
             overlay = result.plot()
         except Exception:
             return
-        for u, v, grade, distance in overlay_items:
+        for u, v, grade, distance, track_id in overlay_items:
             cv2.circle(overlay, (int(u), int(v)), 6, (0, 255, 255), -1)
             cv2.putText(
                 overlay, f'{grade} {distance:.2f}m', (int(u) + 8, int(v)),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA)
+            # YOLO track_id(.track(persist=True)가 부여)를 발끝 점 위에 덧그린다. result.plot()도
+            # bbox 위쪽에 id를 이미 그리지만, 이 로봇은 초근접 구간에서 사람 머리~bbox 상단이
+            # 화면 밖으로 잘리는 게 기본 상황이라(문서 참고) 그 라벨이 안 보이는 경우가 흔하다.
+            # 발끝 점은 오히려 근접할수록 잘 보이므로(같은 이유), 여기다 고정 위치가 아니라
+            # 검출된 좌표를 따라다니게 그려야 "이 track_id가 실제로 이 사람을 계속 추적 중"이라는
+            # 게 시각적으로 분명해진다 - 화면 구석 고정 표시는 얼어붙은 값인지 실시간 추적인지
+            # 구분이 안 된다.
+            cv2.putText(
+                overlay, f'id:{track_id}', (int(u) + 8, int(v) - 18),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 140, 255), 2, cv2.LINE_AA)
         cv2.putText(
             overlay, f'dt={self.last_rgb_depth_dt * 1000:.0f}ms', (10, 24),
             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
