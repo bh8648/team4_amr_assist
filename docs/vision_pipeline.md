@@ -1,0 +1,140 @@
+# 비전 파이프라인 구조
+
+작업 현장에서 사람의 위치·제스처·안전 상태를 인식해 다수의 AMR(TurtleBot4)을 안전하게
+운용하기 위한 비전 파이프라인이다. 고정된 웹캠으로 넓은 작업장을 감시하고, 각 AMR에 탑재된
+OAK-D PRO 카메라로 로봇 주변 근접 영역을 정밀하게 인식하는 두 축으로 구성된다.
+
+> 이 저장소(`rokey_ws`)는 이 중 **AMR(TurtleBot4 + OAK-D PRO) 기반 사람 추종** 부분을
+> `src/amr_person_tracking` 패키지로 구현한다. 고정캠 검출/로컬라이제이션 등 나머지 노드는
+> 별도 저장소에서 구현되며, 여기서는 표준 메시지 스키마로 인터페이스만 맞춘다.
+
+## 1. 노드 구성
+
+### 1) 고정캠 사람 검출 및 상체 신호 인식
+프레임 내 모든 사람의 bbox + keypoint + 상체 신호를 한 번에 처리한다. YOLO-pose로 COCO 17
+keypoints를 multi-person single-pass로 추출한다. wrist keypoint는 손 세부 신호 노드로,
+발끝 keypoint는 위치추정 노드로, bbox는 재식별/트래킹 노드로 전달된다.
+
+### 2) 손 세부 신호 인식
+손가락 단위 신호만 추가로 구분한다. MediaPipe Hands를 사용하며, 1)번이 준 wrist keypoint를
+기준으로 ROI를 크롭해 입력한다. 결과는 1)번의 제스처 분류 결과에 세부 유형 필드로 병합된다.
+
+### 3) 위치추정 - 웹캠
+사람이 로봇/작업 반경에서 먼 경우 대략적인 world 좌표를 확보한다. 발끝 keypoint(1번 출력)와
+사전 캘리브레이션된 호모그래피로 world XY를 계산하고, 작업자가 반경 N미터 안으로 들어오면
+Nav2 goal을 트리거한다.
+
+### 4) 위치추정 - OAK-D PRO (AMR 탑재, `amr_person_tracking` 구현)
+로봇-작업자 거리가 대략 1.5~2m 이하로 좁혀지면 정밀 위치로 전환한다. `oakd_detector_node`가
+OAK-D의 RGB/Depth 스트림에서 직접 YOLO-pose로 사람의 발끝 keypoint를 추출하고, 같은 픽셀의
+depth 값을 camera_info 내부 파라미터로 역투영해 camera_link 기준 3D 좌표를 얻는다. 발끝이
+가려져 직접 검출되지 않는 경우를 대비해 좌표 산출 방식에 등급(각도만 추정 / 무릎 keypoint로
+보정 / 발끝 직접 검출)을 매겨 신뢰도 플래그로 함께 싣는다. depth가 MinZ 이하로 가까워지면
+추적 방향에 해당하는 IR 근접센서 값을 같이 확인해 근접 안전모드로 전환한다.
+
+웹캠(3번)의 world XY에서 이 노드의 depth 3D XY로 전환되는 시점에는 좌표가 불연속으로 튈 수
+있는데, 이는 재식별/트래킹 노드(7번)가 칼만필터로 블렌딩해 완화한다.
+
+터틀봇4는 카메라 장착 높이가 낮아서, 사람에게 더 가까이 접근하는 초근접 구간에서는 OAK-D
+프레임에 다리만 잡혀 depth 기반 발끝 검출 자체가 불안정해진다. 이 구간은 오히려 2D 라이다가
+유리하다 — RPLIDAR 스캔 평면이 마침 다리 높이와 맞아떨어지고, 라이다는 range+bearing을 직접
+측정하므로 호모그래피나 depth 역투영 같은 좌표 변환이 필요 없다. `leg_detector_bridge_node`가
+`sensor_msgs/msg/LaserScan`을 직접 구독해 자체 구현한 경량 검출기로 다리쌍을 찾아 같은
+`Detection3DArray` 스키마로 편입시켜, 원거리(웹캠) → 근접(OAK-D depth) → 초근접(라이다
+다리검출) → 최근접(IR 안전모드)로 이어지는 전환 체인을 완성한다. 검출은 jump-distance
+클러스터링으로 스캔 포인트를 묶은 뒤, 폭+원형적합(Kåsa 곡률 적합)으로 벽/모서리처럼 곡률이
+없는 클러스터를 배제하고, 남은 다리 후보를 그리디로 페어링하는 순서로 동작한다. 곡률만으로는
+책상·의자 다리처럼 실제로 원통형인 정적 물체를 구별할 수 없다는 한계가 있어, 개별 다리
+후보마다 등속도 칼만필터로 속도를 추정해 "처음 관측된 뒤 누적 나이 3초 이상이고 추정 속도가
+0.01m/s 이하"인 물체를 정적 배경으로 확정·제외하는 온라인 필터를 추가로 둔다(실측 기준 평균
+검출 오탐 77%, occlusion이 반복되는 최악 구간은 93% 감소).
+
+### 5) 라이다 사각지대 보완
+2D 라이다 평면보다 낮거나 높은 장애물을 보완한다. OAK-D-PRO의 depth를 PointCloud2로 발행해
+Nav2 voxel_layer의 observation_source로 라이다 obstacle_layer와 병렬 등록한다
+(`src/oakd_pointcloud` 패키지, `depth_image_proc` 컴포저블 노드를 launch로 구성).
+
+### 6) 예측적 회피 (AMR 탑재, `amr_person_tracking` 구현)
+빠르게 접근하는 대상에 로봇이 미리 반응하도록 한다. `predictive_avoidance_node`가 트래킹된
+대상(7번 출력)의 위치 시계열에 등속도 모델 칼만필터를 적용해 속도를 추정한다. 이때 프레임 간
+Δt는 고정값이 아니라 항상 이미지 메시지의 `header.stamp`(촬영 시각, 수신 시각이 아님) 기준으로
+계산한다 — 로봇↔노트북 사이 네트워크 지연으로 프레임 간격이 불규칙하기 때문이다. 추정된 속도로
+예측 위치 주변에 속도에 비례한 범위의 가상 포인트를 만들어 기존 장애물 마킹 스트림에 추가
+발행하면 voxel_layer가 이를 실제 장애물처럼 마킹하고, 그 위에 전역 inflation이 한 번 더
+적용되어 결과적으로 그 물체 주변만 더 넓게 부풀려진다. 접근 속도에 비례해 local_costmap의
+inflation 파라미터를 직접 조정하는 방식도 대안으로 지원한다.
+
+### 7) 재식별/트래킹 (AMR 탑재, `amr_person_tracking` 구현 — 틀만 구성, 추후 디벨롭)
+가려짐·프레임 이탈 후에도 같은 사람을 같은 트랙으로 유지한다. `reid_tracking_node`가 웹캠
+로컬라이제이션 스트림과 `oakd_detector_node`의 근접 검출 스트림을 함께 받아, 3D 위치 기반으로
+마지막 위치+속도 게이팅으로 매칭한다. 다인원이 자주 겹치는 경우를 위해 appearance 임베딩(OSNet)
+매칭도 추가할 수 있게 구조를 열어둔다. 동일 인물의 출처가 웹캠→OAK-D로 전환되는 시점에는
+칼만필터로 좌표를 블렌딩해 불연속을 완화한다.
+
+`leg_detector_bridge_node`가 편입시킨 라이다 다리검출 스트림은 위치/속도만 알 뿐 신원을
+모르므로, 웹캠이 추종하던 타겟과 같은 사람인지는 이 노드가 별도로 판별한다. 절차는 다음과
+같다: 추종 중인 타겟의 최근 위치+속도(칼만필터 추정치)를 라이다 메시지의 촬영 시각까지
+외삽해 시간을 맞춘 뒤(시간 정렬), 예측 위치와 가까운 라이다 검출만 후보로 거르고(위치
+게이팅), 후보가 여럿이면 속도 벡터의 방향·크기 유사도까지 함께 봐서 하나로 좁힌다. 같은
+라이다 트랙 ID가 연속된 여러 프레임 동안 계속 후보로 뽑히면 그때 비로소 해당 트랙에
+"락온"하고, 락온 이후에는 매 프레임 재매칭하지 않고 그 라이다 트랙 ID를 그대로 따라간다.
+다만 사람들이 스쳐 지나가며 라이다 트랙 ID가 순간적으로 바뀌는(swap) 경우에 대비해, 락온
+중에도 웹캠 쪽 추정 위치와 계속 대조하다가 차이가 벌어지면 락온을 풀고 재매칭을 다시
+트리거한다. 이 매칭 전체는 라이다·웹캠 검출이 같은 map 좌표계로 정확히 변환되어 있다는
+전제 위에서 동작하므로, 매칭이 계속 실패한다면 게이팅 임계값보다 로봇 localization(AMCL 등)
+드리프트를 먼저 의심해야 한다.
+
+트래킹된 대상마다 표준 id 필드에 지속 트랙 ID를 기록해 재발행하며, 이 중 추종 대상으로 선정된
+트랙 하나는 z를 0으로 눌러 2D map 좌표(`geometry_msgs/PoseStamped`)로 별도 발행한다. 이
+좌표를 실제 Nav2 goal로 소비하는 노드는 이 패키지의 범위가 아니다.
+
+### 8) 위험/낙상 감지 (차순위, 메인 기능 아님)
+쓰러짐, 낙하물 등 안전 이벤트를 감지한다. 1)번의 pose 파이프라인을 재사용하며, 자세가 급격히
+수직→수평으로 바뀌는 패턴 등으로 판단한다. 감지되면 인근 로봇 + HMI + DB로 전달된다.
+
+## 2. 인터페이스 표
+
+| 노드 | 방향 | 인터페이스 (토픽/서비스 · 메시지 타입) | 상대 노드 / 시스템 | 비고 |
+|---|---|---|---|---|
+| 고정캠 검출 노드 | 수신 | `sensor_msgs/msg/Image`, `sensor_msgs/msg/CameraInfo` | 웹캠 드라이버 | YOLO-pose로 사람 검출+keypoint 추출 (제스처·트래킹·위험감지 통합) |
+| 고정캠 검출 노드 | 송신 | `vision_msgs/msg/Detection2DArray` (class_id에 person/gesture_/hazard_ 라벨) | → 로컬라이제이션 노드 | |
+| 고정캠 검출 노드 | 송신 | `geometry_msgs/msg/PoseArray` (keypoint 픽셀좌표, 임시) | → 로컬라이제이션 노드 | 표준 keypoint 메시지가 없어 절충한 유일한 부분 |
+| 로컬라이제이션 노드 | 수신 | 위 `Detection2DArray` + `PoseArray` | 고정캠 검출 노드 | |
+| 로컬라이제이션 노드 | 수신 | tf2 정적변환(map→webcam_frame) | 0단계 캘리브레이션 | 호모그래피 파라미터 포함 |
+| 로컬라이제이션 노드 | 송신 | `vision_msgs/msg/Detection3DArray` (frame_id=map) | → 재식별/트래킹 노드 | pixel → world 변환 완료 시점 |
+| 위험·장애물 브로드캐스트 노드 | 수신 | `Detection3DArray` 중 hazard/obstacle 클래스 필터 | 로컬라이제이션 노드 | |
+| 위험·장애물 브로드캐스트 노드 | 송신 | `sensor_msgs/msg/PointCloud2`(`/vision/person_points`, `/vision/obstacle_points`) | → 각 로봇 `nav2_costmap_2d`(voxel_layer/obstacle_layer, observation_sources) | 라이다 사각지대 보완 겸용, 클래스별 안전마진 차등 적용 |
+| `depthai_ros_driver`(기성 패키지) | 송신 | RGB/Depth/CameraInfo (compressed) | → `oakd_detector_node` | OAK-D-PRO 하드웨어 스트림, 대역폭 절약을 위해 compressed로 발행 |
+| `oakd_detector_node` (`amr_person_tracking`) | 수신 | `sensor_msgs/msg/CompressedImage`(rgb, depth) + `sensor_msgs/msg/CameraInfo` | `depthai_ros_driver` | YOLO-pose 추론부터 3D 역투영까지 이 노드에서 직접 수행 |
+| `oakd_detector_node` (`amr_person_tracking`) | 송신 | `vision_msgs/msg/Detection3DArray` (frame_id=map, tf2로 변환 완료) | → 재식별/트래킹 노드 | 고정캠 스트림과 동일 스키마로 합류 — 하위 노드가 출처 구분 불필요 |
+| `leg_detector_bridge_node` (`amr_person_tracking`) | 수신 | `sensor_msgs/msg/LaserScan` | LiDAR 드라이버 | 자체 구현 검출기 - 곡률필터+칼만필터 기반 정적배경 제외. range+bearing 센서라 depth 역투영/호모그래피 불필요, tf 변환만 수행 |
+| `leg_detector_bridge_node` (`amr_person_tracking`) | 송신 | `vision_msgs/msg/Detection3DArray` (frame_id=map) | → 재식별/트래킹 노드 | 다른 두 소스와 동일 스키마로 합류. 신원은 모름 — id 필드엔 라이다 쪽 트랙 ID만 실림 |
+| `reid_tracking_node` (`amr_person_tracking`) | 수신 | 로컬라이제이션 노드 + `oakd_detector_node` + `leg_detector_bridge_node`의 `Detection3DArray` (통합 스트림) | 상동 | 3D 위치 기반 게이팅(마지막 위치+속도로 근접 매칭), 라이다 스트림은 시간정렬 예측→게이팅→N프레임 확인 후 락온하는 별도 신원 매칭 절차를 거침 |
+| `reid_tracking_node` (`amr_person_tracking`) | 송신 | `vision_msgs/msg/Detection3DArray` (표준 id 필드에 지속 트랙ID 기록해 재발행) | → 예측 회피 노드, 스케줄러(비전 범위 밖) | 커스텀 ID 메시지 대신 표준 필드 재사용 |
+| `reid_tracking_node` (`amr_person_tracking`) | 송신 | `geometry_msgs/msg/PoseStamped` (frame_id=map) | → Nav2 goal 발행 노드 (범위 밖) | 추종 대상 트랙의 2D map 좌표만 제공, Nav2 액션 호출은 별도 노드 담당 |
+| `predictive_avoidance_node` (`amr_person_tracking`) | 수신 | id 포함 `Detection3DArray` 시계열 | 재식별/트래킹 노드 | 칼만필터(등속도 모델)로 속도 추정+예측, Δt는 `header.stamp` 기준 |
+| `predictive_avoidance_node` (`amr_person_tracking`) | 송신 | `rcl_interfaces/srv/SetParameters` | → 각 로봇 `local_costmap` 노드(nav2_costmap_2d) | 접근 속도에 비례해 inflation 파라미터 동적 조정 |
+| `predictive_avoidance_node` (`amr_person_tracking`) | 송신(대안) | `sensor_msgs/msg/PointCloud2` (가상 포인트) | → `nav2_costmap_2d` voxel_layer | `avoidance_mode` 파라미터로 SetParameters 방식과 양자택일/병행 |
+
+## 3. `amr_person_tracking` 패키지 구조
+
+```
+src/amr_person_tracking/
+  package.xml
+  setup.py / setup.cfg
+  amr_person_tracking/
+    oakd_detector_node.py        # 4번: YOLO-pose + depth 3D 역투영
+    leg_detector_bridge_node.py  # 4번 보완: 초근접 구간 라이다 다리검출 편입
+    reid_tracking_node.py        # 7번: 재식별/트래킹 + 좌표 블렌딩 + 웹캠-라이다 신원 매칭 + Nav2 좌표 발행
+    predictive_avoidance_node.py # 6번: 칼만필터 예측 회피
+  launch/amr_person_tracking.launch.py   # 위 4개 노드 일괄 기동
+```
+
+| 노드 | 파일 | 대응 역할 |
+|---|---|---|
+| oakd_detector_node | `amr_person_tracking/oakd_detector_node.py` | 4번 (위치추정 - OAK-D PRO) |
+| leg_detector_bridge_node | `amr_person_tracking/leg_detector_bridge_node.py` | 4번 보완 (초근접 구간 라이다 다리검출) |
+| reid_tracking_node | `amr_person_tracking/reid_tracking_node.py` | 7번 (재식별/트래킹, 웹캠-라이다 신원 매칭) |
+| predictive_avoidance_node | `amr_person_tracking/predictive_avoidance_node.py` | 6번 (예측적 회피) |
+
+`src/oakd_pointcloud` 패키지(5번, 라이다 사각지대 보완)는 별도로 존재하며 이 패키지와는 독립적으로 동작한다.

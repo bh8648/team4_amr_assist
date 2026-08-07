@@ -41,7 +41,10 @@ leg_detections_callback이 다음 순서로 처리한다 (추종 대상 트랙 �
   3. 모호성 해소 - 후보가 여럿이면 위치 거리뿐 아니라 속도 벡터(방향+크기) 유사도까지 결합해 점수화
      (속도는 라이다 쪽에 없는 필드라 같은 라이다 트랙 id의 연속 프레임 위치를 직접 미분해 구한다)
   4. 락온 확정  - 같은 라이다 트랙 ID가 연속 lidar_lock_confirm_frames 프레임 동안 최고 후보로
-     선정되면 확정, 그 전까지는 웹캠/OAK-D 값만 사용
+     선정되면 확정, 그 전까지는 웹캠/OAK-D 값만 사용. 다만 "이번 스캔에 게이팅을 통과하는
+     후보가 아예 없음"은 스트릭을 리셋하지 않는다 - 원시 다리검출기가 스캔마다 검출/미검출을
+     오가는 게 흔해서(실측 확인), 빈 스캔마다 리셋하면 연속 확정 자체가 사실상 불가능해진다.
+     리셋은 "다른 후보가 새로 최고점이 됐을 때"만 발생한다.
   5. 추종 유지  - 락온 중에는 재매칭하지 않고 락온된 라이다 트랙 ID를 그대로 추종. 해당 id가
      잠깐 안 보이면 leg_lock_grace_period 동안은 유지, 그 이상 안 보이면 락온 해제
   6. 백그라운드 검증 - 락온 중에도, 웹캠/OAK-D가 "마지막으로 독립적으로" 갱신한 추정 위치와
@@ -341,11 +344,21 @@ class ReidTrackingNode(Node):
             if best_score is None or score > best_score:
                 best_rid, best_score = rid, score
 
+        # 이번 스캔에 게이팅을 통과하는 후보가 아예 없으면(best_rid is None) 기존에 쌓아온
+        # 스트릭은 그대로 둔다 - 실측(my_new_bag2)으로 원시 다리검출기가 스캔마다 검출/미검출을
+        # 오가는(깜빡이는) 게 흔하다는 게 확인됐는데, "검출이 한 스캔 빈 것"과 "다른 후보가
+        # 새로 최고점이 된 것"은 서로 다른 사건이다. 전자로 매번 스트릭을 리셋하면 락온 확정에
+        # 필요한 연속 lidar_lock_confirm_frames를 채우기가 실질적으로 불가능해진다(시뮬레이션
+        # 검증: 재획득까지 걸리는 시간이 5.66s->1.17s로 단축, 락온 성공 횟수도 늘어남). 이미
+        # 리셋 로직을 후자(다른 후보로 교체됐을 때)로만 좁혀도 안전한 이유는, 어차피 매칭
+        # 자체가 매 스캔 위치+속도 유사도로 다시 계산되므로 진짜로 다른 사람/물체가 끼어들면
+        # best_rid가 바뀌면서 정상적으로 리셋되기 때문이다.
+        if best_rid is None:
+            return
+
         for rid in list(self.lock_candidate_streak.keys()):
             if rid != best_rid:
                 self.lock_candidate_streak[rid] = 0
-        if best_rid is None:
-            return
 
         self.lock_candidate_streak[best_rid] = self.lock_candidate_streak.get(best_rid, 0) + 1
         if self.lock_candidate_streak[best_rid] < self.lidar_lock_confirm_frames:
