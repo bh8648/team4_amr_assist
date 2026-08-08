@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import tempfile
+from unittest.mock import Mock
 
 import rclpy
 
@@ -112,3 +113,194 @@ def test_fetch_destinations_empty_when_table_empty():
         node.destroy_node()
         rclpy.shutdown()
         os.remove(db_path)
+
+
+def test_cmd_call_publishes_assignment_goal():
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        node.assignment_goal_pub = Mock()
+        node.cmd_call(['-1', '0'])
+        node.assignment_goal_pub.publish.assert_called_once()
+        sent = node.assignment_goal_pub.publish.call_args[0][0]
+        assert sent.x == -1.0
+        assert sent.y == 0.0
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_cmd_call_invalid_args_does_not_publish():
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        node.assignment_goal_pub = Mock()
+        node.cmd_call(['only-one'])
+        node.assignment_goal_pub.publish.assert_not_called()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_cmd_list_destinations_prints_rows(capsys):
+    rclpy.init()
+    node = WebcamPcCliNode()
+    db_path = _make_temp_db()
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.execute("INSERT INTO destinations VALUES ('DEST_A', '목적지 A', -0.5, -2.0, 3.14159)")
+        conn.commit()
+        conn.close()
+        node.db_path = db_path
+
+        node.cmd_list_destinations([])
+
+        assert 'DEST_A' in capsys.readouterr().out
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+        os.remove(db_path)
+
+
+def test_cmd_worker_detected_publishes_with_active_robot():
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        node.task_command_pub = Mock()
+        state = TaskState()
+        state.robot_id, state.state, state.task_id = 'robot11', 'ASSIGNED', 'TASK_1'
+        node.task_state_callback(state)
+
+        node.cmd_worker_detected([])
+
+        node.task_command_pub.publish.assert_called_once()
+        sent = node.task_command_pub.publish.call_args[0][0]
+        assert sent.command == 'WORKER_DETECTED'
+        assert sent.robot_id == 'robot11'
+        assert sent.task_id == 'TASK_1'
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_cmd_worker_detected_no_active_robot_does_not_publish():
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        node.task_command_pub = Mock()
+        node.cmd_worker_detected([])
+        node.task_command_pub.publish.assert_not_called()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_cmd_deliver_publishes_with_destination_coords():
+    rclpy.init()
+    node = WebcamPcCliNode()
+    db_path = _make_temp_db()
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.execute("INSERT INTO destinations VALUES ('DEST_A', '목적지 A', -0.5, -2.0, 3.14159)")
+        conn.commit()
+        conn.close()
+        node.db_path = db_path
+        node.task_command_pub = Mock()
+        state = TaskState()
+        state.robot_id, state.state, state.task_id = 'robot11', 'FOLLOWING', 'TASK_1'
+        node.task_state_callback(state)
+
+        node.cmd_deliver(['DEST_A'])
+
+        sent = node.task_command_pub.publish.call_args[0][0]
+        assert sent.command == 'START_TRANSPORT'
+        assert sent.target_x == -0.5
+        assert sent.target_y == -2.0
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+        os.remove(db_path)
+
+
+def test_cmd_deliver_unknown_destination_does_not_publish():
+    rclpy.init()
+    node = WebcamPcCliNode()
+    db_path = _make_temp_db()
+    try:
+        node.db_path = db_path
+        node.task_command_pub = Mock()
+        state = TaskState()
+        state.robot_id, state.state, state.task_id = 'robot11', 'FOLLOWING', 'TASK_1'
+        node.task_state_callback(state)
+
+        node.cmd_deliver(['DEST_Z'])
+
+        node.task_command_pub.publish.assert_not_called()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+        os.remove(db_path)
+
+
+def test_cmd_confirm_publishes():
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        node.task_command_pub = Mock()
+        state = TaskState()
+        state.robot_id, state.state, state.task_id = 'robot11', 'TRANSPORTING', 'TASK_1'
+        node.task_state_callback(state)
+
+        node.cmd_confirm([])
+
+        sent = node.task_command_pub.publish.call_args[0][0]
+        assert sent.command == 'DELIVERY_CONFIRMED'
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_cmd_status_prints_cached_states(capsys):
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        state = TaskState()
+        state.robot_id, state.state, state.task_id = 'robot11', 'FOLLOWING', 'TASK_1'
+        node.task_state_callback(state)
+
+        node.cmd_status([])
+
+        assert 'robot11' in capsys.readouterr().out
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_run_cli_dispatches_status_then_quits(monkeypatch, capsys):
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        inputs = iter(['상태', '종료'])
+        monkeypatch.setattr('builtins.input', lambda _prompt='': next(inputs))
+
+        node.run_cli()
+
+        assert '캐싱된 로봇 상태 없음' in capsys.readouterr().out
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_run_cli_unknown_command_prints_error(monkeypatch, capsys):
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        inputs = iter(['이상한명령', '종료'])
+        monkeypatch.setattr('builtins.input', lambda _prompt='': next(inputs))
+
+        node.run_cli()
+
+        assert '알 수 없는 명령' in capsys.readouterr().out
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
