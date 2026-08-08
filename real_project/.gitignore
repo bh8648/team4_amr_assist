@@ -14,6 +14,7 @@
 htmlcov/
 /src/**/test/
 !/src/robot_bridge/test/
+!/src/robot_manager/test/
 
 # HMI frontend dependencies and build outputs
 /amr_delivery_ui/frontend/node_modules/
