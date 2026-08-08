@@ -28,6 +28,12 @@ class DockRequest(BaseModel):       # 도킹/언도킹 요청
     dock: bool
 
 
+# ===== 배송모드 (임시 — 로봇 부착 UI가 생기면 이 블록 전체를 지우면 됨) =====
+class TransportRequest(BaseModel):
+    destination_id: str
+# ===== 배송모드 끝 =====
+
+
 class TeleopRequest(BaseModel):
     linear: float = 0.0
     angular: float = 0.0
@@ -188,6 +194,28 @@ class HmiBackendNode(Node):
         command.robot_id, command.command = robot_id, 'CANCEL'
         self.task_command_publisher.publish(command)
         return True
+
+    # ===== 배송모드 (임시 — 로봇 부착 UI가 생기면 이 블록 전체를 지우면 됨) =====
+    def start_transport(self, robot_id: str, destination_id: str):
+        """FOLLOWING 상태의 로봇에게 목적지를 지정해 배송모드(START_TRANSPORT)를 시작시킨다."""
+        if robot_id not in self.control_states:
+            return False, f'지원하지 않는 AMR ID: {robot_id}'
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                'SELECT position_x, position_y, orientation_yaw FROM destinations WHERE destination_id = ?',
+                (destination_id,),
+            ).fetchone()
+        if row is None:
+            return False, f'등록되지 않은 목적지: {destination_id}'
+        command = TaskCommand()
+        command.stamp = self.get_clock().now().to_msg()
+        command.robot_id, command.command = robot_id, 'START_TRANSPORT'
+        command.target_x, command.target_y, command.target_yaw = float(row['position_x']), float(row['position_y']), float(row['orientation_yaw'])
+        self.task_command_publisher.publish(command)
+        self.get_logger().info(f'AMR {robot_id} 배송모드 요청: 목적지={destination_id}')
+        return True, ''
+    # ===== 배송모드 끝 =====
 
     def publish_teleop(self, robot_id: str, linear: float, angular: float):
         publisher = self.teleop_publishers.get(robot_id)
@@ -408,6 +436,18 @@ def cancel_robot_task(robot_id: str):
     if not ros_node or not ros_node.cancel_task(robot_id):
         raise HTTPException(status_code=404, detail=f"지원하지 않는 AMR ID: {robot_id}")
     return {"accepted": True, "robot_id": robot_id}
+
+
+# ===== 배송모드 (임시 — 로봇 부착 UI가 생기면 이 블록 전체를 지우면 됨) =====
+@app.post("/api/robot/{robot_id}/transport")
+def start_robot_transport(robot_id: str, data: TransportRequest):
+    if not ros_node:
+        raise HTTPException(status_code=503, detail="ROS 노드가 준비되지 않았습니다.")
+    ok, message = ros_node.start_transport(robot_id, data.destination_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail=message)
+    return {"accepted": True, "robot_id": robot_id, "destination_id": data.destination_id}
+# ===== 배송모드 끝 =====
 
 
 @app.post("/api/robot/{robot_id}/teleop")
