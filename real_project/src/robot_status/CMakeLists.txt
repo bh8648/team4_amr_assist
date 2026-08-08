@@ -13,7 +13,6 @@ find_package(builtin_interfaces REQUIRED)
 # 커스텀 메시지 등록
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RobotStatus.msg"
-  "msg/AssignmentGoal.msg"
   "msg/RobotAssignment.msg"
   "msg/RobotError.msg"
   "msg/TaskCommand.msg"
