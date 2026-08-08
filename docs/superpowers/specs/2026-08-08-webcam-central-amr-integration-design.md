@@ -49,16 +49,37 @@
 
 AMR이 배정받는 시점에 이미 도킹돼 있을 수 있다. 배정 즉시 주행을 시작하기 전에 도킹 여부를 확인하고, 도킹돼 있으면 언도킹을 먼저 완료한 뒤 진행한다.
 
-- `RobotStatus.msg`에 `bool is_docked` 필드를 추가한다(메시지 뒤쪽에 추가 — 필드 이름 기반 생성이라 기존 소비자에 영향 없음).
-- `robot_bridge`가 `irobot_create_msgs/msg/DockStatus`로 추정되는 토픽을 구독해 `is_docked`를 채운다.
+### 3.1 상태 신호 — tri-state로 설계 (fail-safe)
+
+`bool is_docked` 필드 하나만 두면, ROS2 bool 필드의 기본값이 `False`라서 **DockStatus 구독이 실패하거나(토픽명 오류) 노드 재시작 직후 아직 한 번도 값을 못 받았을 때 "미도킹"과 구분이 안 된다.** 이 경우 실제로는 도킹 스테이션에 물려 있는 로봇에 바로 Nav2 goal을 보내 주행을 시도하게 되어 하드웨어 파손 위험이 있다. 따라서 이 필드는 반드시 2개로 나눈다:
+
+- `RobotStatus.msg`에 `bool is_docked`와 `bool dock_status_known`을 함께 추가한다(메시지 뒤쪽에 추가 — 필드 이름 기반 생성이라 기존 소비자에 영향 없음).
+- `robot_bridge`가 `irobot_create_msgs/msg/DockStatus`로 추정되는 토픽을 구독해 `is_docked`를 채운다. **이 콜백이 최소 1회라도 호출됐을 때만 `dock_status_known = True`로 세팅한다** (콜백이 한 번도 안 불렸으면 `dock_status_known`은 계속 `False`).
   - **⚠️ 확인 필요**: 실제 토픽명·메시지 타입·필드명은 가정이다. 사용자가 나중에 robot11 PC에서 `ros2 topic list | grep dock`, `ros2 interface show irobot_create_msgs/msg/DockStatus`로 직접 확인 후 수정하기로 함. 이 구독부는 한 곳에 격리해서 나중에 한 줄만 고치면 되도록 구현한다.
-- `task_manager_node`가 `/{robot_id}/robot_status`를 신규 구독해 로봇별 최신 `is_docked`를 캐싱한다.
+
+### 3.2 task_manager_node 로직
+
+- `/{robot_id}/robot_status`를 신규 구독해 로봇별 최신 `(is_docked, dock_status_known)`을 캐싱한다.
 - `assignment_callback()`에서 Task 생성 시:
-  - `is_docked == False`(또는 상태 미수신) → 기존처럼 즉시 `send_navigation_goal()`.
-  - `is_docked == True` → `dock_publishers[robot_id]`(기존 `/{robot_id}/dock/request` Bool 토픽)에 `Bool(False)`를 **한 번만** 발행하고 Nav goal은 보류. `ManagedTask`에 `undock_requested: bool` 플래그를 둬서 중복 발행을 막는다(재시도 로직 없음 — 실패 시 사람이 개입).
-  - 이후 해당 로봇의 `robot_status` 갱신에서 `is_docked`가 `False`로 바뀌는 걸 확인하면 그때 `send_navigation_goal()`을 실행한다.
-- `robot_bridge`의 `dock_callback()`(이미 Dock/Undock 액션 클라이언트 구현돼 있음)에 in-flight 가드를 추가한다: 이미 진행 중인 Dock/Undock 액션이 있으면 새 요청을 무시해서, 자동 트리거든 HMI 수동 조작이든 실제 하드웨어에 중복 액션 콜이 나가지 않도록 한다.
-- DB(`amr.db`)에 `is_docked`를 영속화하지는 않는다 — 기존 DB에 스키마 생성/마이그레이션 코드가 없고, 이번 기능에 필수도 아니라서 범위에서 제외했다. 필요해지면 팀원과 상의해서 별도로 진행한다.
+  - `dock_status_known == False` (아직 실제 도킹 상태를 모름) → **주행을 시작하지 않는다.** Task를 `ASSIGNED` 상태로 만들되 Nav goal은 보류하고, `awaiting_dock_check = True`와 확인 시작 시각을 `ManagedTask`에 기록한다. `get_logger().warn(f'{robot_id} 도킹 상태 미확인 — DockStatus 대기 중')`을 남긴다.
+  - `dock_status_known == True and is_docked == False` → 기존처럼 즉시 `send_navigation_goal()`.
+  - `dock_status_known == True and is_docked == True` → `dock_publishers[robot_id]`(기존 `/{robot_id}/dock/request` Bool 토픽)에 `Bool(False)`를 **한 번만** 발행하고 Nav goal은 보류. `ManagedTask.undock_requested`로 중복 발행 방지(재시도 로직 없음). `get_logger().info(f'{robot_id} 언도킹 요청 발행, is_docked=False 대기 시작')`을 남긴다.
+- 로봇 상태 콜백에서: `awaiting_dock_check`나 `undock_requested`가 걸린 Task에 대해 `dock_status_known == True and is_docked == False`가 확인되면 플래그를 해제하고 그 시점에 `send_navigation_goal()`을 실행한다.
+- 기존 1Hz `nav_retry_timer`(`retry_navigation_goals`)에서 `awaiting_dock_check`/`undock_requested`가 걸린 채로 **10초 이상** 경과한 Task를 함께 점검한다: 여전히 걸려 있으면 `publish_error(robot_id, task_id, 'DOCK_STATUS_UNKNOWN_TIMEOUT')` 또는 `'UNDOCK_CONFIRM_TIMEOUT'`을 1회 발행해 HMI/DB 오류 로그에 남긴다(재시도는 하지 않음 — 사람이 로그를 보고 직접 개입하는 것을 전제로 함). 타임아웃 발행 후에도 플래그는 그대로 두어 중복 에러 발행은 하지 않는다.
+
+### 3.3 robot_bridge dock_callback in-flight 가드
+
+- 이미 Dock/Undock 액션이 진행 중이면 새 요청을 무시한다. 무시할 때 반드시 `get_logger().warn(f'{robot_id} Dock/Undock 진행 중 — 새 요청 무시')`을 남긴다(조용히 drop하면 운영자가 "왜 명령이 안 먹히지"를 로그에서 못 찾음).
+- 가드 플래그는 다음 3개 경로 전부에서 반드시 해제되어야 한다: ① `wait_for_server` 타임아웃(가드를 세우기 전이므로 애초에 세우지 않음) ② goal 거부(`_dock_response_callback`/`_undock_response_callback`에서 `accepted`가 `False`인 즉시 해제) ③ 액션 결과 콜백(성공/실패 무관하게 해제) — 이 중 하나라도 빠지면 이후 dock/undock 명령에 로봇이 영구히 무응답이 된다.
+- 자동 트리거(task_manager)와 HMI 수동 조작이 같은 가드를 공유하는 것은 의도된 설계다. 단, task_manager가 자동 언도킹 대기 중일 때 운영자가 HMI에서 도킹/언도킹을 누르면 가드에 막혀 무시되므로, 위의 warn 로그가 곧 유일한 단서가 된다.
+
+### 3.4 DB 영속화
+
+DB(`amr.db`)에 `is_docked`/`dock_status_known`을 영속화하지는 않는다 — 기존 DB에 스키마 생성/마이그레이션 코드가 없고, 이번 기능에 필수도 아니라서 범위에서 제외했다. 필요해지면 팀원과 상의해서 별도로 진행한다.
+
+### 3.5 HMI의 기존 `docked` 표시와의 관계
+
+`hmi_backend_node.py`(main 버전)는 이미 자체적으로 `control_states[robot_id]['docked']`를 유지한다 — 이건 DOCK/UNDOCK 명령을 **보낸 시점에 낙관적으로 세팅**하는 값이지, 하드웨어에서 확인된 값이 아니다. 신규 `RobotStatus.is_docked`(하드웨어 실측값)와는 의미가 다르며, 이번 스펙 범위에서는 HMI가 신규 필드를 참조하도록 바꾸지 않는다(3.4에서 DB 영속화도 안 하므로 HMI가 참조할 경로 자체가 없음). 두 값의 이름이 비슷해 혼동하기 쉬우므로 구현 시 주석으로 구분을 명시한다.
 
 ## 4. 신규: HMI 배송모드
 
@@ -95,10 +116,11 @@ AMR이 배정받는 시점에 이미 도킹돼 있을 수 있다. 배정 즉시 
 5. 자동전환(작업자 위치 도착 즉시 FOLLOWING, 배송 위치 도착 즉시 RETURNING)이 대기 없이 바로 다음 동작으로 넘어가는 게 실제 동선에서 안전한지.
 6. 배터리/AMCL 센서 QoS(`BEST_EFFORT` 가정)가 실제 Create3 펌웨어와 호환되는지.
 7. oakd 카메라 부재로 FOLLOWING 단계는 mock 좌표로만 대체되므로, 실제 사람 추종 시나리오는 이번 스펙 범위에서 검증되지 않는다.
+8. `DOCK_STATUS_UNKNOWN_TIMEOUT`/`UNDOCK_CONFIRM_TIMEOUT`의 10초 임계값이 실제 DockStatus 발행 주기·언도킹 소요시간에 비해 적정한지(너무 짧으면 정상 상황에서도 에러가 남고, 너무 길면 운영자가 오래 기다림).
 
 ## 영향받는 테스트
 
-- `robot_bridge/test/test_robot11_bridge_node.py`: dock 관련 테스트(in-flight 가드로 동작 변경), `build_status_message` 관련 테스트(`is_docked` 필드 추가) 갱신 필요.
-- `robot_manager/test/test_task_manager_node.py`: 신규 자동전환/도킹확인 로직에 대한 테스트 추가 필요.
+- `robot_bridge/test/test_robot11_bridge_node.py`: dock 관련 테스트(in-flight 가드로 동작 변경, 3개 해제 경로 각각 검증), `build_status_message` 관련 테스트(`is_docked`/`dock_status_known` 필드 추가) 갱신 필요.
+- `robot_manager/test/test_task_manager_node.py`: 신규 자동전환/도킹확인 로직에 대한 테스트 추가 필요. 특히 `dock_status_known=False`일 때 주행을 시작하지 않는 것(안전 케이스), 타임아웃 후 에러 발행, in-flight 가드에 걸린 HMI 수동 조작이 조용히 무시되지 않고 warn 로그를 남기는지도 커버.
 - `robot_manager/test/test_webcam_pc_cli_node.py`: 제거되는 명령(`호출`/`작업자감지`/`배송모드`/`배송확인`/`목적지목록`) 관련 테스트 삭제/수정.
 - `robot_manager/test/test_webcam_pc_cli_utils.py`: 제거되는 유틸(`parse_call_args`, `select_destination`, `DELIVER_COMMAND` 파싱) 관련 테스트 삭제.
