@@ -7,12 +7,13 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 import rclpy
+from ament_index_python.packages import get_package_prefix
+from geometry_msgs.msg import PointStamped
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy
+from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from rclpy.time import Time
 
 from robot_status.msg import (
-    AssignmentGoal,
     RobotAssignment,
     RobotStatus,
     RobotError,
@@ -20,6 +21,8 @@ from robot_status.msg import (
 )
 
 class RobotAssignmentNode(Node):
+
+    VALID_ROBOTS = ('robot5', 'robot11')
 
     def __init__(self):
         super().__init__('amr_allocation_node')
@@ -30,8 +33,9 @@ class RobotAssignmentNode(Node):
         self.declare_parameter('heading_penalty_weight', 0.5)       # 각도 오차 패널티
         self.declare_parameter('assignment_timeout_sec', 60.0)      # 배정을 대기할 시간
         self.declare_parameter('retry_interval_sec', 5.0)           # 배정 실패시 5초 대기 후 재배정 시도
-        self.declare_parameter('duplicate_goal_tolerance_m', 0.2)   # 동일한 호출 좌표가 반복 발행될 때 무시할 거리 허용치 (미터)
-        self.declare_parameter('map_yaml_path', os.environ.get('AMR_MAP_YAML', os.path.abspath('amr_delivery_ui/frontend/maps/map2.yaml')))
+        project_root = Path(get_package_prefix('robot_manager')).resolve().parents[1]
+        default_map_path = project_root / 'real_project/amr_delivery_ui/frontend/maps/map2.yaml'
+        self.declare_parameter('map_yaml_path', os.environ.get('AMR_MAP_YAML', str(default_map_path)))
 
         self.status_timeout_sec = float(
             self.get_parameter('status_timeout_sec').value
@@ -57,11 +61,10 @@ class RobotAssignmentNode(Node):
             self.get_parameter('assignment_timeout_sec').value
         )
 
-        self.duplicate_goal_tolerance_m = float(
-            self.get_parameter('duplicate_goal_tolerance_m').value
-        )
-
-        self.map_yaml_path = Path(os.path.expanduser(self.get_parameter('map_yaml_path').value)).resolve()
+        configured_map_path = Path(os.path.expanduser(self.get_parameter('map_yaml_path').value))
+        self.map_yaml_path = (configured_map_path if configured_map_path.is_absolute() else project_root / configured_map_path).resolve()
+        if not self.map_yaml_path.is_file():
+            self.map_yaml_path = default_map_path.resolve()
         self.map_min_x, self.map_max_x, self.map_min_y, self.map_max_y = self.load_map_bounds()
 
         # robot_id -> (RobotStatus, 마지막 수신 시각)
@@ -69,7 +72,7 @@ class RobotAssignmentNode(Node):
         self.managed_states: Dict[str, str] = {}
 
         # 배정을 기다리는 Goal
-        self.pending_goal: Optional[AssignmentGoal] = None
+        self.pending_goal: Optional[PointStamped] = None
 
         # pending Goal이 생성된 시각
         self.pending_since: Optional[Time] = None
@@ -78,12 +81,12 @@ class RobotAssignmentNode(Node):
             depth=10,
             reliability=ReliabilityPolicy.BEST_EFFORT,
         )
+        call_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE, history=HistoryPolicy.KEEP_LAST)
 
-        self.status_subscription = self.create_subscription(            # 로봇 상태 수신용 Subscriber
-            RobotStatus, '/robot_status', self.status_callback, qos
-        )
+        self.status_subscriptions = [self.create_subscription(RobotStatus, f'/{robot_id}/robot_status', lambda msg, expected=robot_id: self.status_callback(expected, msg), qos) for robot_id in self.VALID_ROBOTS]
+        # 로봇1,2 상태정보 수신
         self.goal_subscription = self.create_subscription(              # goal 목표 수신용 Subscriber
-            AssignmentGoal, '/assignment_goal', self.goal_callback, 10
+            PointStamped, '/person/call_position', self.goal_callback, call_qos
         )
         self.task_state_subscription = self.create_subscription(TaskState, '/task/state', self.task_state_callback, 10)
 
@@ -147,8 +150,11 @@ class RobotAssignmentNode(Node):
             return 'OUT_OF_MAP'
         return ''
 
-    def status_callback(self, msg: RobotStatus) -> None:    # 로봇 상태와 실제 수신 시각을 저장
+    def status_callback(self, expected_robot_id: str, msg: RobotStatus) -> None:    # 로봇 상태와 실제 수신 시각을 저장
         robot_id = str(msg.robot_id)
+        if robot_id != expected_robot_id:
+            self.get_logger().warning(f'토픽과 robot_id 불일치: expected={expected_robot_id}, received={robot_id}')
+            return
         self.robot_statuses[robot_id] = (msg, self.get_clock().now())
 
     def task_state_callback(self, msg: TaskState) -> None:
@@ -255,7 +261,12 @@ class RobotAssignmentNode(Node):
         if not fresh_statuses:      # 유효한 시간 범위 내에 통신이 들어온 로봇 상태가 없는 경우
             return 'AMR_OFFLINE'
 
-        idle_statuses = [status for robot_id, (status, received_at) in self.robot_statuses.items() if self.is_status_fresh(received_at, now) and not self.is_robot_busy(status) and not self.is_managed_robot_busy(robot_id)]
+        idle_statuses = [
+            status for robot_id, (status, received_at) in self.robot_statuses.items()
+            if self.is_status_fresh(received_at, now)
+            and not self.is_robot_busy(status)
+            and not self.is_managed_robot_busy(robot_id)
+        ]
 
         if not idle_statuses:       # 로봇이 모두 작업 중인 경우
             return 'ALL_AMR_BUSY'
@@ -271,13 +282,13 @@ class RobotAssignmentNode(Node):
 
         return 'NO_AVAILABLE_AMR'
 
-    def publish_assignment_result(self, goal: AssignmentGoal, assigned: bool, robot_id: str = '', reason: str = '') -> None:
+    def publish_assignment_result(self, goal: PointStamped, assigned: bool, robot_id: str = '', reason: str = '') -> None:
         """배정 결과 메시지를 생성하고 발행한다."""
 
         result = RobotAssignment()
         result.assigned_at = self.get_clock().now().to_msg()
-        result.target_x = float(goal.x)
-        result.target_y = float(goal.y)
+        result.target_x = float(goal.point.x)
+        result.target_y = float(goal.point.y)
         result.assigned = bool(assigned)
         result.robot_id = str(robot_id)
 
@@ -288,17 +299,14 @@ class RobotAssignmentNode(Node):
             error_msg.error_code = reason
             self.error_publisher.publish(error_msg)
 
-        if hasattr(goal, 'task_id') and hasattr(result, 'task_id'):
-            result.task_id = goal.task_id
-
         self.assignment_publisher.publish(result)   # AMR 배정 결과 메시지 발행
 
-    def attempt_assignment(self, goal: AssignmentGoal, publish_failure: bool) -> bool:
+    def attempt_assignment(self, goal: PointStamped, publish_failure: bool) -> bool:
         """Goal에 대해 AMR 배정을 시도하고 성공 여부를 반환한다."""
 
         # 수신한 작업자 위치를 실수형 목표 좌표로 변환한 뒤 가장 적합한 AMR을 탐색한다.
-        target_x = float(goal.x)
-        target_y = float(goal.y)
+        target_x = float(goal.point.x)
+        target_y = float(goal.point.y)
         selected = self.select_robot(target_x, target_y)
 
         # 가용 AMR이 없으면 실패 원인을 확인하고, 최초 시도일 때만 실패 메시지를 발행한다.
@@ -329,12 +337,17 @@ class RobotAssignmentNode(Node):
     # Goal 수신
     # ================================================================
 
-    def goal_callback(self, goal: AssignmentGoal) -> None:
+    def goal_callback(self, goal: PointStamped) -> None:
         """새 작업자 호출 위치를 받아 AMR 배정을 시도한다."""
 
         # 새로 수신한 Goal의 목표 좌표를 비교와 로그 출력에 사용할 수 있도록 변환한다.
-        target_x = float(goal.x)
-        target_y = float(goal.y)
+        target_x = float(goal.point.x)
+        target_y = float(goal.point.y)
+
+        if goal.header.frame_id != 'map':
+            self.publish_assignment_result(goal, False, '', 'INVALID_FRAME_ID')
+            self.get_logger().warn(f'작업자 호출 좌표 프레임 오류: {goal.header.frame_id or "EMPTY"}')
+            return
 
         # 잘못된 숫자 또는 지도 범위 밖의 Goal은 로봇 선택과 재시도를 수행하지 않고 즉시 거부한다.
         invalid_reason = self.validate_target(target_x, target_y)
@@ -343,18 +356,8 @@ class RobotAssignmentNode(Node):
             self.get_logger().warn(f'유효하지 않은 목표 좌표: ({target_x}, {target_y}), 원인={invalid_reason}')
             return
 
-        # 이미 대기 중인 Goal이 있으면 새 Goal과의 거리를 계산한다.
+        # 이미 재배정을 기다리는 Goal이 있으면 기존 요청을 유지하고 새 요청을 거부한다.
         if self.pending_goal is not None:
-            pending_x = float(self.pending_goal.x)
-            pending_y = float(self.pending_goal.y)
-            goal_difference = math.hypot(target_x - pending_x, target_y - pending_y)
-
-            # 허용 거리 이내의 Goal은 동일 요청으로 판단하여 중복 처리하지 않는다.
-            if goal_difference <= self.duplicate_goal_tolerance_m:
-                self.get_logger().debug('동일한 배정 대기 Goal이 존재하여 중복 요청을 무시합니다.')
-                return
-
-            # 다른 위치의 요청이면 기존 대기 작업을 유지하고 새 요청을 거부한다.
             self.publish_assignment_result(goal, False, '', 'PENDING_ASSIGNMENT_EXISTS')
             self.get_logger().warn(
                 f'이미 배정을 기다리는 작업이 있어 새 요청을 거부합니다: '
@@ -401,8 +404,8 @@ class RobotAssignmentNode(Node):
 
             self.get_logger().error(
                 f'AMR 배정 최종 실패: {elapsed_sec:.1f}초 동안 가용 AMR 없음, '
-                f'목표=({float(self.pending_goal.x):.2f}, '
-                f'{float(self.pending_goal.y):.2f})'
+                f'목표=({float(self.pending_goal.point.x):.2f}, '
+                f'{float(self.pending_goal.point.y):.2f})'
             )
 
             self.clear_pending_goal()
