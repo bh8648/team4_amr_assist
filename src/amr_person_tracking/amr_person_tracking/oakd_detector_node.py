@@ -61,7 +61,7 @@ from rclpy.qos import (
 
 from message_filters import ApproximateTimeSynchronizer, Subscriber
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
-from geometry_msgs.msg import PointStamped, Vector3
+from geometry_msgs.msg import PointStamped, PoseStamped, Vector3
 from nav_msgs.msg import Odometry
 from sensor_msgs.msg import CameraInfo, CompressedImage
 from std_msgs.msg import Bool
@@ -125,6 +125,7 @@ class OakdDetectorNode(Node):
         self.input_timeout = self.get_parameter('input_timeout').value
         self.truncation_margin_px = self.get_parameter('truncation_margin_px').value
         self.publish_debug_image = self.get_parameter('publish_debug_image').value
+        self.follow_target_max_age = self.get_parameter('follow_target_max_age').value
 
         # ---- 캐시 상태 (콜백이 갱신, 동기 콜백/타이머가 소비) ----
         self.camera_k = None          # (fx, fy, cx, cy)
@@ -132,6 +133,9 @@ class OakdDetectorNode(Node):
         self.ir_readings = None
         self.ir_stamp = None
         self.ir_yaw_cache = {}
+        # reid_tracking_node가 발행하는 "실제 추종 대상" - 디버그 이미지에 어느 검출이 AMR의
+        # 최종 추종 대상인지 표시하는 용도로만 쓴다(제어에는 관여하지 않음).
+        self.latest_follow_target = None  # (x, y, stamp_sec)
         self.robot_speed = 0.0
         self.proximity_active = False
         self.frame_index = 0
@@ -223,6 +227,10 @@ class OakdDetectorNode(Node):
                            history=HistoryPolicy.KEEP_LAST, durability=DurabilityPolicy.VOLATILE))
             if self.publish_debug_image else None
         )
+        if self.publish_debug_image:
+            self.create_subscription(
+                PoseStamped, self.get_parameter('follow_target_topic').value,
+                self.follow_target_callback, qos_profile_sensor_data)
 
         self.diag_timer = self.create_timer(1.0, self.publish_diagnostics)
 
@@ -285,6 +293,12 @@ class OakdDetectorNode(Node):
         self.declare_parameter('input_timeout', 3.0)
         self.declare_parameter('publish_debug_image', False)
         self.declare_parameter('debug_image_topic', '/robot5/vision/oakd_detector/debug/compressed')
+        # 디버그 이미지에 "실제로 AMR이 추종 중인 대상"을 표시하기 위한 구독 - oakd_id는 이
+        # 카메라 하나의 내부 트래커 라벨일 뿐, 최종적으로 로봇이 따라가는 대상은
+        # reid_tracking_node가 융합해 발행하는 target_person_pose다. 순수 시각화 목적이라
+        # publish_debug_image가 꺼져 있으면 구독하지 않는다.
+        self.declare_parameter('follow_target_topic', '/robot5/target_person_pose')
+        self.declare_parameter('follow_target_max_age', 1.0)
 
     # ------------------------------------------------------------------ 캐시 콜백
 
@@ -299,6 +313,10 @@ class OakdDetectorNode(Node):
     def ir_intensity_callback(self, msg):
         self.ir_readings = msg.readings
         self.ir_stamp = self.get_clock().now()
+
+    def follow_target_callback(self, msg: PoseStamped):
+        stamp = _stamp_to_sec(msg.header.stamp)
+        self.latest_follow_target = (msg.pose.position.x, msg.pose.position.y, stamp)
 
     # ------------------------------------------------------------------ 메인 파이프라인
 
@@ -570,7 +588,31 @@ class OakdDetectorNode(Node):
             overlay = result.plot()
         except Exception:
             return
-        for u, v, grade, distance, track_id, map_x, map_y in overlay_items:
+
+        # 이 프레임의 검출들 중 실제 AMR 추종 대상(target_person_pose)에 가장 가까운 것을
+        # 찾는다 - oakd_id는 이 카메라 하나의 내부 라벨일 뿐이라, "AMR이 실제로 따라가는
+        # 사람이 어느 것인가"는 reid_tracking_node가 융합한 결과와 map 좌표를 대조해야만
+        # 알 수 있다. follow_target이 오래돼(follow_target_max_age 초과) 신뢰할 수 없으면
+        # 아무것도 강조하지 않는다.
+        follow_idx = None
+        if self.latest_follow_target is not None and overlay_items:
+            fx, fy, f_stamp = self.latest_follow_target
+            now_sec = _stamp_to_sec(self.get_clock().now().to_msg())
+            if now_sec - f_stamp <= self.follow_target_max_age:
+                best_d = None
+                for idx, item in enumerate(overlay_items):
+                    map_x, map_y = item[5], item[6]
+                    d = math.hypot(map_x - fx, map_y - fy)
+                    if best_d is None or d < best_d:
+                        best_d, follow_idx = d, idx
+
+        for i, (u, v, grade, distance, track_id, map_x, map_y) in enumerate(overlay_items):
+            if i == follow_idx:
+                # AMR이 실제로 추종 중인 대상 - 눈에 띄는 색(마젠타)의 굵은 테두리로 강조.
+                cv2.circle(overlay, (int(u), int(v)), 14, (255, 0, 255), 3)
+                cv2.putText(
+                    overlay, 'FOLLOWING', (int(u) + 8, int(v) + 34),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2, cv2.LINE_AA)
             cv2.circle(overlay, (int(u), int(v)), 6, (0, 255, 255), -1)
             cv2.putText(
                 overlay, f'{grade} {distance:.2f}m', (int(u) + 8, int(v)),
