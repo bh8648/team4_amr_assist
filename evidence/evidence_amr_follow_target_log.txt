@@ -22,3 +22,11 @@ target_person_pose를 구독해 map 좌표가 가장 가까운 검출에 마젠�
 파라미터: follow_target_topic(기본 /robot5/target_person_pose), follow_target_max_age
 (기본 1.0초). publish_debug_image가 꺼져 있으면 이 구독 자체를 생성하지 않는다(순수
 디버그 기능이라 평소 오버헤드 없음).
+
+[수정 이력] 최초 버전은 신선도 비교에 self.get_clock().now()(벽시계)를 썼는데,
+로스백 재생 시 use_sim_time을 설정하지 않아 target_person_pose의 타임스탬프
+(bag 기록 시각)와 기준이 완전히 달라 항상 follow_target_max_age를 초과 - FOLLOWING이
+전혀 표시되지 않는 버그가 있었다(사용자가 영상에서 지적해 발견). 이 프레임 자체의
+타임스탬프(rgb_msg.header.stamp, 발행 쪽과 동일 시간 기준)로 비교하도록 수정 후
+직접 캡처해 확인(전체 206프레임 중 54프레임에서 마젠타 표시 발견) - 이 로그의
+영상은 수정 반영된 버전이다.

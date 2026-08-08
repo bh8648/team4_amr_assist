@@ -362,7 +362,7 @@ class OakdDetectorNode(Node):
             self._stat_nearest = dist if self._stat_nearest is None else min(self._stat_nearest, dist)
 
         if self.debug_pub is not None:
-            self._publish_debug_image(results[0], overlay_items)
+            self._publish_debug_image(results[0], overlay_items, rgb_msg.header.stamp)
 
     def _build_detections(self, result, depth_img, rgb_msg):
         """YOLO 결과 하나를 Detection3D 목록으로 바꾼다.
@@ -583,7 +583,7 @@ class OakdDetectorNode(Node):
         msg.detections = detections
         self.detections_pub.publish(msg)
 
-    def _publish_debug_image(self, result, overlay_items):
+    def _publish_debug_image(self, result, overlay_items, frame_stamp):
         try:
             overlay = result.plot()
         except Exception:
@@ -593,12 +593,15 @@ class OakdDetectorNode(Node):
         # 찾는다 - oakd_id는 이 카메라 하나의 내부 라벨일 뿐이라, "AMR이 실제로 따라가는
         # 사람이 어느 것인가"는 reid_tracking_node가 융합한 결과와 map 좌표를 대조해야만
         # 알 수 있다. follow_target이 오래돼(follow_target_max_age 초과) 신뢰할 수 없으면
-        # 아무것도 강조하지 않는다.
+        # 아무것도 강조하지 않는다. 신선도 비교는 반드시 이 프레임 자체의 타임스탬프
+        # (rgb_msg.header.stamp, 발행 쪽과 동일한 시간 기준)로 해야 한다 - self.get_clock()
+        # 의 벽시계는 로스백 재생(use_sim_time 미설정) 시 메시지 타임스탬프와 기준이 완전히
+        # 달라 신선도 검사가 항상 실패하는 버그가 있었다(실측 확인: FOLLOWING이 전혀 안 뜸).
         follow_idx = None
         if self.latest_follow_target is not None and overlay_items:
             fx, fy, f_stamp = self.latest_follow_target
-            now_sec = _stamp_to_sec(self.get_clock().now().to_msg())
-            if now_sec - f_stamp <= self.follow_target_max_age:
+            frame_sec = _stamp_to_sec(frame_stamp)
+            if abs(frame_sec - f_stamp) <= self.follow_target_max_age:
                 best_d = None
                 for idx, item in enumerate(overlay_items):
                     map_x, map_y = item[5], item[6]
