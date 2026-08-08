@@ -76,6 +76,12 @@ class HardhatDetectorNode(Node):
         self.declare_parameter('min_majority_ratio', 0.7)
         # 새 크롭이 이 시간(초) 이상 안 들어오면 쌓아둔 투표를 리셋
         self.declare_parameter('stale_timeout_sec', 2.0)
+        # 손으로 하이바를 잠깐 만지는 등으로 detect 모델이 순간적으로 helmet
+        # 박스를 놓치는 경우(confidence 0.0)를 대비한 유예 시간 - 직전 착용
+        # 확인 시각으로부터 이 시간 이내의 미검출 프레임은 투표에 넣지 않고
+        # 그냥 버림(무착용도 아니고 착용도 아닌 "판단 보류"). 이 시간을 넘겨
+        # 계속 미검출이면 그때부터는 정상적으로 미착용 투표에 반영됨
+        self.declare_parameter('occlusion_grace_sec', 1.0)
         self.declare_parameter('publish_debug_overlay', True)
         self.declare_parameter('debug_overlay_topic', 'person/hardhat_debug_image/compressed')
 
@@ -87,6 +93,7 @@ class HardhatDetectorNode(Node):
         self.window_size = self.get_parameter('window_size').value
         self.min_majority_ratio = self.get_parameter('min_majority_ratio').value
         self.stale_timeout_sec = self.get_parameter('stale_timeout_sec').value
+        self.occlusion_grace_sec = self.get_parameter('occlusion_grace_sec').value
         self.publish_debug_overlay = self.get_parameter('publish_debug_overlay').value
         debug_overlay_topic = self.get_parameter('debug_overlay_topic').value
 
@@ -96,6 +103,7 @@ class HardhatDetectorNode(Node):
         self.recent_votes = deque(maxlen=self.window_size)
         self.current_status = None  # 아직 확정된 상태 없음 - 첫 확정 전까지 publish 안 함
         self.last_seen_at = None
+        self.last_positive_at = None  # 가장 최근에 착용이 확인된 시각 (occlusion 유예용)
 
         # QoS: pose_locator_node의 target_topic과 동일한 설정 - 작고,
         # reliable하고, 최신 것만 남기는 큐
@@ -130,12 +138,31 @@ class HardhatDetectorNode(Node):
         is_wearing, confidence = classify_hardhat(
             self.model, roi, self.positive_class_name, self.min_confidence
         )
-        self.last_seen_at = time.monotonic()
+        now = time.monotonic()
+        self.last_seen_at = now
+
+        if is_wearing:
+            self.last_positive_at = now
+
+        # detect 모델이 helmet 박스를 못 찾은(confidence == 0.0) 프레임 중,
+        # 직전 착용 확인으로부터 occlusion_grace_sec 이내인 것은 손으로 잠깐
+        # 만지는 등의 일시적 가림일 수 있어 투표에 넣지 않고 버림(판단 보류).
+        # 유예 시간을 넘겨서도 계속 못 찾으면 그때부턴 아래 분기로 내려가
+        # 정상적으로 미착용 투표에 반영됨
+        is_grace_period_miss = (
+            self.model.task == 'detect'
+            and not is_wearing
+            and self.last_positive_at is not None
+            and (now - self.last_positive_at) < self.occlusion_grace_sec
+        )
 
         # detect 모델의 "못 찾음"(confidence == 0.0)은 이미 predict()의
         # conf_threshold로 걸러진 확정적 음성 신호라서 게이팅 없이 그대로
         # 투표에 넣음 - classify 모델만 top1 confidence로 애매한 프레임을 거름
-        if self.model.task == 'detect' or confidence >= self.min_confidence:
+        should_vote = not is_grace_period_miss and (
+            self.model.task == 'detect' or confidence >= self.min_confidence
+        )
+        if should_vote:
             self.recent_votes.append(is_wearing)
 
         self._update_status()
@@ -168,6 +195,7 @@ class HardhatDetectorNode(Node):
         if time.monotonic() - self.last_seen_at > self.stale_timeout_sec:
             self.recent_votes.clear()
             self.last_seen_at = None
+            self.last_positive_at = None
 
     def _publish_debug_overlay(self, roi, is_wearing, confidence):
         overlay = roi.copy()

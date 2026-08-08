@@ -200,7 +200,7 @@ def extract_wrist_pixel(keypoints_xy, keypoints_conf, conf_threshold=0.5, locked
     return float(u), float(v), side
 
 
-def crop_person_bbox(frame, box_xyxy, padding_ratio=0.15):
+def crop_person_bbox(frame, box_xyxy, padding_ratio=0.15, top_ratio=1.0):
     """YOLO-pose가 이미 계산해둔 사람 bounding box를 그대로 크롭한다 (hardhat_detector 입력용).
 
     처음엔 코/눈/귀 keypoint로 얼굴만 좁게 크롭했었는데, 오버헤드/광각
@@ -216,12 +216,19 @@ def crop_person_bbox(frame, box_xyxy, padding_ratio=0.15):
     돌려준다(padding_ratio만큼 위아래좌우 여유를 둬서 하이바가 박스
     상단 경계에 딱 붙어 잘리는 것도 어느 정도 방지).
 
+    top_ratio(<1.0)를 주면 패딩 전에 박스 높이를 위에서부터 그 비율만큼만
+    남기고 잘라낸다 - 전신 대신 하이바가 있을 상반신/머리 영역만 남겨서
+    다리/배경이 분류기 입력에 섞이는 걸 줄이기 위함(오탐 튜닝용).
+
     Returns:
         크롭된 프레임(BGR numpy array).
     """
     x1, y1, x2, y2 = box_xyxy
     w = x2 - x1
     h = y2 - y1
+    if top_ratio < 1.0:
+        y2 = y1 + h * top_ratio
+        h = y2 - y1
     pad_x = w * padding_ratio
     pad_y = h * padding_ratio
 

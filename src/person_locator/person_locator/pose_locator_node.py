@@ -97,6 +97,9 @@ class PoseLocatorNode(Node):
         # 크롭 자체가 계속 스킵되는 문제가 있었음 + 학습 데이터도 전체
         # 장면이었어서 bbox 크롭이 스케일상 더 잘 맞음
         self.declare_parameter('hardhat_roi_padding_ratio', 0.15)
+        # 1.0이면 기존과 동일하게 전신을 그대로 씀 - 오탐 튜닝을 위해 위에서부터
+        # 이 비율만큼(예: 0.4 = 상반신/머리)만 남기려면 1.0 미만으로 낮춤
+        self.declare_parameter('hardhat_roi_top_ratio', 1.0)
         self.declare_parameter('publish_hardhat_roi', True)
         self.declare_parameter('hardhat_roi_topic', 'person/hardhat_roi/compressed')
         self.declare_parameter('hardhat_roi_jpeg_quality', 80)
@@ -121,6 +124,7 @@ class PoseLocatorNode(Node):
         call_position_topic = self.get_parameter('call_position_topic').value
 
         self.hardhat_roi_padding_ratio = self.get_parameter('hardhat_roi_padding_ratio').value
+        self.hardhat_roi_top_ratio = self.get_parameter('hardhat_roi_top_ratio').value
         self.publish_hardhat_roi = self.get_parameter('publish_hardhat_roi').value
         hardhat_roi_topic = self.get_parameter('hardhat_roi_topic').value
         self.hardhat_roi_jpeg_quality = self.get_parameter('hardhat_roi_jpeg_quality').value
@@ -274,7 +278,9 @@ class PoseLocatorNode(Node):
                         self.wrist_roi_pub.publish(roi_msg)
 
             if self.publish_hardhat_roi:
-                hardhat_roi = crop_person_bbox(frame, box_xyxy, self.hardhat_roi_padding_ratio)
+                hardhat_roi = crop_person_bbox(
+                    frame, box_xyxy, self.hardhat_roi_padding_ratio, self.hardhat_roi_top_ratio
+                )
                 if hardhat_roi.size > 0:
                     hardhat_roi_msg = encode_jpeg(hardhat_roi, quality=self.hardhat_roi_jpeg_quality)
                     self.hardhat_roi_pub.publish(hardhat_roi_msg)
