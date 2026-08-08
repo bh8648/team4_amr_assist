@@ -195,6 +195,67 @@ def test_cmd_worker_detected_no_active_robot_does_not_publish():
         rclpy.shutdown()
 
 
+def test_cmd_worker_detected_with_explicit_id_single_active_regression():
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        node.task_command_pub = Mock()
+        state = TaskState()
+        state.robot_id, state.state, state.task_id = 'robot11', 'ASSIGNED', 'TASK_1'
+        node.task_state_callback(state)
+
+        node.cmd_worker_detected(['robot11'])
+
+        sent = node.task_command_pub.publish.call_args[0][0]
+        assert sent.robot_id == 'robot11'
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_cmd_worker_detected_with_explicit_id_disambiguates_two_active():
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        node.task_command_pub = Mock()
+        state11 = TaskState()
+        state11.robot_id, state11.state, state11.task_id = 'robot11', 'FOLLOWING', 'TASK_1'
+        node.task_state_callback(state11)
+        state5 = TaskState()
+        state5.robot_id, state5.state, state5.task_id = 'robot5', 'ASSIGNED', 'TASK_2'
+        node.task_state_callback(state5)
+
+        node.cmd_worker_detected(['robot5'])
+
+        sent = node.task_command_pub.publish.call_args[0][0]
+        assert sent.robot_id == 'robot5'
+        assert sent.task_id == 'TASK_2'
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_cmd_worker_detected_without_id_two_active_prints_error_no_publish(capsys):
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        node.task_command_pub = Mock()
+        state11 = TaskState()
+        state11.robot_id, state11.state, state11.task_id = 'robot11', 'FOLLOWING', 'TASK_1'
+        node.task_state_callback(state11)
+        state5 = TaskState()
+        state5.robot_id, state5.state, state5.task_id = 'robot5', 'ASSIGNED', 'TASK_2'
+        node.task_state_callback(state5)
+
+        node.cmd_worker_detected([])
+
+        node.task_command_pub.publish.assert_not_called()
+        assert '로봇을 지정하세요' in capsys.readouterr().out
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
 def test_cmd_deliver_publishes_with_destination_coords():
     rclpy.init()
     node = WebcamPcCliNode()
@@ -216,6 +277,36 @@ def test_cmd_deliver_publishes_with_destination_coords():
         assert sent.command == 'START_TRANSPORT'
         assert sent.target_x == -0.5
         assert sent.target_y == -2.0
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+        os.remove(db_path)
+
+
+def test_cmd_deliver_with_explicit_robot_id_and_destination():
+    rclpy.init()
+    node = WebcamPcCliNode()
+    db_path = _make_temp_db()
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.execute("INSERT INTO destinations VALUES ('DEST_A', '목적지 A', -0.5, -2.0, 3.14159)")
+        conn.commit()
+        conn.close()
+        node.db_path = db_path
+        node.task_command_pub = Mock()
+        state11 = TaskState()
+        state11.robot_id, state11.state, state11.task_id = 'robot11', 'FOLLOWING', 'TASK_1'
+        node.task_state_callback(state11)
+        state5 = TaskState()
+        state5.robot_id, state5.state, state5.task_id = 'robot5', 'ASSIGNED', 'TASK_2'
+        node.task_state_callback(state5)
+
+        node.cmd_deliver(['robot11', 'DEST_A'])
+
+        sent = node.task_command_pub.publish.call_args[0][0]
+        assert sent.robot_id == 'robot11'
+        assert sent.task_id == 'TASK_1'
+        assert sent.target_x == -0.5
     finally:
         node.destroy_node()
         rclpy.shutdown()
@@ -306,6 +397,24 @@ def test_run_cli_unknown_command_prints_error(monkeypatch, capsys):
         rclpy.shutdown()
 
 
+def test_run_cli_handler_exception_is_caught_and_continues(monkeypatch, capsys):
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        node.fetch_destinations = Mock(side_effect=sqlite3.OperationalError('no such table'))
+        inputs = iter(['목적지목록', '종료'])
+        monkeypatch.setattr('builtins.input', lambda _prompt='': next(inputs))
+
+        node.run_cli()
+
+        out = capsys.readouterr().out
+        assert '오류' in out
+        assert 'no such table' in out
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
 def test_cmd_follow_start_creates_timer():
     rclpy.init()
     node = WebcamPcCliNode()
@@ -313,6 +422,37 @@ def test_cmd_follow_start_creates_timer():
         node.cmd_follow_start([])
         assert node.following_timer is not None
         assert node.following_index == 0
+    finally:
+        node.cmd_follow_stop([])
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_cmd_follow_start_warns_when_robot11_not_following(capsys):
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        node.cmd_follow_start([])
+        assert '[경고]' in capsys.readouterr().out
+        assert node.following_timer is not None
+    finally:
+        node.cmd_follow_stop([])
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_cmd_follow_start_no_warning_when_robot11_following(capsys):
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        state = TaskState()
+        state.robot_id, state.state, state.task_id = 'robot11', 'FOLLOWING', 'TASK_1'
+        node.task_state_callback(state)
+
+        node.cmd_follow_start([])
+
+        assert '[경고]' not in capsys.readouterr().out
+        assert node.following_timer is not None
     finally:
         node.cmd_follow_stop([])
         node.destroy_node()

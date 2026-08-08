@@ -46,7 +46,9 @@ class WebcamPcCliNode(Node):
         self.error_sub = self.create_subscription(
             RobotError, '/robot_error', self.error_callback, 10)
 
-        self.get_logger().info('webcam_pc_cli 노드 시작')
+        self.get_logger().info(f'webcam_pc_cli 노드 시작 (DB 경로: {self.db_path})')
+        if not os.path.exists(self.db_path):
+            self.get_logger().warn(f'DB 파일이 존재하지 않습니다: {self.db_path}')
 
     def assignment_callback(self, msg: RobotAssignment) -> None:
         if msg.assigned:
@@ -86,16 +88,16 @@ class WebcamPcCliNode(Node):
             print(f"{destination['destination_id']}: {destination['destination_name']} "
                   f"({destination['position_x']}, {destination['position_y']}, {destination['orientation_yaw']})")
 
-    def _active_robot_task(self):
-        task_states = {robot_id: msg.state for robot_id, msg in self.task_cache.items()}
-        robot_id, error = select_active_robot(task_states)
+    def _active_robot_task(self, requested_id=None):
+        task_states = {robot_id: msg.state for robot_id, msg in dict(self.task_cache).items()}
+        robot_id, error = select_active_robot(task_states, requested_id)
         if error:
             print(error)
             return None, None
         return robot_id, self.task_cache[robot_id].task_id
 
     def _publish_task_command(self, command: str, robot_id: str, task_id: str,
-                               target_x: float = 0.0, target_y: float = 0.0, target_yaw: float = 0.0) -> None:
+                              target_x: float = 0.0, target_y: float = 0.0, target_yaw: float = 0.0) -> None:
         msg = TaskCommand()
         msg.stamp = self.get_clock().now().to_msg()
         msg.command, msg.robot_id, msg.task_id = command, robot_id, task_id
@@ -103,18 +105,23 @@ class WebcamPcCliNode(Node):
         self.task_command_pub.publish(msg)
 
     def cmd_worker_detected(self, args: List[str]) -> None:
-        robot_id, task_id = self._active_robot_task()
+        requested_id = args[0] if args else None
+        robot_id, task_id = self._active_robot_task(requested_id)
         if robot_id is None:
             return
         self._publish_task_command('WORKER_DETECTED', robot_id, task_id)
         print(f'[작업자감지] robot_id={robot_id} 발행')
 
     def cmd_deliver(self, args: List[str]) -> None:
-        robot_id, task_id = self._active_robot_task()
+        remaining = list(args)
+        requested_robot_id = None
+        if remaining and remaining[0].startswith('robot'):
+            requested_robot_id = remaining.pop(0)
+        robot_id, task_id = self._active_robot_task(requested_robot_id)
         if robot_id is None:
             return
-        requested_id = args[0] if args else None
-        destination, error = select_destination(self.fetch_destinations(), requested_id)
+        requested_destination_id = remaining[0] if remaining else None
+        destination, error = select_destination(self.fetch_destinations(), requested_destination_id)
         if error:
             print(error)
             return
@@ -124,17 +131,19 @@ class WebcamPcCliNode(Node):
         print(f"[배송모드] robot_id={robot_id}, 목적지={destination['destination_id']} 발행")
 
     def cmd_confirm(self, args: List[str]) -> None:
-        robot_id, task_id = self._active_robot_task()
+        requested_id = args[0] if args else None
+        robot_id, task_id = self._active_robot_task(requested_id)
         if robot_id is None:
             return
         self._publish_task_command('DELIVERY_CONFIRMED', robot_id, task_id)
         print(f'[배송확인] robot_id={robot_id} 발행')
 
     def cmd_status(self, args: List[str]) -> None:
-        if not self.task_cache:
+        cached = dict(self.task_cache)
+        if not cached:
             print('캐싱된 로봇 상태 없음')
             return
-        for robot_id, msg in self.task_cache.items():
+        for robot_id, msg in cached.items():
             print(f'{robot_id}: {msg.state} (task_id={msg.task_id})')
 
     def _stop_following_timer(self) -> None:
@@ -150,6 +159,9 @@ class WebcamPcCliNode(Node):
         if self.following_timer is not None:
             print('이미 진행 중입니다. 먼저 추종중지를 입력하세요')
             return
+        robot_state = self.task_cache.get('robot11')
+        if robot_state is None or robot_state.state != 'FOLLOWING':
+            print('[경고] robot11이 FOLLOWING 상태가 아닙니다 — robot_bridge가 target_person_pose를 무시할 수 있습니다')
         self.following_index = 0
         self.following_timer = self.create_timer(interval, self._publish_next_following_pose)
         print(f'[추종시작] 간격초={interval}')
@@ -203,8 +215,11 @@ class WebcamPcCliNode(Node):
             if handler is None:
                 print(f'알 수 없는 명령: {command}')
                 continue
-            if handler(args) is QUIT:
-                break
+            try:
+                if handler(args) is QUIT:
+                    break
+            except Exception as exc:
+                print(f'[오류] 명령 처리 중 예외 발생: {exc}')
 
 
 def main(args=None):

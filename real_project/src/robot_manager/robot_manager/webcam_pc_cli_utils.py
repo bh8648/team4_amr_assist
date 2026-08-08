@@ -72,8 +72,14 @@ def select_destination(destinations: List[dict], requested_id: Optional[str]) ->
     return None, f'목적지를 지정하세요: {ids}'
 
 
-def select_active_robot(task_states: Dict[str, str]) -> Tuple[Optional[str], Optional[str]]:
+def select_active_robot(
+        task_states: Dict[str, str],
+        requested_id: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
     active = [robot_id for robot_id, state in task_states.items() if state in ACTIVE_STATES]
+    if requested_id:
+        if requested_id in active:
+            return requested_id, None
+        return None, f'{requested_id}는 활성 상태가 아닙니다'
     if not active:
         return None, '활성 작업 없음'
     if len(active) == 1:

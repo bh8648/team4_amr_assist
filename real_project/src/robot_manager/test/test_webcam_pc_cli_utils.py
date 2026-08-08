@@ -144,6 +144,26 @@ def test_select_active_robot_multiple_active_requires_selection():
     assert 'robot11' in error and 'robot5' in error
 
 
+def test_select_active_robot_requested_id_present_and_active():
+    robot_id, error = select_active_robot(
+        {'robot11': 'FOLLOWING', 'robot5': 'ASSIGNED'}, requested_id='robot5')
+    assert error is None
+    assert robot_id == 'robot5'
+
+
+def test_select_active_robot_requested_id_not_active():
+    robot_id, error = select_active_robot(
+        {'robot11': 'FOLLOWING', 'robot5': 'DOCKED'}, requested_id='robot5')
+    assert robot_id is None
+    assert error == 'robot5는 활성 상태가 아닙니다'
+
+
+def test_select_active_robot_requested_id_absent_entirely():
+    robot_id, error = select_active_robot({'robot11': 'FOLLOWING'}, requested_id='robot5')
+    assert robot_id is None
+    assert error == 'robot5는 활성 상태가 아닙니다'
+
+
 def test_following_mock_poses_has_ten_points():
     assert len(FOLLOWING_MOCK_POSES) == 10
 
