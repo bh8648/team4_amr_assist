@@ -5,6 +5,7 @@ from sensor_msgs.msg import BatteryState
 from unittest.mock import Mock
 
 from std_msgs.msg import Bool
+from irobot_create_msgs.msg import DockStatus
 
 from robot_bridge.robot11_bridge_node import Robot11BridgeNode
 from robot_status.msg import TaskState
@@ -45,6 +46,8 @@ def test_build_status_message_after_pose_and_battery():
         assert status.y == -2.0
         assert status.battery == 75.0
         assert status.current_task_id == ''
+        assert status.is_docked is False
+        assert status.dock_status_known is False
     finally:
         node.destroy_node()
         rclpy.shutdown()
@@ -105,6 +108,7 @@ def test_dock_request_true_sends_dock_goal():
 
         node.dock_client.send_goal_async.assert_called_once()
         node.undock_client.send_goal_async.assert_not_called()
+        assert node.dock_action_in_flight is True
     finally:
         node.destroy_node()
         rclpy.shutdown()
@@ -122,6 +126,7 @@ def test_dock_request_false_sends_undock_goal():
 
         node.undock_client.send_goal_async.assert_called_once()
         node.dock_client.send_goal_async.assert_not_called()
+        assert node.dock_action_in_flight is True
     finally:
         node.destroy_node()
         rclpy.shutdown()
@@ -137,6 +142,73 @@ def test_dock_request_skips_when_action_server_not_ready():
         node.dock_callback(Bool(data=True))
 
         node.dock_client.send_goal_async.assert_not_called()
+        assert node.dock_action_in_flight is False
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_dock_request_ignored_while_action_in_flight():
+    rclpy.init()
+    node = Robot11BridgeNode()
+    try:
+        node.dock_client = Mock()
+        node.dock_client.wait_for_server.return_value = True
+        node.undock_client = Mock()
+        node.dock_action_in_flight = True
+
+        node.dock_callback(Bool(data=True))
+
+        node.dock_client.send_goal_async.assert_not_called()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_dock_response_rejected_clears_in_flight_guard():
+    rclpy.init()
+    node = Robot11BridgeNode()
+    try:
+        node.dock_action_in_flight = True
+        future = Mock()
+        future.result.return_value = Mock(accepted=False)
+
+        node._dock_response_callback(future)
+
+        assert node.dock_action_in_flight is False
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_dock_result_clears_in_flight_guard():
+    rclpy.init()
+    node = Robot11BridgeNode()
+    try:
+        node.dock_action_in_flight = True
+        result_future = Mock()
+        result_future.result.return_value.result.is_docked = True
+
+        node._dock_result_callback(result_future)
+
+        assert node.dock_action_in_flight is False
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_dock_status_callback_updates_is_docked_and_known():
+    rclpy.init()
+    node = Robot11BridgeNode()
+    try:
+        assert node.dock_status_known is False
+
+        status_msg = DockStatus()
+        status_msg.is_docked = True
+        node.dock_status_callback(status_msg)
+
+        assert node.is_docked is True
+        assert node.dock_status_known is True
     finally:
         node.destroy_node()
         rclpy.shutdown()

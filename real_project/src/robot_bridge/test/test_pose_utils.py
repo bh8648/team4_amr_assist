@@ -48,3 +48,11 @@ def test_build_robot_status_fields():
     assert msg.y == -3.4
     assert msg.yaw == 0.5
     assert msg.current_task_id == ''
+    assert msg.is_docked is False
+    assert msg.dock_status_known is False
+
+
+def test_build_robot_status_with_dock_state():
+    msg = build_robot_status('robot11', 87.5, 1.2, -3.4, 0.5, is_docked=True, dock_status_known=True)
+    assert msg.is_docked is True
+    assert msg.dock_status_known is True

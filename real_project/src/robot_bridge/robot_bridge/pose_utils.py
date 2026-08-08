@@ -28,7 +28,8 @@ def is_followable_pose(x: float, y: float, z: float,
     return is_valid_quaternion(qx, qy, qz, qw)
 
 
-def build_robot_status(robot_id: str, battery_percent: float, x: float, y: float, yaw: float) -> RobotStatus:
+def build_robot_status(robot_id: str, battery_percent: float, x: float, y: float, yaw: float,
+                       is_docked: bool = False, dock_status_known: bool = False) -> RobotStatus:
     msg = RobotStatus()
     msg.robot_id = robot_id
     msg.battery = float(battery_percent)
@@ -36,4 +37,6 @@ def build_robot_status(robot_id: str, battery_percent: float, x: float, y: float
     msg.y = float(y)
     msg.yaw = float(yaw)
     msg.current_task_id = ''
+    msg.is_docked = bool(is_docked)
+    msg.dock_status_known = bool(dock_status_known)
     return msg

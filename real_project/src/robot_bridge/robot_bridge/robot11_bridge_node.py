@@ -5,6 +5,7 @@ from typing import Optional
 import rclpy
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from irobot_create_msgs.action import Dock, Undock
+from irobot_create_msgs.msg import DockStatus
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.node import Node
@@ -16,12 +17,15 @@ from robot_status.msg import RobotStatus, TaskState
 
 from robot_bridge.pose_utils import build_robot_status, is_followable_pose, quaternion_to_yaw
 
-ROBOT_ID = 'robot11'
-
 
 class Robot11BridgeNode(Node):
     def __init__(self):
         super().__init__('robot11_bridge_node')
+
+        # robot_id는 파라미터로 뺐다 — 코드는 이 파일 그대로 두고 파라미터만 바꾸면
+        # robot5 등 다른 로봇에도 재사용할 수 있다(robot5용 브릿지 제작 자체는 이번 범위 밖).
+        self.declare_parameter('robot_id', 'robot11')
+        self.robot_id = str(self.get_parameter('robot_id').value)
 
         status_qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
 
@@ -30,39 +34,50 @@ class Robot11BridgeNode(Node):
         self.latest_yaw: Optional[float] = None
         self.latest_battery_percent: Optional[float] = None
 
+        self.is_docked = False
+        self.dock_status_known = False
+        self.dock_action_in_flight = False
+
         self.current_task_state: str = ''
         self.nav_generation = 0
 
         self.amcl_sub = self.create_subscription(
-            PoseWithCovarianceStamped, f'/{ROBOT_ID}/amcl_pose', self.amcl_pose_callback, 10)
+            PoseWithCovarianceStamped, f'/{self.robot_id}/amcl_pose', self.amcl_pose_callback, 10)
         # Create3/TurtleBot4 센서 토픽은 BEST_EFFORT로 발행되는 경우가 많다.
         # BEST_EFFORT 구독자는 BEST_EFFORT/RELIABLE 발행자 모두와 호환된다.
         self.battery_sub = self.create_subscription(
-            BatteryState, f'/{ROBOT_ID}/battery_state', self.battery_callback,
+            BatteryState, f'/{self.robot_id}/battery_state', self.battery_callback,
             qos_profile_sensor_data)
 
-        self.status_pub = self.create_publisher(RobotStatus, '/robot_status', status_qos)
+        # ⚠️ 토픽명/메시지 타입/필드명 가정값 — robot11 PC에서
+        # `ros2 topic list | grep dock`, `ros2 interface show irobot_create_msgs/msg/DockStatus`로
+        # 실제 값을 확인한 뒤 이 두 줄(토픽명, is_docked 필드명)만 고치면 된다.
+        self.dock_status_sub = self.create_subscription(
+            DockStatus, f'/{self.robot_id}/dock_status', self.dock_status_callback,
+            qos_profile_sensor_data)
+
+        self.status_pub = self.create_publisher(RobotStatus, f'/{self.robot_id}/robot_status', status_qos)
         self.status_timer = self.create_timer(1.0, self.publish_robot_status)
 
         self.nav_goal_handle = None
 
         self.pause_sub = self.create_subscription(
-            Bool, f'/{ROBOT_ID}/pause/request', self.pause_callback, 10)
+            Bool, f'/{self.robot_id}/pause/request', self.pause_callback, 10)
 
-        self.nav_client = ActionClient(self, NavigateToPose, f'/{ROBOT_ID}/navigate_to_pose')
+        self.nav_client = ActionClient(self, NavigateToPose, f'/{self.robot_id}/navigate_to_pose')
 
         self.dock_sub = self.create_subscription(
-            Bool, f'/{ROBOT_ID}/dock/request', self.dock_callback, 10)
+            Bool, f'/{self.robot_id}/dock/request', self.dock_callback, 10)
 
-        self.dock_client = ActionClient(self, Dock, f'/{ROBOT_ID}/dock')
-        self.undock_client = ActionClient(self, Undock, f'/{ROBOT_ID}/undock')
+        self.dock_client = ActionClient(self, Dock, f'/{self.robot_id}/dock')
+        self.undock_client = ActionClient(self, Undock, f'/{self.robot_id}/undock')
 
         self.target_person_pose_sub = self.create_subscription(
-            PoseStamped, f'/{ROBOT_ID}/target_person_pose', self.target_person_pose_callback, 10)
+            PoseStamped, f'/{self.robot_id}/target_person_pose', self.target_person_pose_callback, 10)
         self.task_state_sub = self.create_subscription(
             TaskState, '/task/state', self.task_state_callback, 10)
 
-        self.get_logger().info(f'{ROBOT_ID} 브릿지 노드 시작')
+        self.get_logger().info(f'{self.robot_id} 브릿지 노드 시작')
 
     def amcl_pose_callback(self, msg: PoseWithCovarianceStamped) -> None:
         position = msg.pose.pose.position
@@ -73,11 +88,16 @@ class Robot11BridgeNode(Node):
     def battery_callback(self, msg: BatteryState) -> None:
         self.latest_battery_percent = msg.percentage * 100.0
 
+    def dock_status_callback(self, msg: DockStatus) -> None:
+        self.is_docked = bool(msg.is_docked)
+        self.dock_status_known = True
+
     def build_status_message(self) -> Optional[RobotStatus]:
         if self.latest_x is None or self.latest_battery_percent is None:
             return None
         return build_robot_status(
-            ROBOT_ID, self.latest_battery_percent, self.latest_x, self.latest_y, self.latest_yaw)
+            self.robot_id, self.latest_battery_percent, self.latest_x, self.latest_y, self.latest_yaw,
+            is_docked=self.is_docked, dock_status_known=self.dock_status_known)
 
     def publish_robot_status(self) -> None:
         msg = self.build_status_message()
@@ -95,6 +115,9 @@ class Robot11BridgeNode(Node):
             self.nav_goal_handle = None
 
     def dock_callback(self, msg: Bool) -> None:
+        if self.dock_action_in_flight:
+            self.get_logger().warn(f'{self.robot_id} Dock/Undock 진행 중 — 새 요청 무시')
+            return
         if msg.data:
             self._send_dock_goal()
         else:
@@ -104,6 +127,7 @@ class Robot11BridgeNode(Node):
         if not self.dock_client.wait_for_server(timeout_sec=0.2):
             self.get_logger().warn('dock 액션 서버 대기 중')
             return
+        self.dock_action_in_flight = True
         future = self.dock_client.send_goal_async(Dock.Goal())
         future.add_done_callback(self._dock_response_callback)
 
@@ -111,27 +135,36 @@ class Robot11BridgeNode(Node):
         if not self.undock_client.wait_for_server(timeout_sec=0.2):
             self.get_logger().warn('undock 액션 서버 대기 중')
             return
+        self.dock_action_in_flight = True
         future = self.undock_client.send_goal_async(Undock.Goal())
         future.add_done_callback(self._undock_response_callback)
 
     def _dock_response_callback(self, future) -> None:
         goal_handle = future.result()
         if not goal_handle.accepted:
+            self.dock_action_in_flight = False
             self.get_logger().warn('dock goal 거부됨')
             return
-        goal_handle.get_result_async().add_done_callback(
-            lambda result: self.get_logger().info(f'dock 결과: is_docked={result.result().result.is_docked}'))
+        goal_handle.get_result_async().add_done_callback(self._dock_result_callback)
+
+    def _dock_result_callback(self, future) -> None:
+        self.dock_action_in_flight = False
+        self.get_logger().info(f'dock 결과: is_docked={future.result().result.is_docked}')
 
     def _undock_response_callback(self, future) -> None:
         goal_handle = future.result()
         if not goal_handle.accepted:
+            self.dock_action_in_flight = False
             self.get_logger().warn('undock goal 거부됨')
             return
-        goal_handle.get_result_async().add_done_callback(
-            lambda result: self.get_logger().info(f'undock 결과: is_docked={result.result().result.is_docked}'))
+        goal_handle.get_result_async().add_done_callback(self._undock_result_callback)
+
+    def _undock_result_callback(self, future) -> None:
+        self.dock_action_in_flight = False
+        self.get_logger().info(f'undock 결과: is_docked={future.result().result.is_docked}')
 
     def task_state_callback(self, msg: TaskState) -> None:
-        if msg.robot_id == ROBOT_ID:
+        if msg.robot_id == self.robot_id:
             self.current_task_state = msg.state
 
     def target_person_pose_callback(self, msg: PoseStamped) -> None:
