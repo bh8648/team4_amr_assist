@@ -113,6 +113,7 @@ class OakdDetectorNode(Node):
         self.tf_timeout = Duration(seconds=self.get_parameter('tf_timeout').value)
         self.tf_allow_latest_fallback = self.get_parameter('tf_allow_latest_fallback').value
         self.conf_threshold = self.get_parameter('conf_threshold').value
+        self.tracker_conf_threshold = self.get_parameter('tracker_conf_threshold').value
         self.kp_conf_threshold = self.get_parameter('kp_conf_threshold').value
         self.depth_scale = self.get_parameter('depth_scale').value
         self.depth_patch_size = self.get_parameter('depth_patch_size').value
@@ -269,6 +270,14 @@ class OakdDetectorNode(Node):
         # 검증에 쓴 bag(rosbag2_2026_08_06-12_27_59)에는 사람이 찍히지 않아 분포를 볼 수 없었다.
         # 사람이 나오는 근접 주행 bag이 생기면 person conf 분포를 보고 다시 정해야 한다.
         self.declare_parameter('conf_threshold', 0.3)
+        # 트래커에 넣을 때만 쓰는 낮은 임계. YOLO의 .track()에 conf_threshold를 그대로 주면
+        # 저신뢰 검출이 트래커에 도달하기도 전에 잘려, TrackTrack/ByteTrack 계열의 2단계
+        # 연결(track_low_thresh=0.25로 저신뢰 검출을 기존 트랙에 이어붙여 끊김을 막는 장치)이
+        # 쓸 후보가 아예 없어진다. 이 값을 track_low_thresh보다 낮게 줘서 그 장치를 살리고,
+        # 발행은 위 conf_threshold로 따로 거른다(_build_detections) - 하류가 받는 검출 품질은
+        # 그대로 두면서 트랙 연속성만 얻는다. new_track_thresh(0.7)가 있어 저신뢰 검출이
+        # 함부로 새 트랙을 만들지도 않는다.
+        self.declare_parameter('tracker_conf_threshold', 0.1)
         self.declare_parameter('kp_conf_threshold', 0.5)
         self.declare_parameter('depth_scale', 0.001)
         self.declare_parameter('depth_patch_size', 5)
@@ -348,7 +357,7 @@ class OakdDetectorNode(Node):
         self.last_rgb_depth_dt = abs(_stamp_to_sec(rgb_msg.header.stamp) - _stamp_to_sec(depth_msg.header.stamp))
 
         results = self.pose_model.track(
-            frame, persist=True, classes=[0], conf=self.conf_threshold, verbose=False,
+            frame, persist=True, classes=[0], conf=self.tracker_conf_threshold, verbose=False,
             tracker=self.tracker_config_path or 'tracktrack.yaml')
         detections, nearest, overlay_items = self._build_detections(results[0], depth_img, rgb_msg)
 
@@ -390,6 +399,11 @@ class OakdDetectorNode(Node):
             bbox = boxes.xyxy[i].cpu().numpy()
             box_conf = float(boxes.conf[i])
             track_id = int(boxes.id[i]) if boxes.id is not None else -1
+
+            # 트래커에는 tracker_conf_threshold(낮음)로 저신뢰 검출까지 넣어 트랙 연속성을
+            # 얻지만, 실제로 발행하는 검출은 기존과 같은 conf_threshold로 거른다.
+            if box_conf < self.conf_threshold:
+                continue
 
             kp_xy = kp_xy_all[i] if kp_xy_all is not None and i < len(kp_xy_all) else None
             kp_conf = kp_conf_all[i] if kp_conf_all is not None and i < len(kp_conf_all) else None
