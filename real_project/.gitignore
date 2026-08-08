@@ -1,0 +1,52 @@
+# ROS 2 / colcon build outputs
+/build/
+/install/
+/log/
+
+# Python generated files
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+/src/**/test/
+
+# HMI frontend dependencies and build outputs
+/amr_delivery_ui/frontend/node_modules/
+/amr_delivery_ui/frontend/dist/
+/amr_delivery_ui/frontend/dist-ssr/
+/amr_delivery_ui/frontend/.vite/
+/amr_delivery_ui/frontend/.env
+/amr_delivery_ui/frontend/*.local
+/amr_delivery_ui/frontend/README.md
+/amr_delivery_ui/frontend/.gitignore
+/amr_delivery_ui/frontend/.oxlintrc.json
+/amr_delivery_ui/frontend/src/assets/
+
+# HMI design documents and one-off utilities are not needed at runtime.
+/amr_delivery_ui/docs/
+/amr_delivery_ui/scripts/
+/amr_delivery_ui/TODO.md
+
+# Runtime SQLite sidecar/temp databases. Keep /amr.db as the initial schema DB.
+*.db-shm
+*.db-wal
+*.db-journal
+/amr_delivery_ui/**/*.db
+!/amr.db
+
+# Runtime logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+*~
