@@ -6,9 +6,11 @@ oakd_detector_node 디버그 이미지에 "AMR이 실제로 추종 중인 대상
 (예: "id:4" = det.id "oakd_4")를 표시했지만, 이건 카메라 하나의 내부 트래커 라벨일
 뿐이고 실제로 로봇이 따라가는 대상은 reid_tracking_node가 여러 출처를 융합해
 발행하는 target_person_pose다. 어느 검출이 실제 추종 대상인지 한눈에 확인하기 위해
-target_person_pose를 구독해 map 좌표가 가장 가까운 검출에 마젠타색 원 + "FOLLOWING"
-글자를 덧그리도록 했다(follow_target_max_age=1.0s 이상 오래되면 표시 안 함 - 제어에는
-관여하지 않는 순수 시각화).
+target_person_pose를 구독해 map 좌표가 가장 가까운 검출에 표시하도록 했다
+(follow_target_max_age=1.0s 이상 오래되면 표시 안 함 - 제어에는 관여하지 않는 순수
+시각화). 처음엔 발끝 점에 원+텍스트로만 표시했는데, 사용자 피드백으로 더 직관적이게
+bbox 전체를 마젠타색으로 반투명하게 채우고(cv2.addWeighted, 35%) 굵은 테두리 +
+"FOLLOWING" 라벨을 얹는 방식으로 바꿨다.
 
 [도입 전 영상] evidence_amr_follow_target_before.mp4
   FOLLOWING 표시가 두 검출 사이를 오가며 튄다 - 위치기반 트랙이 둘로 쪼개진 것을

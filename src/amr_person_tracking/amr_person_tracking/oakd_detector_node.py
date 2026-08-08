@@ -426,7 +426,8 @@ class OakdDetectorNode(Node):
             self._stat_grades[grade] = self._stat_grades.get(grade, 0) + 1
 
             detections.append(self._make_detection3d(pt_map, box_conf, grade, trunc, track_id, rgb_msg.header))
-            overlay_items.append((u, v, grade, distance, track_id, pt_map.point.x, pt_map.point.y))
+            overlay_items.append(
+                (u, v, grade, distance, track_id, pt_map.point.x, pt_map.point.y, bbox))
 
         return detections, nearest, overlay_items
 
@@ -609,13 +610,18 @@ class OakdDetectorNode(Node):
                     if best_d is None or d < best_d:
                         best_d, follow_idx = d, idx
 
-        for i, (u, v, grade, distance, track_id, map_x, map_y) in enumerate(overlay_items):
+        for i, (u, v, grade, distance, track_id, map_x, map_y, bbox) in enumerate(overlay_items):
             if i == follow_idx:
-                # AMR이 실제로 추종 중인 대상 - 눈에 띄는 색(마젠타)의 굵은 테두리로 강조.
-                cv2.circle(overlay, (int(u), int(v)), 14, (255, 0, 255), 3)
+                # AMR이 실제로 추종 중인 대상 - 사람 하나하나 위치를 텍스트로 대조하는 것보다
+                # bbox 전체를 반투명하게 채우는 쪽이 한눈에 들어온다(사용자 피드백 반영).
+                x1, y1, x2, y2 = (int(coord) for coord in bbox)
+                fill = overlay.copy()
+                cv2.rectangle(fill, (x1, y1), (x2, y2), (255, 0, 255), -1)
+                cv2.addWeighted(fill, 0.35, overlay, 0.65, 0, overlay)
+                cv2.rectangle(overlay, (x1, y1), (x2, y2), (255, 0, 255), 3)
                 cv2.putText(
-                    overlay, 'FOLLOWING', (int(u) + 8, int(v) + 34),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 255), 2, cv2.LINE_AA)
+                    overlay, 'FOLLOWING', (x1, max(0, y1 - 10)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 255), 2, cv2.LINE_AA)
             cv2.circle(overlay, (int(u), int(v)), 6, (0, 255, 255), -1)
             cv2.putText(
                 overlay, f'{grade} {distance:.2f}m', (int(u) + 8, int(v)),
