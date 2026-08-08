@@ -25,8 +25,9 @@
   <!-- OAK-D PRO 하드웨어 스트림(RGB/Depth/CameraInfo)을 발행하는 상대 패키지 -->
   <exec_depend>depthai_ros_driver</exec_depend>
   <!--
-    YOLO-pose 추론과 이미지 디코딩에 ultralytics / opencv-python / numpy를 쓰지만,
-    이 워크스페이스는 해당 라이브러리를 rosdep이 아니라 pip으로 관리하므로 여기 기재하지 않는다.
+    YOLO-pose 추론과 이미지 디코딩에 ultralytics / opencv-python / numpy를, 트랙 배정
+    전역 최적화(tracking_utils.assign_tracks)에 scipy를 쓰지만, 이 워크스페이스는 해당
+    라이브러리를 rosdep이 아니라 pip으로 관리하므로 여기 기재하지 않는다.
   -->
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>

@@ -14,9 +14,17 @@ reid_tracking_node이 쓰는 순수 트래킹 로직. rclpy에 의존하지 않�
 
 import math
 
+from scipy.optimize import linear_sum_assignment
+
 # 서로 다른 센서가 "같은 순간"을 보고할 때의 클럭 지터 허용치(초). 이보다 더 과거인 관측만
 # 시간 역순으로 취급해 거부한다 (Track.update 참고).
 _STALE_EPS = 0.01
+
+# assign_tracks에서 게이트 밖(허용 불가) 쌍에 매기는 비용. linear_sum_assignment는 모든
+# 칸에 값이 있어야 하므로, 실제 나올 수 있는 어떤 거리보다도 훨씬 큰 값으로 채워 "이 쌍은
+# 배정되지 않는 한 다른 선택지가 없을 때만 최후의 수단으로 고려된다"를 표현한다. 배정 후
+# 이 값 이상인 결과는 게이트 밖으로 간주해 버린다(assign_tracks 참고).
+_UNREACHABLE_COST = 1e6
 
 
 class Track:
@@ -111,37 +119,40 @@ def match_track(tracks, x, y, stamp, gating_max_speed, min_gate, exclude_ids=Non
 
 
 def assign_tracks(tracks, detections, stamp, gating_max_speed, min_gate):
-    """한 콜백에 들어온 여러 검출을 기존 트랙에 배타적(1:1)으로 배정한다.
+    """한 콜백에 들어온 여러 검출을 기존 트랙에 배타적(1:1)으로, 전체 비용 합이 최소가 되도록
+    배정한다(Hungarian/linear_sum_assignment, scipy.optimize).
 
     detections: (x, y) 튜플의 리스트. 반환값은 detections와 같은 길이의 리스트로, 각 원소는
     매칭된 트랙 id 또는 게이트 안에 트랙이 없으면 None이다.
 
-    Hungarian 알고리즘 같은 전역 최적 할당은 아니고, 아직 배정 안 된 검출들 중 최근접 거리가
-    가장 작은 것부터 그리디로 확정해 배정된 트랙을 제외해가는 방식이다. 한 콜백의 검출 수가
-    사람 수 수준(수 개)이라 O(n^2)로 충분하다.
+    이전에는 아직 배정 안 된 검출들 중 최근접 거리가 가장 작은 것부터 그리디로 확정해가는
+    방식이었다. 실측(my_new_bag3 2인 교차 구간)에서 이 그리디 방식이 지역적으로는 매 순간
+    "가장 가까운" 선택을 하지만 전체적으로 봤을 때 더 나쁜 조합(예: A는 살짝 먼 자기 짝을
+    두고 B의 짝을 가로채, 결과적으로 A-B 모두에게 나쁜 배정)을 만들 수 있음을 확인해 전역
+    최적 배정으로 교체했다. 게이트 밖(허용 불가) 쌍은 매우 큰 비용(_UNREACHABLE_COST)으로
+    채워 사실상 배제하되, 다른 선택지가 전혀 없을 때만 최후 수단으로 고려되게 한다 - 배정
+    후에는 그 비용 이상인 결과를 게이트 밖으로 간주해 버린다.
     """
     n = len(detections)
     results = [None] * n
-    claimed = set()
-    pending = set(range(n))
+    if n == 0 or not tracks:
+        return results
 
-    while pending:
-        best = None  # (dist, idx, track_id)
-        for idx in pending:
-            x, y = detections[idx]
-            tid = match_track(tracks, x, y, stamp, gating_max_speed, min_gate, exclude_ids=claimed)
-            if tid is None:
-                continue
-            px, py = tracks[tid].predict(stamp)
+    track_ids = list(tracks.keys())
+    cost = [[_UNREACHABLE_COST] * len(track_ids) for _ in range(n)]
+    for i, (x, y) in enumerate(detections):
+        for j, tid in enumerate(track_ids):
+            tr = tracks[tid]
+            px, py = tr.predict(stamp)
             d = distance(px, py, x, y)
-            if best is None or d < best[0]:
-                best = (d, idx, tid)
-        if best is None:
-            break
-        _, idx, tid = best
-        results[idx] = tid
-        claimed.add(tid)
-        pending.discard(idx)
+            gate = gate_radius(stamp - tr.last_stamp, gating_max_speed, min_gate)
+            if d <= gate:
+                cost[i][j] = d
+
+    row_idx, col_idx = linear_sum_assignment(cost)
+    for i, j in zip(row_idx, col_idx):
+        if cost[i][j] < _UNREACHABLE_COST:
+            results[i] = track_ids[j]
 
     return results
 
