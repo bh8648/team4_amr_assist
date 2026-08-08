@@ -105,6 +105,12 @@ class ReidTrackingNode(Node):
         self.declare_parameter('source_switch_blend_alpha', 0.4)
         # 어느 출처로부터도 이만큼 갱신이 없으면 트랙을 삭제한다 (가려짐/프레임 이탈 허용 시간)
         self.declare_parameter('track_timeout', 3.0)
+        # 위치 게이팅이 실패해도, 상류(oakd_detector_node의 YOLO track(persist=True) 등)가
+        # 이전에 같은 id를 이 내부 트랙에 매핑해준 적이 있으면 그 힌트로 구제한다 - 실측으로
+        # 상류 트래킹이 이 노드의 순수 위치 게이팅보다 occlusion에 훨씬 강함을 확인했다. 다만
+        # 상류 id가 재사용돼 다른 사람에게 붙는 경우를 막기 위해 절대 거리 상한을 둔다.
+        self.declare_parameter('id_rescue_max_distance', 1.0)
+        self.declare_parameter('id_rescue_max_extrapolation', 1.0)
 
         # 웹캠-라이다 신원 매칭
         # 예측 위치 대비 라이다 검출 후보를 인정할 최대 거리(m)
@@ -135,6 +141,8 @@ class ReidTrackingNode(Node):
         self.velocity_alpha = self.get_parameter('velocity_alpha').value
         self.source_switch_blend_alpha = self.get_parameter('source_switch_blend_alpha').value
         self.track_timeout = self.get_parameter('track_timeout').value
+        self.id_rescue_max_distance = self.get_parameter('id_rescue_max_distance').value
+        self.id_rescue_max_extrapolation = self.get_parameter('id_rescue_max_extrapolation').value
         self.lidar_gating_position_threshold = self.get_parameter('lidar_gating_position_threshold').value
         self.lidar_lock_confirm_frames = self.get_parameter('lidar_lock_confirm_frames').value
         self.lidar_lock_swap_threshold = self.get_parameter('lidar_lock_swap_threshold').value
@@ -163,6 +171,10 @@ class ReidTrackingNode(Node):
         # 웹캠/OAK-D가 "라이다를 거치지 않고" 마지막으로 갱신한 (x, y, stamp) - 라이다 락온 중
         # 백그라운드 검증의 비교 기준. 라이다로 덮어쓴 값끼리 비교하면 항상 일치해 의미가 없어 분리했다.
         self.last_independent_update = {}
+        # (source, 상류 det.id 문자열) -> 이 노드의 내부 트랙 id. 위치 게이팅 실패 시 구제용
+        # 힌트로 쓴다 (update_tracks 참고). det.id가 빈 문자열인 검출(상류 트래커가 아직
+        # id를 못 붙인 경우)은 여기 안 들어간다.
+        self.source_id_to_track = {}
 
         # 웹캠-라이다 신원 매칭 상태
         self.locked_leg_id = None                # 락온된 라이다 쪽 원본 id 문자열 (예: 'leg_7')
@@ -193,17 +205,37 @@ class ReidTrackingNode(Node):
             # 발행 쪽(oakd_detector_node/leg_detector_bridge_node) 관례상 det.header는 항상
             # 배열 header와 동일하게 채워져 있다.
             stamp = stamp_to_sec(det.header.stamp)
-            entries.append((x, y, stamp))
+            entries.append((x, y, stamp, det.id))
 
         # 한 메시지 안 서로 다른 검출이 같은 트랙을 중복으로 차지하지 않도록, 이번 콜백에
         # 들어온 검출 전체를 놓고 한 번에 배타적으로 배정한다. 게이팅은 배열 header의 공통
         # 시점(batch_stamp) 기준으로 모든 기존 트랙을 일관되게 예측해 비교한다.
         batch_stamp = stamp_to_sec(msg.header.stamp)
-        positions = [(x, y) for x, y, _ in entries]
+        positions = [(x, y) for x, y, _, _ in entries]
         track_ids = assign_tracks(
             self.tracks, positions, batch_stamp, self.gating_max_speed, self.gating_min_gate)
 
-        for (x, y, stamp), track_id in zip(entries, track_ids):
+        # [상류 트래커 id 구제] 위치 게이팅이 실패한 검출이라도, 상류 id(예: oakd_detector_node의
+        # YOLO track(persist=True) id)가 예전에 이 내부 트랙에 매핑된 적이 있고 그 트랙이 아직
+        # 살아있으면 그 매핑을 우선한다. 실측(2026-08-08 세션)으로 상류 트래킹이 occlusion에
+        # 이 노드의 순수 위치 게이팅보다 훨씬 강함을 확인했다 - 22.74초짜리 bag에서 YOLO id는
+        # 2번만 바뀐 반면 위치 게이팅만 쓰는 라이다 쪽 내부 트랙 id는 훨씬 자주 바뀌었다.
+        # 위치 게이팅이 이미 성공한 항목은 그대로 두고(이 구제는 실패했을 때만 개입), 상류
+        # id가 재사용돼 다른 사람에게 잘못 붙는 경우를 막기 위해 절대 거리 상한을 둔다.
+        claimed = {tid for tid in track_ids if tid is not None}
+        for i, (x, y, stamp, det_id) in enumerate(entries):
+            if track_ids[i] is not None or not det_id:
+                continue
+            hint_id = self.source_id_to_track.get((source, det_id))
+            if hint_id is None or hint_id in claimed or hint_id not in self.tracks:
+                continue
+            px, py = self.tracks[hint_id].predict(
+                batch_stamp, max_dt=self.id_rescue_max_extrapolation)
+            if distance(px, py, x, y) <= self.id_rescue_max_distance:
+                track_ids[i] = hint_id
+                claimed.add(hint_id)
+
+        for (x, y, stamp, det_id), track_id in zip(entries, track_ids):
             if track_id is None:
                 track_id = self._next_track_id
                 self._next_track_id += 1
@@ -223,6 +255,8 @@ class ReidTrackingNode(Node):
                 track.update(x, y, stamp, source, velocity_alpha=self.velocity_alpha,
                              position_alpha=position_alpha, max_speed=self.gating_max_speed)
 
+            if det_id:
+                self.source_id_to_track[(source, det_id)] = track_id
             # 배경검증 기준은 이 노드가 블렌딩한 트랙 상태가 아니라 웹캠/OAK-D의 원본 관측값이어야
             # 한다 - 블렌딩된 값을 기준으로 삼으면 스왑 판정 자체가 무뎌진다.
             self.last_independent_update[track_id] = (x, y, stamp)
@@ -241,6 +275,11 @@ class ReidTrackingNode(Node):
             if self.followed_track_id == tid:
                 self.followed_track_id = None
                 self._reset_leg_lock()
+        if stale:
+            stale_set = set(stale)
+            dead_keys = [k for k, v in self.source_id_to_track.items() if v in stale_set]
+            for k in dead_keys:
+                del self.source_id_to_track[k]
 
     def _maybe_select_followed_track(self):
         """추종 대상 선정 정책. 실제 대상 지정(제스처 등)은 이 패키지 범위 밖이라, 여기서는

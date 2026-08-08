@@ -398,7 +398,7 @@ class OakdDetectorNode(Node):
             self._stat_grades[grade] = self._stat_grades.get(grade, 0) + 1
 
             detections.append(self._make_detection3d(pt_map, box_conf, grade, trunc, track_id, rgb_msg.header))
-            overlay_items.append((u, v, grade, distance, track_id))
+            overlay_items.append((u, v, grade, distance, track_id, pt_map.point.x, pt_map.point.y))
 
         return detections, nearest, overlay_items
 
@@ -560,11 +560,18 @@ class OakdDetectorNode(Node):
             overlay = result.plot()
         except Exception:
             return
-        for u, v, grade, distance, track_id in overlay_items:
+        for u, v, grade, distance, track_id, map_x, map_y in overlay_items:
             cv2.circle(overlay, (int(u), int(v)), 6, (0, 255, 255), -1)
             cv2.putText(
                 overlay, f'{grade} {distance:.2f}m', (int(u) + 8, int(v)),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 1, cv2.LINE_AA)
+            # map 좌표(3D 역투영 + tf 결과)도 발끝 점 위에 덧그린다. 화면 좌상단 같은 고정
+            # 위치에 두는 것도 고려했지만, 사람이 여럿이면 고정 위치 하나로는 "이 좌표가
+            # 누구 것인지" 알 수 없다 - track_id와 같은 이유로 검출된 좌표를 따라다니게
+            # 그려야 한다.
+            cv2.putText(
+                overlay, f'map({map_x:.2f},{map_y:.2f})', (int(u) + 8, int(v) + 16),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1, cv2.LINE_AA)
             # YOLO track_id(.track(persist=True)가 부여)를 발끝 점 위에 덧그린다. result.plot()도
             # bbox 위쪽에 id를 이미 그리지만, 이 로봇은 초근접 구간에서 사람 머리~bbox 상단이
             # 화면 밖으로 잘리는 게 기본 상황이라(문서 참고) 그 라벨이 안 보이는 경우가 흔하다.
