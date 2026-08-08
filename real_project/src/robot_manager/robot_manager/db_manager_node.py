@@ -11,6 +11,8 @@ from robot_status.msg import RobotAssignment, RobotError, RobotStatus, TaskState
 
 
 class DbManagerNode(Node):
+    VALID_ROBOTS = ('robot5', 'robot11')
+
     def __init__(self):
         super().__init__('db_manager_node')
         
@@ -28,7 +30,15 @@ class DbManagerNode(Node):
 
         # 3-1. Robot Status Subscriber 설정 (상태 수신)
         qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
-        self.status_subscription = self.create_subscription(RobotStatus, '/robot_status', self.status_callback, qos_profile)
+        self.status_subscriptions = [
+            self.create_subscription(
+                RobotStatus,
+                f'/{robot_id}/robot_status',
+                lambda msg, expected=robot_id: self.status_callback(expected, msg),
+                qos_profile
+            )
+            for robot_id in self.VALID_ROBOTS
+        ]
         self.assignment_subscription = self.create_subscription(RobotAssignment, '/robot_assignment', self.assignment_callback, 10)
         self.task_state_subscription = self.create_subscription(TaskState, '/task/state', self.task_state_callback, 10)
 
@@ -46,13 +56,16 @@ class DbManagerNode(Node):
         cursor.execute("PRAGMA foreign_keys = ON;")
         self.conn.commit()
 
-    def status_callback(self, msg):
+    def status_callback(self, expected_robot_id, msg):
         """로봇 상태 메시지 수신 시 타임스탬프와 최신 데이터 갱신"""
 
         current_time = self.get_clock().now().nanoseconds / 1e9  # 초 단위 변환
-        
+
         # msg.robot_id는 string ('robot5' 또는 'robot11')
-        robot_id = msg.robot_id
+        robot_id = str(msg.robot_id)
+        if robot_id != expected_robot_id:
+            self.get_logger().warning(f'토픽과 robot_id 불일치: expected={expected_robot_id}, received={robot_id}')
+            return
         self.last_msg_time[robot_id] = current_time
         self.latest_status[robot_id] = msg
 
