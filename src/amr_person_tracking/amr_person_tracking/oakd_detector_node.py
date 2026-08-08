@@ -155,7 +155,10 @@ class OakdDetectorNode(Node):
 
         model_path = self.get_parameter('pose_model_path').value
         device = self.get_parameter('device').value
+        self.tracker_config_path = self.get_parameter('tracker_config_path').value or None
         self.get_logger().info(f'YOLO-pose 모델 로드: {model_path}')
+        if self.tracker_config_path:
+            self.get_logger().info(f'커스텀 트래커 설정 사용: {self.tracker_config_path}')
         try:
             self.pose_model = YOLO(model_path)
             if device:
@@ -247,6 +250,12 @@ class OakdDetectorNode(Node):
 
         self.declare_parameter('pose_model_path', 'yolo11n-pose.pt')
         self.declare_parameter('device', '')
+        # 빈 문자열이면 ultralytics 기본 트래커 설정(tracktrack.yaml)을 그대로 쓴다. 사람이
+        # 화면을 완전히 벗어났다 재등장할 때 새 track_id가 붙는 문제의 1차 대응책 검증용으로,
+        # config/tracktrack_reid.yaml(with_reid 활성화 + track_buffer 확장)을 절대경로로
+        # 넘겨 실험할 수 있게 열어둔 파라미터다 (2026-08-08 세션, 아직 기본값 미변경 - 효과
+        # 검증 전이라 launch 기본 파이프라인에는 연결하지 않았다).
+        self.declare_parameter('tracker_config_path', '')
         # 근접 구간에서는 상반신이 잘려 COCO 학습 검출기의 person 점수가 낮게 나오므로 기본값을 낮춘다.
         # 주의: 이 0.3은 위 [유효 거리] 기하로부터 추론한 값이고 아직 실측으로 확정하지 못했다.
         # 검증에 쓴 bag(rosbag2_2026_08_06-12_27_59)에는 사람이 찍히지 않아 분포를 볼 수 없었다.
@@ -321,7 +330,8 @@ class OakdDetectorNode(Node):
         self.last_rgb_depth_dt = abs(_stamp_to_sec(rgb_msg.header.stamp) - _stamp_to_sec(depth_msg.header.stamp))
 
         results = self.pose_model.track(
-            frame, persist=True, classes=[0], conf=self.conf_threshold, verbose=False)
+            frame, persist=True, classes=[0], conf=self.conf_threshold, verbose=False,
+            tracker=self.tracker_config_path or 'tracktrack.yaml')
         detections, nearest, overlay_items = self._build_detections(results[0], depth_img, rgb_msg)
 
         self._update_proximity(nearest)

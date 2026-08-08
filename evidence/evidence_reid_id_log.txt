@@ -1,0 +1,29 @@
+YOLO 네이티브 Re-ID(tracktrack with_reid) 도입 전/후 비교 - my_new_bag3 재생
+격리 ROS_DOMAIN_ID=77로 재생, 오염 없음 검증 완료 (절대 epoch 타임스탬프가
+my_new_bag3 metadata.yaml 기록 구간 1786166557.99~1786166636.27 안에 전부 포함)
+
+변경 내용: config/tracktrack_reid.yaml
+  with_reid: False -> True
+  track_buffer: 30 -> 180 (9.75Hz 기준 30프레임=~3초 -> 180프레임=~18초)
+  lost_match_thr: 0.0 -> 0.9
+
+[도입 전] oakd_full_capture_before.txt - 고유 track_id 5개
+  oakd_1: t=8.44s ~ t=26.04s
+  oakd_2: t=31.84s ~ t=32.64s   (사람1, 5.8초 공백 후 새 ID)
+  oakd_3: t=44.24s ~ t=48.63s   (사람1, 11.6초 공백 후 새 ID)
+  oakd_4: t=61.03s ~ t=63.23s   (사람1, 12.4초 공백 후 새 ID)
+  oakd_5: t=62.83s ~ t=64.83s   (사람2, 교차 시나리오)
+
+[도입 후] oakd_full_capture_after.txt - 고유 track_id 4개
+  oakd_1: t=8.44s ~ t=32.64s    (5.8초 공백 극복 - 이전 oakd_1+oakd_2가 하나로 유지됨)
+  oakd_2: t=44.24s ~ t=48.63s   (11.6초 공백은 못 메움 - 여전히 새 ID)
+  oakd_3: t=61.03s ~ t=64.63s   (12.4초 공백은 못 메움 - 여전히 새 ID)
+  oakd_4: t=62.83s ~ t=64.83s   (사람2, 교차 시나리오 - 여전히 사람1과 별개 ID로 정확히 구분됨)
+
+결론: 짧은 공백(~6초)은 with_reid(model=auto, 별도 모델 없음) + 버퍼 확장만으로 해결.
+긴 공백(~11~12초)은 해결 못 함 - auto 패스스루 특징의 판별력 한계로 추정.
+2인 교차 구간에서 오탐 병합(다른 사람을 같은 ID로 잘못 합침)은 없음 - 안전성 확인.
+
+다음 단계 후보(보류 - 결정 전): model: auto -> yolo26*-reid.onnx(자동다운로드) 또는
+OSNet 명시 지정, ②dormant identity gallery, ③메시지 인터페이스 확장(appearance embedding),
+④greedy->Hungarian, ⑤LiDAR ID 재설계는 이번 결과를 보고 별도 논의.
