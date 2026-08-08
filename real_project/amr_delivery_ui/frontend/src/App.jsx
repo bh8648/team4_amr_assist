@@ -37,6 +37,20 @@ function taskInfo(robot) {
   return { task, state, active };
 }
 
+// ===== 배송모드 (임시 — 로봇 부착 UI가 생기면 이 컴포넌트 전체와 아래 호출부 한 줄을 지우면 됨) =====
+function TransportBox({ selected, busy, execute }) {
+  const [destinations, setDestinations] = useState([]);
+  const [destinationId, setDestinationId] = useState('');
+  useEffect(() => {
+    let alive = true;
+    robotApi.getDestinations().then((data) => { if (alive) setDestinations(data.rows || []); }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+  useEffect(() => { if (!destinationId && destinations[0]) setDestinationId(destinations[0].destination_id); }, [destinations, destinationId]);
+  return <section className="transport-box"><header><strong>배송모드</strong><small>작업자 추종 중에만 사용</small></header><div><select value={destinationId} onChange={(event) => setDestinationId(event.target.value)} disabled={busy || destinations.length === 0}>{destinations.map((dest) => <option key={dest.destination_id} value={dest.destination_id}>{dest.destination_name}</option>)}</select><button disabled={busy || !destinationId} onClick={() => execute(() => robotApi.startTransport(selected.robot_id, destinationId), '배송 시작 요청 완료')}>배송 시작</button></div></section>;
+}
+// ===== 배송모드 끝 =====
+
 function FleetMap({ robots, selectedId, onSelect }) {
   const canvasRef = useRef(null);
   const [map, setMap] = useState(null);
@@ -226,6 +240,8 @@ export default function App() {
           <section className="quick-actions"><header><strong>작업·안전 제어</strong></header><div><button className="cancel" disabled={busy || !selectedTask.active} onClick={() => window.confirm(`${selected.robot_id.toUpperCase()} 작업을 취소할까요?`) && execute(() => robotApi.cancelTask(selected.robot_id), '작업 취소 요청 완료')}>작업 취소</button><button className={`pause ${selected.estopped ? 'resume' : ''}`} disabled={busy} onClick={() => execute(() => robotApi.setEstop(!selected.estopped, selected.robot_id), selected.estopped ? '운행 재개 요청 완료' : '일시정지 요청 완료')}>{selected.estopped ? '운행 재개' : '일시정지'}</button></div></section>
 
           <section className="dock-box"><header><strong>도킹 제어</strong><small>대기 상태 전용</small></header><div><button disabled={busy || !IDLE.has(selected.mode) || selected.docked} onClick={() => execute(() => robotApi.setDock(true, selected.robot_id), '도킹 요청 완료')}>도킹</button><button disabled={busy || (!IDLE.has(selected.mode) && selected.mode !== 'DOCKED') || !selected.docked} onClick={() => execute(() => robotApi.setDock(false, selected.robot_id), '언도킹 요청 완료')}>언도킹</button></div></section>
+
+          {selectedTask.state === 'FOLLOWING' && <TransportBox selected={selected} busy={busy} execute={execute} />}
 
           <section className="teleop-box"><header><div><strong>텔레옵</strong><small>{teleopReady ? '누르는 동안 이동' : '대기·언도킹 상태 전용'}</small></div><span className={teleopReady ? 'ready' : ''}>{teleopReady ? 'READY' : 'LOCKED'}</span></header><div className="teleop"><span /><TeleopButton label="↑" linear={0.18} disabled={!teleopReady} robotId={selected.robot_id} /><span /><TeleopButton label="↶" angular={0.8} disabled={!teleopReady} robotId={selected.robot_id} /><TeleopButton label="■" disabled={!IDLE.has(selected.mode)} robotId={selected.robot_id} /><TeleopButton label="↷" angular={-0.8} disabled={!teleopReady} robotId={selected.robot_id} /><span /><TeleopButton label="↓" linear={-0.15} disabled={!teleopReady} robotId={selected.robot_id} /></div></section>
 

@@ -29,4 +29,7 @@ export const robotApi = {
   setEstop: (active, id) => req(`/api/robot/${id}/estop`, { method: 'POST', body: JSON.stringify({ active }) }),
   teleop: (linear, angular, id) => req(`/api/robot/${id}/teleop`, { method: 'POST', body: JSON.stringify({ linear, angular }) }),
   setDock: (dock, id) => req(`/api/robot/${id}/dock`, { method: 'POST', body: JSON.stringify({ dock }) }),
+  // ===== 배송모드 (임시 — 로봇 부착 UI가 생기면 이 두 줄을 지우면 됨) =====
+  getDestinations: () => req('/api/database/table/destinations'),
+  startTransport: (id, destinationId) => req(`/api/robot/${id}/transport`, { method: 'POST', body: JSON.stringify({ destination_id: destinationId }) }),
 };
