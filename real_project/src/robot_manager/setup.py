@@ -28,7 +28,6 @@ setup(
             'robot_assignment_node = robot_manager.robot_assignment_node:main',
             'task_manager_node = robot_manager.task_manager_node:main',
             'deadlock_prevention_node = robot_manager.deadlock_prevention_node:main',
-            'dummy_publisher = robot_manager.dummy_status_publisher:main',
             'webcam_pc_cli = robot_manager.webcam_pc_cli:main',
         ],
     },
