@@ -56,6 +56,11 @@ def _record(out_path, target_topic, tracked_topic):
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
+    except rclpy.executors.ExternalShutdownException:
+        # rclpy가 SIGINT를 자기 시그널 핸들러로 먼저 받으면 KeyboardInterrupt가 아니라
+        # 이 예외가 올라온다. 이걸 안 잡으면 아래 파일 쓰기가 건너뛰어져 캡처가 통째로
+        # 유실된다(실제로 겪음).
+        pass
     with open(out_path, 'w') as f:
         for stamp, x, y, tracks in records:
             tstr = ' | '.join(f'{tid},{tx},{ty}' for tid, tx, ty in tracks)

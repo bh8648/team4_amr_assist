@@ -69,12 +69,16 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
+import array
+
 from vision_msgs.msg import Detection3D, Detection3DArray, ObjectHypothesis, ObjectHypothesisWithPose
 from geometry_msgs.msg import PoseStamped
+from sensor_msgs.msg import Image
 
 from amr_person_tracking.tracking_utils import (
     Track,
     assign_tracks,
+    cosine_similarity,
     distance,
     extract_person_position,
     stamp_to_sec,
@@ -111,6 +115,32 @@ class ReidTrackingNode(Node):
         # 상류 id가 재사용돼 다른 사람에게 붙는 경우를 막기 위해 절대 거리 상한을 둔다.
         self.declare_parameter('id_rescue_max_distance', 1.0)
         self.declare_parameter('id_rescue_max_extrapolation', 1.0)
+
+        # 외형(ReID) 기반 재식별. oakd_detector_node가 reid_model_path로 켜져 있을 때만
+        # 임베딩이 들어오고, 없으면 아래 값들은 모두 무시돼 기존 위치 기반 동작이 된다.
+        self.declare_parameter('reid_embeddings_topic', '/robot5/vision/detection_embeddings')
+        # 게이트를 통과한 후보들 사이의 선택에만 더해지는 외형 비용 가중치(미터 단위 거리와
+        # 더해지므로 "유사도 1 차이 = 몇 m 차이로 볼지"에 해당). 0이면 외형 미사용.
+        self.declare_parameter('appearance_weight', 0.5)
+        # 트랙 외형의 EMA 유지 계수 (1.0에 가까울수록 과거를 더 신뢰)
+        self.declare_parameter('embedding_alpha', 0.9)
+        # track_timeout으로 사라진 트랙의 신원을 이만큼 더 보관했다가 재등장 시 되살린다.
+        # 실측(my_new_bag4/5)에서 사람이 화면 밖으로 나갔다 10초 이상 뒤 재등장하는 일이
+        # 흔해, track_timeout(3초)만으로는 매번 새 신원이 발급됐다.
+        self.declare_parameter('dormant_ttl', 30.0)
+        # 갤러리에서 신원을 되살릴 코사인 유사도 하한. tools/reid_embedding_eval.py 실측
+        # 최적 임계는 0.473이지만, 잘못된 병합(다른 사람을 같은 사람으로 이어붙임)이 잘못된
+        # 분리보다 훨씬 위험하므로 보수적으로 높인다.
+        self.declare_parameter('revival_similarity', 0.6)
+        # 위치 게이트를 통과했더라도 외형이 이보다 안 닮았으면 매칭을 거부하고 새 트랙으로
+        # 돌린다. 0 이하면 거부를 끈다(기본값=끔).
+        # [실측 결과 - 기본값을 끈 이유] my_new_bag4에서 0.3으로 켜 봤더니 오히려 나빠졌다:
+        # 0.5m 초과 점프 12건 -> 16건, 동시 트랙 최대 6 -> 8개. 오프라인 측정(동일인 5%분위
+        # 0.447)은 "인접 프레임" 쌍이라 유사도가 높게 나오지만, 실제로는 트랙의 EMA 임베딩과
+        # 수 초 뒤 자세/조명이 달라진 검출을 비교하게 돼 같은 사람도 0.3을 밑돈다. 그래서
+        # 정상 트랙이 쪼개지고 새 트랙이 늘어 대상 재선정 churn만 커졌다.
+        # 크롭 품질이 좋은 환경(정면, 근거리, 머리 안 잘림)에서 다시 시도해볼 여지는 있다.
+        self.declare_parameter('appearance_reject_similarity', 0.0)
 
         # 웹캠-라이다 신원 매칭
         # 예측 위치 대비 라이다 검출 후보를 인정할 최대 거리(m)
@@ -150,11 +180,22 @@ class ReidTrackingNode(Node):
         self.leg_lock_grace_period = self.get_parameter('leg_lock_grace_period').value
         self.leg_match_max_extrapolation = self.get_parameter('leg_match_max_extrapolation').value
         self.swap_check_max_age = self.get_parameter('swap_check_max_age').value
+        self.appearance_weight = self.get_parameter('appearance_weight').value
+        self.embedding_alpha = self.get_parameter('embedding_alpha').value
+        self.dormant_ttl = self.get_parameter('dormant_ttl').value
+        self.revival_similarity = self.get_parameter('revival_similarity').value
+        reject = self.get_parameter('appearance_reject_similarity').value
+        self.appearance_reject_similarity = reject if reject > 0.0 else None
 
         # oakd_detector_node의 detections_pub이 best_effort라 QoS를 맞춰야 구독이 연결된다
         # (reliable 구독은 best_effort 발행자와 호환되지 않는다).
         self.oakd_sub = self.create_subscription(
             Detection3DArray, oakd_topic, self.oakd_detections_callback, qos_profile_sensor_data)
+        # 외형 임베딩 동반 토픽. oakd_detector_node가 detections와 동일한 header.stamp로,
+        # 행 i가 detections[i]에 대응하도록 32FC1 (N x D) Image로 발행한다.
+        self.reid_sub = self.create_subscription(
+            Image, self.get_parameter('reid_embeddings_topic').value,
+            self.embeddings_callback, qos_profile_sensor_data)
         self.webcam_sub = self.create_subscription(
             Detection3DArray, webcam_topic, self.webcam_detections_callback, 10)
         self.leg_sub = self.create_subscription(
@@ -175,6 +216,22 @@ class ReidTrackingNode(Node):
         # 힌트로 쓴다 (update_tracks 참고). det.id가 빈 문자열인 검출(상류 트래커가 아직
         # id를 못 붙인 경우)은 여기 안 들어간다.
         self.source_id_to_track = {}
+        # stamp(초, 반올림 키) -> 그 순간 검출들의 임베딩 행렬(list of list). 검출 콜백이
+        # 같은 stamp로 조회해 인덱스로 대응시킨다. 짝을 못 찾으면 위치 기반으로 degrade.
+        self.pending_embeddings = {}
+        # [dormant identity gallery] track_timeout으로 사라진 신원을 dormant_ttl 동안 보관한다.
+        # track_id -> (embedding, x, y, stamp). 사람이 화면 밖으로 나갔다 한참 뒤 재등장할 때
+        # 위치만으로는 이을 수 없어(예측 위치가 이미 무의미), 외형으로 되살리기 위한 저장소다.
+        self.dormant_gallery = {}
+        # 갤러리로 들어간 "원래 추종하던" 신원. 되살아나면 추종을 이 사람에게 되돌린다.
+        self.dormant_followed_id = None
+        # 외형 매칭이 실제로 동작 중인지 눈으로 확인하기 위한 카운터. 임베딩이 조용히
+        # 폴백돼(짝을 못 찾아) 외형이 통째로 무시되는 상황을 놓치지 않으려고 둔다.
+        self._stat_emb_received = 0
+        self._stat_emb_matched = 0
+        self._stat_emb_missed = 0
+        self._stat_revivals = 0
+        self.create_timer(5.0, self._log_reid_stats)
 
         # 웹캠-라이다 신원 매칭 상태
         self.locked_leg_id = None                # 락온된 라이다 쪽 원본 id 문자열 (예: 'leg_7')
@@ -188,6 +245,46 @@ class ReidTrackingNode(Node):
         )
 
     # ------------------------------------------------------------------ 웹캠/OAK-D
+
+    def embeddings_callback(self, msg: Image):
+        """검출별 외형 임베딩(32FC1, N x D)을 stamp로 캐시해 둔다.
+
+        검출 콜백보다 먼저 도착하는 것이 보통이지만(발행 순서상 바로 뒤이므로 사실상 동시),
+        순서를 가정하지 않고 캐시에 넣고 검출 쪽에서 조회한다. 짝을 못 찾은 오래된 항목은
+        무한정 쌓이지 않게 정리한다.
+        """
+        if msg.encoding != '32FC1' or msg.height == 0 or msg.width == 0:
+            return
+        flat = array.array('f')
+        flat.frombytes(bytes(msg.data))
+        if len(flat) != msg.height * msg.width:
+            return
+        matrix = [list(flat[r * msg.width:(r + 1) * msg.width]) for r in range(msg.height)]
+        stamp = stamp_to_sec(msg.header.stamp)
+        self.pending_embeddings[round(stamp, 6)] = matrix
+        self._stat_emb_received += 1
+        if len(self.pending_embeddings) > 30:
+            for key in sorted(self.pending_embeddings)[:-15]:
+                del self.pending_embeddings[key]
+
+    def _take_embeddings(self, stamp, count):
+        """이 stamp의 임베딩 행렬을 꺼낸다(소비). 없거나 행수가 안 맞으면 None들의 리스트."""
+        matrix = self.pending_embeddings.pop(round(stamp, 6), None)
+        if matrix is None or len(matrix) != count:
+            if count:
+                self._stat_emb_missed += 1
+            return [None] * count
+        self._stat_emb_matched += 1
+        return matrix
+
+    def _log_reid_stats(self):
+        """외형 매칭이 실제로 붙고 있는지 주기적으로 보고한다(전부 0이면 뭔가 끊긴 것)."""
+        if not (self._stat_emb_received or self._stat_emb_matched or self._stat_emb_missed):
+            return
+        self.get_logger().info(
+            f'[reid] 임베딩 수신 {self._stat_emb_received} / 검출과 매칭 {self._stat_emb_matched} '
+            f'/ 짝없음 {self._stat_emb_missed} | 갤러리 {len(self.dormant_gallery)}개 '
+            f'| 신원복원 누적 {self._stat_revivals}회')
 
     def oakd_detections_callback(self, msg: Detection3DArray):
         self.update_tracks(msg, source='oakd')
@@ -212,8 +309,13 @@ class ReidTrackingNode(Node):
         # 시점(batch_stamp) 기준으로 모든 기존 트랙을 일관되게 예측해 비교한다.
         batch_stamp = stamp_to_sec(msg.header.stamp)
         positions = [(x, y) for x, y, _, _ in entries]
+        # 이 배열과 같은 stamp로 온 외형 임베딩(인덱스가 검출 순서와 일치). 웹캠 등 임베딩을
+        # 주지 않는 출처면 전부 None이라 아래 로직이 전부 위치 기반으로 degrade한다.
+        embeddings = self._take_embeddings(batch_stamp, len(entries))
         track_ids = assign_tracks(
-            self.tracks, positions, batch_stamp, self.gating_max_speed, self.gating_min_gate)
+            self.tracks, positions, batch_stamp, self.gating_max_speed, self.gating_min_gate,
+            embeddings=embeddings, appearance_weight=self.appearance_weight,
+            appearance_reject=self.appearance_reject_similarity)
 
         # [상류 트래커 id 구제] 상류 id(예: oakd_detector_node의 YOLO track(persist=True) id)가
         # 예전에 이 내부 트랙에 매핑된 적이 있고 그 트랙이 아직 살아있으면, 위치 게이팅 결과가
@@ -243,11 +345,35 @@ class ReidTrackingNode(Node):
                 track_ids[i] = hint_id
                 claimed.add(hint_id)
 
-        for (x, y, stamp, det_id), track_id in zip(entries, track_ids):
+        for idx, ((x, y, stamp, det_id), track_id) in enumerate(zip(entries, track_ids)):
+            embedding = embeddings[idx] if idx < len(embeddings) else None
             if track_id is None:
-                track_id = self._next_track_id
-                self._next_track_id += 1
-                self.tracks[track_id] = Track(track_id, x, y, stamp, source)
+                # [dormant gallery] 새 신원을 발급하기 직전에, 최근에 사라진 신원 중 외형이
+                # 충분히 닮은 것이 있으면 그 신원을 되살린다. 이게 없으면 사람이 화면 밖으로
+                # 나갔다 돌아올 때마다 새 id가 붙는다(실측: 3명인데 YOLO id 11개).
+                revived = self._revive_from_gallery(embedding, batch_stamp, claimed)
+                if revived is not None:
+                    track_id = revived
+                    claimed.add(track_id)
+                    # 공백 동안의 낡은 속도로 외삽하면 안 되므로 위치는 새 관측으로 리셋하고
+                    # 속도는 0에서 다시 추정하게 한다.
+                    track = Track(track_id, x, y, stamp, source)
+                    track.embedding = self.dormant_gallery[track_id][0]
+                    self.tracks[track_id] = track
+                    del self.dormant_gallery[track_id]
+                    self._stat_revivals += 1
+                    if self.dormant_followed_id == track_id:
+                        self.followed_track_id = track_id
+                        self.dormant_followed_id = None
+                        self._reset_leg_lock()
+                        self.get_logger().info(
+                            f'외형 재식별로 추종 대상 복귀: track {track_id}')
+                    else:
+                        self.get_logger().info(f'외형 재식별로 신원 복원: track {track_id}')
+                else:
+                    track_id = self._next_track_id
+                    self._next_track_id += 1
+                    self.tracks[track_id] = Track(track_id, x, y, stamp, source)
             elif track_id == self.followed_track_id and self.locked_leg_id is not None:
                 # 락온 중에는 문서 5단계("재매칭 없이 락온된 라이다 트랙을 그대로 추종")대로
                 # 웹캠/OAK-D가 트랙의 위치·속도를 직접 덮어쓰지 않는다. 두 출처가 서로 다른
@@ -263,6 +389,8 @@ class ReidTrackingNode(Node):
                 track.update(x, y, stamp, source, velocity_alpha=self.velocity_alpha,
                              position_alpha=position_alpha, max_speed=self.gating_max_speed)
 
+            if track_id in self.tracks:
+                self.tracks[track_id].update_embedding(embedding, alpha=self.embedding_alpha)
             if det_id:
                 self.source_id_to_track[(source, det_id)] = track_id
             # 배경검증 기준은 이 노드가 블렌딩한 트랙 상태가 아니라 웹캠/OAK-D의 원본 관측값이어야
@@ -274,20 +402,67 @@ class ReidTrackingNode(Node):
         self.publish_tracked(msg.header)
         self.publish_target_pose(msg.header)
 
+    def _revive_from_gallery(self, embedding, now, claimed):
+        """갤러리에서 외형이 가장 닮은 신원을 찾는다. 기준 미만이면 None(=새 신원 발급).
+
+        위치는 보지 않는다 - 갤러리에 있다는 것 자체가 "한동안 안 보여서 예측 위치가 이미
+        의미 없어진" 상태라, 위치로 거르면 정작 되살려야 할 재등장을 놓친다. 대신 잘못된
+        병합을 막기 위해 임계(revival_similarity)를 실측 최적치보다 보수적으로 잡는다.
+        """
+        if embedding is None or not self.dormant_gallery:
+            return None
+        best_id, best_sim = None, None
+        for tid, (emb, _x, _y, _stamp) in self.dormant_gallery.items():
+            if tid in claimed or tid in self.tracks:
+                continue
+            sim = cosine_similarity(embedding, emb)
+            if sim is None or sim < self.revival_similarity:
+                continue
+            if best_sim is None or sim > best_sim:
+                best_id, best_sim = tid, sim
+        return best_id
+
     def _prune_tracks(self, now):
-        """가려짐/프레임 이탈 정도는 견디되, track_timeout을 넘겨 갱신이 없으면 삭제한다."""
+        """가려짐/프레임 이탈 정도는 견디되, track_timeout을 넘겨 갱신이 없으면 삭제한다.
+
+        단, 외형 임베딩이 있는 트랙은 바로 버리지 않고 dormant_ttl 동안 갤러리에 옮겨
+        놓는다(사람이 화면 밖으로 나갔다 돌아올 때 같은 신원으로 이어붙이기 위해).
+        """
         stale = [tid for tid, tr in self.tracks.items() if now - tr.last_stamp > self.track_timeout]
         for tid in stale:
+            track = self.tracks[tid]
+            if track.embedding is not None:
+                self.dormant_gallery[tid] = (track.embedding, track.x, track.y, track.last_stamp)
             del self.tracks[tid]
             self.last_independent_update.pop(tid, None)
             if self.followed_track_id == tid:
+                # 추종 대상이 사라졌다. 갤러리에 신원이 남아 있으면 "원래 따라가던 사람"으로
+                # 기억해 두고, 나중에 외형으로 되살아나면 추종을 그 사람에게 되돌린다.
+                # 이게 없으면 그 사이 _maybe_select_followed_track이 고른 다른 사람을 계속
+                # 따라가게 돼, 정작 원래 대상이 돌아와도 추종이 옮겨가지 않는다.
                 self.followed_track_id = None
+                # "원래 따라가던 사람"을 기억한다. 대상을 잃은 뒤 _maybe_select_followed_track이
+                # 임시로 고른 다른 사람이 또 만료될 때 이 값을 덮어쓰면, 정작 원래 대상이
+                # 돌아와도 복귀하지 못한다(실측으로 이 덮어쓰기 때문에 복귀가 한 번도 발생하지
+                # 않았다). 그래서 이미 기다리는 신원이 있으면 유지한다.
+                if tid in self.dormant_gallery and self.dormant_followed_id is None:
+                    self.dormant_followed_id = tid
                 self._reset_leg_lock()
         if stale:
             stale_set = set(stale)
             dead_keys = [k for k, v in self.source_id_to_track.items() if v in stale_set]
             for k in dead_keys:
                 del self.source_id_to_track[k]
+
+        # 갤러리도 dormant_ttl이 지나면 버린다. 무한정 두면 아주 오래된 신원이 엉뚱하게
+        # 되살아날 수 있고 메모리도 계속 늘어난다.
+        expired = [tid for tid, (_e, _x, _y, s) in self.dormant_gallery.items()
+                   if now - s > self.dormant_ttl]
+        for tid in expired:
+            del self.dormant_gallery[tid]
+            if self.dormant_followed_id == tid:
+                # 되살아나길 기다리던 대상이 TTL을 넘겼다 - 더는 기다리지 않는다.
+                self.dormant_followed_id = None
 
     def _maybe_select_followed_track(self):
         """추종 대상 선정 정책. 실제 대상 지정(제스처 등)은 이 패키지 범위 밖이라, 여기서는

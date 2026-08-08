@@ -63,7 +63,7 @@ from message_filters import ApproximateTimeSynchronizer, Subscriber
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from geometry_msgs.msg import PointStamped, PoseStamped, Vector3
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import CameraInfo, CompressedImage
+from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 from std_msgs.msg import Bool
 from vision_msgs.msg import (
     Detection3D,
@@ -172,6 +172,18 @@ class OakdDetectorNode(Node):
             self.pose_model = None
             self.get_logger().error(f'YOLO-pose 모델 로드 실패: {exc}')
 
+        # 외형 재식별 인코더. 로드에 실패해도 검출 자체는 계속돼야 하므로(임베딩은 보조 신호)
+        # None으로 두고 넘어간다 - reid_tracking_node도 임베딩이 없으면 위치 기반으로 degrade한다.
+        reid_path = self.get_parameter('reid_model_path').value
+        self.reid_encoder = None
+        if reid_path:
+            try:
+                from ultralytics.trackers.utils.reid import ReID
+                self.reid_encoder = ReID(reid_path)
+                self.get_logger().info(f'ReID 인코더 로드: {reid_path}')
+            except Exception as exc:
+                self.get_logger().error(f'ReID 인코더 로드 실패(임베딩 없이 계속): {exc}')
+
         # ---- 입력 ----
         # RGB와 Depth만 동기화한다. CameraInfo는 정적이라 동기화 대상에 넣으면
         # 매칭 실패로 프레임을 통째로 버릴 위험만 커진다.
@@ -208,6 +220,17 @@ class OakdDetectorNode(Node):
         streaming_qos.durability = DurabilityPolicy.VOLATILE
 
         self.detections_pub = self.create_publisher(Detection3DArray, detections_topic, streaming_qos)
+
+        # 검출별 외형 임베딩 동반 토픽. vision_msgs/Detection3D에 임베딩 필드가 없고 이
+        # 패키지가 ament_python이라 커스텀 메시지를 만들기 어려워, sensor_msgs/Image를
+        # 부동소수 행렬 운반체로 쓴다: encoding=32FC1, height=검출수 N, width=임베딩차원 D.
+        # [규약] header.stamp가 같은 순간의 detections_topic 메시지와 동일하고, 행 i가
+        # 그 메시지의 detections[i]에 대응한다(같은 콜백에서 연달아 발행하므로 순서 보장).
+        self.reid_pub = (
+            self.create_publisher(
+                Image, self.get_parameter('reid_embeddings_topic').value, streaming_qos)
+            if self.reid_encoder is not None else None
+        )
 
         # 근접 경보는 나중에 뜨는 매니저 노드가 구독 즉시 현재 상태를 받아야 하므로 래치한다.
         latched_qos = QoSProfile(depth=1)
@@ -265,6 +288,13 @@ class OakdDetectorNode(Node):
         # 넘겨 실험할 수 있게 열어둔 파라미터다 (2026-08-08 세션, 아직 기본값 미변경 - 효과
         # 검증 전이라 launch 기본 파이프라인에는 연결하지 않았다).
         self.declare_parameter('tracker_config_path', '')
+        # 전용 ReID 모델 경로(예: yolo26n-reid.onnx). 빈 문자열이면 임베딩 기능 자체를 끄고
+        # 기존 동작을 그대로 유지한다. 사람이 화면 밖으로 나갔다 재등장할 때 신원을 잇기 위해
+        # reid_tracking_node가 쓰는 외형 특징을 여기서 계산해 동반 토픽으로 내보낸다.
+        # 기술자 선택 근거는 tools/reid_embedding_eval.py 참고(전용 ReID만 임계가 견고함).
+        self.declare_parameter('reid_model_path', '')
+        self.declare_parameter('reid_embeddings_topic',
+                               '/robot5/vision/detection_embeddings')
         # 근접 구간에서는 상반신이 잘려 COCO 학습 검출기의 person 점수가 낮게 나오므로 기본값을 낮춘다.
         # 주의: 이 0.3은 위 [유효 거리] 기하로부터 추론한 값이고 아직 실측으로 확정하지 못했다.
         # 검증에 쓴 bag(rosbag2_2026_08_06-12_27_59)에는 사람이 찍히지 않아 분포를 볼 수 없었다.
@@ -362,6 +392,11 @@ class OakdDetectorNode(Node):
         detections, nearest, overlay_items = self._build_detections(results[0], depth_img, rgb_msg)
 
         self._update_proximity(nearest)
+        # 임베딩을 detections보다 **먼저** 발행한다. 구독자(reid_tracking_node)는 detections를
+        # 받은 그 콜백 안에서 같은 stamp의 임베딩을 찾는데, detections를 먼저 보내면 임베딩이
+        # 아직 도착하지 않아 매번 위치 기반으로 폴백해버린다(실제로 겪음 - 외형 매칭이 통째로
+        # 무시됐다). 같은 stamp, 같은 순서라는 규약은 그대로다.
+        self._publish_embeddings(frame, overlay_items, rgb_msg.header)
         self.publish_detections(detections, rgb_msg.header)
 
         self._stat_frames += 1
@@ -597,6 +632,46 @@ class OakdDetectorNode(Node):
         msg.header.frame_id = self.map_frame
         msg.detections = detections
         self.detections_pub.publish(msg)
+
+    def _publish_embeddings(self, frame, overlay_items, header):
+        """발행한 검출들의 외형 임베딩을 32FC1 Image(N x D)로 내보낸다.
+
+        overlay_items는 detections와 1:1 같은 순서라, 여기서 나오는 행 순서가 곧
+        Detection3DArray의 검출 순서다. 검출이 하나도 없으면 발행하지 않는다(구독자는
+        임베딩이 없으면 위치 기반으로 degrade하므로 빈 메시지를 보낼 필요가 없다).
+        """
+        if self.reid_pub is None or not overlay_items:
+            return
+        # ReID 인코더는 원본 프레임과 xywh 박스를 받아 크롭을 내부에서 수행한다.
+        # 미리 크롭해서 넘기면 안 된다.
+        xywh = np.array(
+            [[(b[0] + b[2]) * 0.5, (b[1] + b[3]) * 0.5, b[2] - b[0], b[3] - b[1]]
+             for *_, b in overlay_items], dtype=np.float32)
+        try:
+            embeddings = self.reid_encoder(frame, xywh)
+        except Exception as exc:
+            self.get_logger().warn(f'ReID 임베딩 계산 실패: {exc}', throttle_duration_sec=5.0)
+            return
+
+        rows = []
+        for emb in embeddings:
+            v = np.asarray(emb, dtype=np.float32).reshape(-1)
+            norm = float(np.linalg.norm(v))
+            # 코사인 유사도로 비교할 것이므로 여기서 미리 정규화해 보낸다.
+            rows.append(v / norm if norm > 0.0 else v)
+        if not rows or len({r.shape[0] for r in rows}) != 1:
+            return
+        matrix = np.ascontiguousarray(np.stack(rows), dtype=np.float32)
+
+        msg = Image()
+        msg.header.stamp = header.stamp
+        msg.header.frame_id = self.map_frame
+        msg.height, msg.width = matrix.shape
+        msg.encoding = '32FC1'
+        msg.is_bigendian = 0
+        msg.step = msg.width * 4
+        msg.data = matrix.tobytes()
+        self.reid_pub.publish(msg)
 
     def _publish_debug_image(self, result, overlay_items, frame_stamp):
         try:

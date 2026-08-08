@@ -39,6 +39,26 @@ class Track:
         self.last_stamp = stamp
         self.last_source = source
         self.created_stamp = stamp
+        # 외형(ReID) 임베딩. 임베딩을 주는 출처가 없으면 계속 None으로 남고, 그 경우
+        # 매칭은 기존과 동일하게 위치 기반으로만 동작한다.
+        self.embedding = None
+
+    def update_embedding(self, embedding, alpha=0.9):
+        """외형 임베딩을 EMA로 갱신한다.
+
+        한 프레임의 조명/자세/모션블러가 트랙의 외형을 통째로 덮어쓰지 않도록 평활한다.
+        alpha는 "기존 값을 얼마나 유지할지"로, 1.0에 가까울수록 과거를 더 신뢰한다.
+        코사인 유사도로 비교하므로 갱신 후 다시 정규화한다.
+        """
+        if embedding is None:
+            return
+        if self.embedding is None:
+            self.embedding = list(embedding)
+            return
+        blended = [alpha * old + (1.0 - alpha) * new
+                   for old, new in zip(self.embedding, embedding)]
+        norm = math.sqrt(sum(v * v for v in blended))
+        self.embedding = [v / norm for v in blended] if norm > 0.0 else blended
 
     def predict(self, stamp, max_dt=None):
         """등속도 모델로 stamp 시점의 위치를 외삽한다.
@@ -93,6 +113,22 @@ def distance(x0, y0, x1, y1):
     return math.hypot(x1 - x0, y1 - y0)
 
 
+def cosine_similarity(a, b):
+    """두 외형 임베딩의 코사인 유사도. 둘 중 하나라도 없으면 None(=비교 불가).
+
+    발행 쪽(oakd_detector_node)이 이미 정규화해 보내지만, 트랙 쪽 EMA 갱신 결과나 외부
+    입력이 정규화돼 있지 않을 수 있어 여기서 다시 나눠준다.
+    """
+    if a is None or b is None or len(a) != len(b):
+        return None
+    dot = sum(p * q for p, q in zip(a, b))
+    na = math.sqrt(sum(p * p for p in a))
+    nb = math.sqrt(sum(q * q for q in b))
+    if na <= 0.0 or nb <= 0.0:
+        return None
+    return dot / (na * nb)
+
+
 def gate_radius(dt, gating_max_speed, min_gate):
     """dt초 동안 gating_max_speed(m/s)로 이동 가능한 최대 거리. dt가 아주 작을 때(같은 순간에
     가까운 두 출처가 들어오는 경우 등) 게이트가 0에 가까워지지 않도록 최소값을 보장한다."""
@@ -118,7 +154,8 @@ def match_track(tracks, x, y, stamp, gating_max_speed, min_gate, exclude_ids=Non
     return best_id
 
 
-def assign_tracks(tracks, detections, stamp, gating_max_speed, min_gate):
+def assign_tracks(tracks, detections, stamp, gating_max_speed, min_gate,
+                  embeddings=None, appearance_weight=0.0, appearance_reject=None):
     """한 콜백에 들어온 여러 검출을 기존 트랙에 배타적(1:1)으로, 전체 비용 합이 최소가 되도록
     배정한다(Hungarian/linear_sum_assignment, scipy.optimize).
 
@@ -132,6 +169,13 @@ def assign_tracks(tracks, detections, stamp, gating_max_speed, min_gate):
     최적 배정으로 교체했다. 게이트 밖(허용 불가) 쌍은 매우 큰 비용(_UNREACHABLE_COST)으로
     채워 사실상 배제하되, 다른 선택지가 전혀 없을 때만 최후 수단으로 고려되게 한다 - 배정
     후에는 그 비용 이상인 결과를 게이트 밖으로 간주해 버린다.
+
+    embeddings: detections와 같은 길이의 외형 임베딩 리스트(없는 항목은 None). 주어지면
+        비용에 `appearance_weight * (1 - 코사인유사도)`를 더한다. 게이트 판정 자체는 계속
+        위치로만 하고(외형이 비슷하다는 이유로 멀리 있는 트랙에 붙는 것을 막는다), 외형은
+        "게이트를 통과한 후보들 중 어느 것을 고를지"에만 개입한다 - DeepSORT가 motion
+        gating 위에 appearance cost를 얹는 것과 같은 구조다. 둘 중 한쪽이라도 임베딩이
+        없으면 그 쌍은 외형 항 없이 거리만으로 비교돼 기존 동작으로 degrade한다.
     """
     n = len(detections)
     results = [None] * n
@@ -141,13 +185,26 @@ def assign_tracks(tracks, detections, stamp, gating_max_speed, min_gate):
     track_ids = list(tracks.keys())
     cost = [[_UNREACHABLE_COST] * len(track_ids) for _ in range(n)]
     for i, (x, y) in enumerate(detections):
+        det_emb = embeddings[i] if embeddings is not None and i < len(embeddings) else None
         for j, tid in enumerate(track_ids):
             tr = tracks[tid]
             px, py = tr.predict(stamp)
             d = distance(px, py, x, y)
             gate = gate_radius(stamp - tr.last_stamp, gating_max_speed, min_gate)
-            if d <= gate:
-                cost[i][j] = d
+            if d > gate:
+                continue
+            sim = cosine_similarity(det_emb, tr.embedding)
+            if sim is not None:
+                # [외형 거부] 위치 게이트는 통과했어도 외형이 명백히 다르면 아예 후보에서 뺀다.
+                # 비용에 더하기만 하면 "후보가 하나뿐일 때"는 아무 견제가 안 돼, 트랙이 다른
+                # 사람의 검출로 그대로 끌려간다(실측: my_new_bag4 점프 12건 중 10건이 추종
+                # 트랙 id는 그대로인 채 위치만 튀는 경우였다). 임계는 측정된 동일인 5%분위
+                # (0.447)보다 낮게 잡아 진짜 같은 사람을 잘라내지 않으면서 명백한 타인만 막는다.
+                if appearance_reject is not None and sim < appearance_reject:
+                    continue
+                if appearance_weight > 0.0:
+                    d += appearance_weight * (1.0 - sim)
+            cost[i][j] = d
 
     row_idx, col_idx = linear_sum_assignment(cost)
     for i, j in zip(row_idx, col_idx):
