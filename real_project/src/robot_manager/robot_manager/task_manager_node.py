@@ -11,7 +11,7 @@ from rclpy.action import ActionClient
 from rclpy.node import Node
 from std_msgs.msg import Bool
 
-from robot_status.msg import DeadlockPermission, NavigationResult, RobotAssignment, RobotError, TaskCommand, TaskState
+from robot_status.msg import DeadlockPermission, NavigationResult, RobotAssignment, RobotError, RobotStatus, TaskCommand, TaskState
 
 
 @dataclass
@@ -27,6 +27,9 @@ class ManagedTask:
     nav_generation: int = 0
     goal_pending: bool = False
     goal_completed: bool = False
+    awaiting_dock_check: bool = False
+    dock_check_started_at: object = None
+    undock_requested: bool = False
 
 
 class TaskManagerNode(Node):
@@ -38,6 +41,7 @@ class TaskManagerNode(Node):
         'UNKNOWN_ROBOT_ID', 'TASK_NOT_FOUND', 'STALE_TASK_COMMAND',
         'INVALID_DESTINATION', 'ROBOT_ALREADY_HAS_TASK', 'INVALID_TRANSITION_',
     )
+    DOCK_WAIT_TIMEOUT_SEC = 10.0
 
     def __init__(self):
         super().__init__('task_manager_node')
@@ -50,6 +54,8 @@ class TaskManagerNode(Node):
         self.navigation_result_sub = self.create_subscription(NavigationResult, '/navigation/result', self.navigation_result_callback, 10)
         self.deadlock_sub = self.create_subscription(DeadlockPermission, '/deadlock/permission', self.deadlock_callback, 10)
         self.error_sub = self.create_subscription(RobotError, '/robot_error', self.error_callback, 10)
+        self.status_subscriptions = [self.create_subscription(RobotStatus, f'/{robot_id}/robot_status', self.robot_status_callback, 10) for robot_id in self.VALID_ROBOTS]
+        self.robot_dock_states: Dict[str, Tuple[bool, bool]] = {}
         self.state_pub = self.create_publisher(TaskState, '/task/state', 10)
         self.error_pub = self.create_publisher(RobotError, '/robot_error', 10)
         self.stop_publishers = {robot_id: self.create_publisher(Bool, f'/{robot_id}/pause/request', 10) for robot_id in self.VALID_ROBOTS}
@@ -77,7 +83,52 @@ class TaskManagerNode(Node):
         task = ManagedTask(task_id=task_id, robot_id=robot_id, state='ASSIGNED', goal_type='TO_WORKER', target=(float(msg.target_x), float(msg.target_y), 0.0))
         self.tasks[robot_id] = task
         self.publish_state(task, 'AMR 배정 완료')
-        self.send_navigation_goal(task)
+        self.start_task_navigation(task)
+
+    def start_task_navigation(self, task: ManagedTask) -> None:
+        """배정 직후 주행 시작 전 도킹 상태를 확인한다. dock_status_known이 False면
+        (즉 아직 실제 도킹 여부를 모르면) 절대 먼저 주행시키지 않는다."""
+        robot_id = task.robot_id
+        is_docked, dock_status_known = self.robot_dock_states.get(robot_id, (False, False))
+        if not dock_status_known:
+            task.awaiting_dock_check = True
+            task.dock_check_started_at = self.get_clock().now()
+            self.get_logger().warn(f'{robot_id} 도킹 상태 미확인 — DockStatus 대기 중')
+            return
+        if not is_docked:
+            self.send_navigation_goal(task)
+            return
+        self.request_undock_once(task)
+
+    def request_undock_once(self, task: ManagedTask) -> None:
+        if task.undock_requested:
+            return
+        task.undock_requested = True
+        task.dock_check_started_at = self.get_clock().now()
+        self.dock_publishers[task.robot_id].publish(Bool(data=False))
+        self.get_logger().info(f'{task.robot_id} 언도킹 요청 발행, is_docked=False 대기 시작')
+
+    def robot_status_callback(self, msg: RobotStatus) -> None:
+        robot_id = self.normalize_robot_id(msg.robot_id)
+        if robot_id not in self.VALID_ROBOTS:
+            return
+        is_docked, dock_status_known = bool(msg.is_docked), bool(msg.dock_status_known)
+        self.robot_dock_states[robot_id] = (is_docked, dock_status_known)
+        if not dock_status_known:
+            return
+        task = self.tasks.get(robot_id)
+        if task is None:
+            return
+        if task.awaiting_dock_check:
+            task.awaiting_dock_check = False
+            if is_docked:
+                self.request_undock_once(task)
+            else:
+                self.send_navigation_goal(task)
+            return
+        if task.undock_requested and not is_docked:
+            task.undock_requested = False
+            self.send_navigation_goal(task)
 
     def command_callback(self, msg: TaskCommand) -> None:
         robot_id = self.normalize_robot_id(msg.robot_id)
@@ -96,10 +147,6 @@ class TaskManagerNode(Node):
             self.publish_error(robot_id, msg.task_id, 'TASK_NOT_FOUND')
         elif msg.task_id and msg.task_id != task.task_id:
             self.publish_error(robot_id, msg.task_id, 'STALE_TASK_COMMAND')
-        elif command == 'WORKER_DETECTED' and task.state == 'ASSIGNED':
-            if not task.goal_completed:
-                self.invalidate_navigation_goal(task)
-            self.transition(task, 'FOLLOWING', '작업자 추종 시작')
         elif command == 'START_TRANSPORT' and task.state == 'FOLLOWING':
             if not math.isfinite(msg.target_x) or not math.isfinite(msg.target_y):
                 self.publish_error(robot_id, task.task_id, 'INVALID_DESTINATION')
@@ -107,11 +154,6 @@ class TaskManagerNode(Node):
             task.goal_type, task.target = 'TO_DESTINATION', (float(msg.target_x), float(msg.target_y), float(msg.target_yaw))
             task.goal_completed = False
             self.transition(task, 'TRANSPORTING', '작업자가 배송 모드로 전환')
-            self.send_navigation_goal(task, replace=True)
-        elif command == 'DELIVERY_CONFIRMED' and task.state == 'TRANSPORTING':
-            task.goal_type, task.target = 'TO_DOCK', tuple(float(value) for value in self.get_parameter(f'{robot_id}_dock_pose').value)
-            task.goal_completed = False
-            self.transition(task, 'RETURNING', '배송 확인 완료')
             self.send_navigation_goal(task, replace=True)
         elif command == 'CANCEL' and task.state in self.ACTIVE_STATES:
             task.goal_type, task.target = 'TO_DOCK', tuple(float(value) for value in self.get_parameter(f'{robot_id}_dock_pose').value)
@@ -227,20 +269,45 @@ class TaskManagerNode(Node):
         if not success:
             self.transition(task, 'ERROR', error_code or 'NAVIGATION_FAILED')
             self.publish_error(robot_id, task.task_id, error_code or 'NAVIGATION_FAILED')
-        else:
-            task.goal_completed = True
-        if success and goal_type == 'TO_WORKER':
-            self.publish_state(task, '작업자 위치 도착, 작업자 감지 대기')
-        elif success and goal_type == 'TO_DESTINATION':
-            self.publish_state(task, '배송 위치 도착, 작업자 배송 확인 대기')
-        elif success and goal_type == 'TO_DOCK':
+            return
+        task.goal_completed = True
+        if goal_type == 'TO_WORKER':
+            # 웹캠 PC의 실제 작업자 감지 알고리즘은 아직 없다 — 배정 위치에 물리적으로
+            # 도착한 것 자체를 감지 완료로 간주하고 대기 없이 바로 FOLLOWING으로 넘어간다.
+            self.transition(task, 'FOLLOWING', '작업자 위치 도착, 작업자 감지 완료')
+        elif goal_type == 'TO_DESTINATION':
+            # 배송확인은 로컬라이제이션(Nav2 액션 성공) 기반으로 자동 처리한다.
+            task.goal_type, task.target = 'TO_DOCK', tuple(float(value) for value in self.get_parameter(f'{robot_id}_dock_pose').value)
+            task.goal_completed = False
+            self.transition(task, 'RETURNING', '배송 위치 도착, 배송 확인 완료')
+            self.send_navigation_goal(task, replace=True)
+        elif goal_type == 'TO_DOCK':
             self.dock_publishers[robot_id].publish(Bool(data=True))
             self.transition(task, 'DOCKED', '도킹 위치 복귀 완료')
 
     def retry_navigation_goals(self) -> None:
+        now = self.get_clock().now()
         for task in self.tasks.values():
-            if task.state in ('ASSIGNED', 'TRANSPORTING', 'RETURNING') and task.target and not task.goal_completed and task.goal_handle is None and not task.goal_pending:
+            if (task.state in ('ASSIGNED', 'TRANSPORTING', 'RETURNING') and task.target
+                    and not task.goal_completed and task.goal_handle is None and not task.goal_pending
+                    and not task.awaiting_dock_check and not task.undock_requested):
                 self.send_navigation_goal(task)
+            self.check_dock_wait_timeout(task, now)
+
+    def check_dock_wait_timeout(self, task: ManagedTask, now) -> None:
+        if not (task.awaiting_dock_check or task.undock_requested):
+            return
+        if task.dock_check_started_at is None:
+            return
+        elapsed_sec = (now - task.dock_check_started_at).nanoseconds / 1e9
+        if elapsed_sec < self.DOCK_WAIT_TIMEOUT_SEC:
+            return
+        error_code = 'DOCK_STATUS_UNKNOWN_TIMEOUT' if task.awaiting_dock_check else 'UNDOCK_CONFIRM_TIMEOUT'
+        self.publish_error(task.robot_id, task.task_id, error_code)
+        self.get_logger().error(f'{task.robot_id} {error_code}: {elapsed_sec:.1f}초 경과, 사람 개입 필요')
+        # 타임아웃 에러는 1회만 발행한다 — 플래그(awaiting_dock_check/undock_requested)는
+        # 그대로 두어 주행을 계속 막되, dock_check_started_at만 비워 중복 발행을 막는다.
+        task.dock_check_started_at = None
 
     def deadlock_callback(self, msg: DeadlockPermission) -> None:
         robot_id = self.normalize_robot_id(msg.robot_id)
