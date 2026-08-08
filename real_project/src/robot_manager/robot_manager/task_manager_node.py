@@ -42,6 +42,7 @@ class TaskManagerNode(Node):
         'INVALID_DESTINATION', 'ROBOT_ALREADY_HAS_TASK', 'INVALID_TRANSITION_',
     )
     DOCK_WAIT_TIMEOUT_SEC = 10.0
+    DOCK_STATUS_STALE_SEC = 5.0
 
     def __init__(self):
         super().__init__('task_manager_node')
@@ -55,7 +56,7 @@ class TaskManagerNode(Node):
         self.deadlock_sub = self.create_subscription(DeadlockPermission, '/deadlock/permission', self.deadlock_callback, 10)
         self.error_sub = self.create_subscription(RobotError, '/robot_error', self.error_callback, 10)
         self.status_subscriptions = [self.create_subscription(RobotStatus, f'/{robot_id}/robot_status', self.robot_status_callback, 10) for robot_id in self.VALID_ROBOTS]
-        self.robot_dock_states: Dict[str, Tuple[bool, bool]] = {}
+        self.robot_dock_states: Dict[str, Tuple[bool, bool, object]] = {}
         self.state_pub = self.create_publisher(TaskState, '/task/state', 10)
         self.error_pub = self.create_publisher(RobotError, '/robot_error', 10)
         self.stop_publishers = {robot_id: self.create_publisher(Bool, f'/{robot_id}/pause/request', 10) for robot_id in self.VALID_ROBOTS}
@@ -85,11 +86,22 @@ class TaskManagerNode(Node):
         self.publish_state(task, 'AMR 배정 완료')
         self.start_task_navigation(task)
 
+    def get_fresh_dock_state(self, robot_id: str) -> Tuple[bool, bool]:
+        """캐시된 도킹 상태가 오래됐으면(브릿지 응답 없음 등) '모름'으로 취급한다."""
+        cached = self.robot_dock_states.get(robot_id)
+        if cached is None:
+            return False, False
+        is_docked, dock_status_known, received_at = cached
+        elapsed_sec = (self.get_clock().now() - received_at).nanoseconds / 1e9
+        if elapsed_sec > self.DOCK_STATUS_STALE_SEC:
+            return False, False
+        return is_docked, dock_status_known
+
     def start_task_navigation(self, task: ManagedTask) -> None:
         """배정 직후 주행 시작 전 도킹 상태를 확인한다. dock_status_known이 False면
         (즉 아직 실제 도킹 여부를 모르면) 절대 먼저 주행시키지 않는다."""
         robot_id = task.robot_id
-        is_docked, dock_status_known = self.robot_dock_states.get(robot_id, (False, False))
+        is_docked, dock_status_known = self.get_fresh_dock_state(robot_id)
         if not dock_status_known:
             task.awaiting_dock_check = True
             task.dock_check_started_at = self.get_clock().now()
@@ -113,11 +125,11 @@ class TaskManagerNode(Node):
         if robot_id not in self.VALID_ROBOTS:
             return
         is_docked, dock_status_known = bool(msg.is_docked), bool(msg.dock_status_known)
-        self.robot_dock_states[robot_id] = (is_docked, dock_status_known)
+        self.robot_dock_states[robot_id] = (is_docked, dock_status_known, self.get_clock().now())
         if not dock_status_known:
             return
         task = self.tasks.get(robot_id)
-        if task is None:
+        if task is None or task.state not in ('ASSIGNED', 'TRANSPORTING', 'RETURNING'):
             return
         if task.awaiting_dock_check:
             task.awaiting_dock_check = False
@@ -200,7 +212,8 @@ class TaskManagerNode(Node):
         task.pause_reason = ''
         self.stop_publishers[robot_id].publish(Bool(data=False))
         self.publish_state(task, '정지 해제 후 이전 상태 복귀')
-        if task.target and not task.goal_completed and task.state in ('ASSIGNED', 'TRANSPORTING', 'RETURNING'):
+        if (task.target and not task.goal_completed and task.state in ('ASSIGNED', 'TRANSPORTING', 'RETURNING')
+                and not task.awaiting_dock_check and not task.undock_requested):
             self.send_navigation_goal(task)
 
     def invalidate_navigation_goal(self, task: ManagedTask) -> None:

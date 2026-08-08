@@ -261,3 +261,55 @@ def test_worker_detected_command_no_longer_handled():
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
+
+def test_robot_status_callback_does_not_navigate_when_task_paused():
+    rclpy.init()
+    node = TaskManagerNode()
+    try:
+        node.nav_clients['robot11'] = Mock()
+        node.nav_clients['robot11'].wait_for_server.return_value = True
+        _assign(node)  # dock_status_known 없음 -> awaiting_dock_check=True
+        node.tasks['robot11'].state = 'PAUSED'
+
+        node.robot_status_callback(_robot_status(is_docked=False, dock_status_known=True))
+
+        node.nav_clients['robot11'].send_goal_async.assert_not_called()
+        assert node.tasks['robot11'].awaiting_dock_check is True
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_resume_task_does_not_navigate_while_awaiting_dock_check():
+    rclpy.init()
+    node = TaskManagerNode()
+    try:
+        node.nav_clients['robot11'] = Mock()
+        node.nav_clients['robot11'].wait_for_server.return_value = True
+        node.stop_publishers['robot11'] = Mock()
+        _assign(node)
+        task = node.tasks['robot11']
+        task.awaiting_dock_check, task.state, task.previous_state = True, 'PAUSED', 'ASSIGNED'
+
+        node.resume_task('robot11')
+
+        node.nav_clients['robot11'].send_goal_async.assert_not_called()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_stale_dock_state_is_treated_as_unknown():
+    rclpy.init()
+    node = TaskManagerNode()
+    try:
+        node.robot_status_callback(_robot_status(is_docked=True, dock_status_known=True))
+
+        is_docked, dock_status_known, _received_at = node.robot_dock_states['robot11']
+        node.robot_dock_states['robot11'] = (is_docked, dock_status_known, node.get_clock().now() - Duration(seconds=6.0))
+
+        assert node.get_fresh_dock_state('robot11') == (False, False)
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
