@@ -215,23 +215,31 @@ class ReidTrackingNode(Node):
         track_ids = assign_tracks(
             self.tracks, positions, batch_stamp, self.gating_max_speed, self.gating_min_gate)
 
-        # [상류 트래커 id 구제] 위치 게이팅이 실패한 검출이라도, 상류 id(예: oakd_detector_node의
-        # YOLO track(persist=True) id)가 예전에 이 내부 트랙에 매핑된 적이 있고 그 트랙이 아직
-        # 살아있으면 그 매핑을 우선한다. 실측(2026-08-08 세션)으로 상류 트래킹이 occlusion에
-        # 이 노드의 순수 위치 게이팅보다 훨씬 강함을 확인했다 - 22.74초짜리 bag에서 YOLO id는
-        # 2번만 바뀐 반면 위치 게이팅만 쓰는 라이다 쪽 내부 트랙 id는 훨씬 자주 바뀌었다.
-        # 위치 게이팅이 이미 성공한 항목은 그대로 두고(이 구제는 실패했을 때만 개입), 상류
-        # id가 재사용돼 다른 사람에게 잘못 붙는 경우를 막기 위해 절대 거리 상한을 둔다.
+        # [상류 트래커 id 구제] 상류 id(예: oakd_detector_node의 YOLO track(persist=True) id)가
+        # 예전에 이 내부 트랙에 매핑된 적이 있고 그 트랙이 아직 살아있으면, 위치 게이팅 결과가
+        # 이미 있어도(다른 트랙으로 매칭됐어도) 이 매핑을 우선한다. 실측(2026-08-08 세션)으로
+        # 상류 트래킹이 occlusion에 이 노드의 순수 위치 게이팅보다 훨씬 강함을 확인했고
+        # (22.74초짜리 bag에서 YOLO id는 2번만 바뀐 반면 위치 게이팅만 쓰는 라이다 쪽 내부
+        # 트랙 id는 훨씬 자주 바뀌었다), 게이팅 "성공"만으로는 부족하다는 것도 my_new_bag3로
+        # 추가 확인했다: 갓 생성된 트랙이 다음 프레임에 자기 게이트를 살짝 벗어나 중복 트랙이
+        # 생기면, 이후 두 트랙이 같은 상류 id(oakd_4)의 검출을 번갈아 "위치상 더 가깝다"는
+        # 이유로 차지하며 추종 대상 좌표가 순간이동(최대 6.4m/s)했다 - 상류 tracker는 그동안
+        # 쭉 같은 id(oakd_4)로 봤으므로, 게이팅 성공 여부와 무관하게 이 매핑을 우선하면 그
+        # 순간이동이 사라진다(실측: 최대 점프 1.28m/6.4m/s -> 0.63m/3.15m/s). 상류 id가
+        # 재사용돼 다른 사람에게 잘못 붙는 경우를 막기 위해 절대 거리 상한은 그대로 둔다.
         claimed = {tid for tid in track_ids if tid is not None}
         for i, (x, y, stamp, det_id) in enumerate(entries):
-            if track_ids[i] is not None or not det_id:
+            if not det_id:
                 continue
             hint_id = self.source_id_to_track.get((source, det_id))
-            if hint_id is None or hint_id in claimed or hint_id not in self.tracks:
+            if hint_id is None or hint_id == track_ids[i] or hint_id in claimed \
+                    or hint_id not in self.tracks:
                 continue
             px, py = self.tracks[hint_id].predict(
                 batch_stamp, max_dt=self.id_rescue_max_extrapolation)
             if distance(px, py, x, y) <= self.id_rescue_max_distance:
+                if track_ids[i] is not None:
+                    claimed.discard(track_ids[i])
                 track_ids[i] = hint_id
                 claimed.add(hint_id)
 

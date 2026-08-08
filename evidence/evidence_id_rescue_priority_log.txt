@@ -1,0 +1,33 @@
+reid_tracking_node 상류 id 우선 매칭 수정 전/후 비교 - my_new_bag3 2인 교차 구간(t=55-68s)
+격리 ROS_DOMAIN_ID=77로 재생, oakd_detector_node(기본 트래커) + reid_tracking_node
++ target_person_pose 실제 발행값 캡처.
+
+발견 경위: evidence_reid_id_after.mp4의 교차 구간에서 사용자가 지적한 ID 변경을 조사하다,
+reid_tracking_node 자체의 순수 위치 기반 그리디 매칭이 두 개의 내부 트랙(같은 실제 인물)을
+만들어 낸 뒤 서로 검출을 번갈아 차지하며 target_person_pose가 물리적으로 불가능한 속도로
+순간이동하는 문제를 발견 (reid 실험/YOLO 트래커 설정과는 무관, reid_tracking_node 자체 버그).
+
+근본 원인: t=60.63s경 갓 생성된 트랙이 다음 프레임 검출과의 거리(0.408m)가 자기 게이트(0.4m)를
+아주 살짝(2%) 벗어나 중복 트랙이 생성됨. oakd_detector_node의 YOLO 트래커는 이 구간 내내
+같은 id(oakd_4)로 인식하고 있었는데도, reid_tracking_node의 상류-id 구제(id_rescue) 로직은
+"위치 게이팅이 실패했을 때만" 개입하도록 돼 있어, 위치 게이팅이 (다른 쪽) 중복 트랙으로
+"성공"해버리면 구제가 개입하지 못하고 그대로 잘못된 트랙에 배정됨.
+
+수정: reid_tracking_node.py update_tracks() - 상류 id 매핑이 존재하면 위치 게이팅 성공
+여부와 무관하게 그 매핑을 우선하도록 변경(단, 절대 거리 상한 id_rescue_max_distance는
+그대로 유지 - 다른 사람에게 오배정되는 것을 막음).
+
+[도입 전] dedup_target_pose_before.txt
+  t=62.03s 점프 1.28m/0.2s = 6.42 m/s (사람이 낼 수 없는 속도)
+  t=64.03s 점프 0.93m/0.2s = 4.64 m/s
+
+[도입 후] dedup_target_pose_after.txt
+  t=61.43s 점프 0.63m/0.2s = 3.14 m/s (빠른 걸음 수준, 정상 범위)
+  t=62.43s 점프 0.60m/0.2s = 3.02 m/s
+
+두 번째(교차) 인물은 수정 후에도 여전히 별개 트랙으로 정확히 구분됨 - 오병합 없음.
+기존 단위테스트 24건 전부 통과.
+
+다음 단계(사용자 승인): tracking_utils.assign_tracks의 그리디 배정을 scipy Hungarian
+(linear_sum_assignment) 전역 최적 배정으로 교체해 잔여 점프(3.0~3.14 m/s)를 추가로
+줄일 수 있는지 검증 예정.
