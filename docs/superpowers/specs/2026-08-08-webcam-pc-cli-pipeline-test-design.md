@@ -28,7 +28,7 @@
 
 ## 범위
 
-**포함**: `robot_manager` 패키지에 새 CLI 노드 추가, `destinations` 테이블 시드, CLI의 순수 로직 유닛 테스트.
+**포함**: `robot_manager` 패키지에 새 CLI 노드 추가, `destinations` 테이블 시드, `task_manager_node.py`의 `robot11_dock_pose` 기본값을 실측 도킹 위치로 변경, CLI의 순수 로직 유닛 테스트.
 
 **제외**: Nav2 자체 구현(사용자가 기존 bringup으로 실행), robot5, `central_system.launch.py` 통합, 실제 물리 실행·검증(사용자 담당 — 아래 "안전 수칙" 참조).
 
@@ -78,17 +78,17 @@
 - `작업자감지`/`배송모드`/`배송확인` 실행 시: 활성 상태인 로봇이 정확히 1개면 그 `robot_id`/`task_id`로 발행한다. 0개면 "활성 작업 없음"을 출력하고 발행하지 않는다. 2개 이상이면 로봇 지정을 요구한다(예: `작업자감지 robot11`).
 - **상태 전이 유효성은 CLI가 판단하지 않는다.** `task_manager_node`가 이미 상태 머신을 검증하므로, 잘못된 시점에 명령을 보내면 `task_manager_node`가 `/robot_error`로 `INVALID_TRANSITION_*` 등을 발행하고 CLI는 이를 그대로 출력한다. 규칙을 중복 구현하지 않는다.
 
-## 하드코딩 좌표 (placeholder — 실행 전 사용자가 실제 값으로 교체 필수)
+## 하드코딩 좌표 (사용자 실측값 확정)
 
-지도 범위: `-5.4 ≤ x < 0.6`, `-5.65 ≤ y < 1.5` (`map2.yaml`의 origin/resolution과 `map2.pgm` 크기로 `robot_assignment_node.load_map_bounds()`와 동일하게 계산한 값. `dummy_status_publisher.py`의 여유를 둔 파라미터 값과는 다르니 혼동하지 말 것)
+지도 범위: `-5.4 ≤ x < 0.6`, `-5.65 ≤ y < 1.5` (`map2.yaml`의 origin/resolution과 `map2.pgm` 크기로 `robot_assignment_node.load_map_bounds()`와 동일하게 계산한 값).
 
-- **FOLLOWING mock 10점** (`webcam_pc_cli.py` 상단 상수, yaw 없이 직선 경로):
-  `(-4.0,-4.0), (-3.7,-3.8), (-3.4,-3.6), (-3.1,-3.4), (-2.8,-3.2), (-2.5,-3.0), (-2.2,-2.8), (-1.9,-2.6), (-1.6,-2.4), (-1.3,-2.2)`
-- **배송 목적지 2점** (`destinations` 테이블 INSERT): `DEST_A`(-4.5, -4.5, 0.0), `DEST_B`(-1.0, -1.0, 1.57)
-- **도킹 복귀 위치**: `task_manager_node`의 `robot11_dock_pose` 파라미터, 현재 기본값 `[0,0,0]`을 그대로 유지한다 — 이 스펙에서 새로 만들지 않으며, 실행 전 사용자가 실제 도킹 스테이션 근처 좌표로 launch 인자를 지정해야 한다.
-- **작업자 호출 위치**는 하드코딩하지 않고 `호출 <x> <y>`로 매번 실행 시 입력한다.
+- **FOLLOWING mock 10점** (`webcam_pc_cli.py` 상단 상수, `x=-1.5`·`yaw=-π/2` 고정, `y`만 0.5→-4.0까지 0.5씩 감소):
+  `(-1.5, 0.5, -π/2), (-1.5, 0.0, -π/2), (-1.5, -0.5, -π/2), (-1.5, -1.0, -π/2), (-1.5, -1.5, -π/2), (-1.5, -2.0, -π/2), (-1.5, -2.5, -π/2), (-1.5, -3.0, -π/2), (-1.5, -3.5, -π/2), (-1.5, -4.0, -π/2)`
+- **배송 목적지 2점** (`destinations` 테이블 INSERT): `DEST_A`(-0.5, -2, π), `DEST_B`(-4, -3, 0)
+- **도킹 복귀 위치**: `(-2.3, -3.6, -π/2)`. `task_manager_node.py`의 `robot11_dock_pose` 파라미터 기본값을 `[0.0, 0.0, 0.0]`에서 이 값으로 변경한다 (기존 코드 1줄 수정, `robot5_dock_pose`는 건드리지 않음).
+- **작업자 호출 위치**: `(-1, 0)`. CLI 명령 자체는 계속 `호출 <x> <y>`로 매번 인자를 받지만(하드코딩하지 않음), 수동 체크리스트에서는 이 값을 예시로 사용한다 (`호출 -1 0`).
 
-이 값들은 전부 "지도 범위 안"이라는 것만 보장된 placeholder이며, 실제로 빈 공간인지·장애물이 없는지는 검증되지 않았다. **사용자가 실행 전 실측값으로 교체해야 한다.**
+모두 지도 범위 안이며, 사용자가 실제 공간을 확인한 실측값이다.
 
 ## DB 시드
 
@@ -119,11 +119,11 @@
 ## 수동 체크리스트 (사용자 주도)
 
 1. 로봇 PC에서 Nav2 bringup + `robot11_bridge_node` 실행 → `/robot_status`에 실제 위치·배터리 확인
-2. `webcam_pc_cli` 실행 → `호출 <x> <y>`로 배정 유발 → `/robot_assignment` 성공 확인 (DOCKED → ASSIGNED)
+2. `webcam_pc_cli` 실행 → `호출 -1 0`으로 배정 유발 → `/robot_assignment` 성공 확인 (DOCKED → ASSIGNED)
 3. `작업자감지`로 ASSIGNED → FOLLOWING 전환 확인
-4. `추종시작` 실행하며 로봇 옆에서 실제 주행 관찰, 이상 시 `추종중지`
-5. `배송모드 DEST_A`로 FOLLOWING → TRANSPORTING 전환, 실제 목적지 도착 확인
-6. 목적지 도착 후 `배송확인`으로 TRANSPORTING → RETURNING 전환, 도킹 위치로 이동 확인
+4. `추종시작` 실행하며 로봇 옆에서 실제 주행 관찰(`(-1.5, y, -π/2)` 경로를 따라가는지), 이상 시 `추종중지`
+5. `배송모드 DEST_A`(또는 `DEST_B`)로 FOLLOWING → TRANSPORTING 전환, 실제 목적지 도착 확인
+6. 목적지 도착 후 `배송확인`으로 TRANSPORTING → RETURNING 전환, `(-2.3, -3.6, -π/2)` 도킹 위치로 이동 확인
 7. 도킹 액션 성공 후 RETURNING → DOCKED 전환 확인
 
 ## 범위 밖 (다음 작업)
@@ -132,4 +132,3 @@
 - robot5 지원
 - `target_person_pose` 실 발행 쪽(`reid_tracking_node`, 별도 브랜치)과의 병합
 - `central_system.launch.py`에 CLI 통합
-- 도킹 스테이션 정렬 좌표 확정
