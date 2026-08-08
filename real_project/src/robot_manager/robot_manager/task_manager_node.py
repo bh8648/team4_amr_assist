@@ -9,6 +9,7 @@ from geometry_msgs.msg import PoseStamped
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool
 
 from robot_status.msg import DeadlockPermission, NavigationResult, RobotAssignment, RobotError, RobotStatus, TaskCommand, TaskState
@@ -55,7 +56,8 @@ class TaskManagerNode(Node):
         self.navigation_result_sub = self.create_subscription(NavigationResult, '/navigation/result', self.navigation_result_callback, 10)
         self.deadlock_sub = self.create_subscription(DeadlockPermission, '/deadlock/permission', self.deadlock_callback, 10)
         self.error_sub = self.create_subscription(RobotError, '/robot_error', self.error_callback, 10)
-        self.status_subscriptions = [self.create_subscription(RobotStatus, f'/{robot_id}/robot_status', self.robot_status_callback, 10) for robot_id in self.VALID_ROBOTS]
+        status_qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
+        self.status_subscriptions = [self.create_subscription(RobotStatus, f'/{robot_id}/robot_status', self.robot_status_callback, status_qos) for robot_id in self.VALID_ROBOTS]
         self.robot_dock_states: Dict[str, Tuple[bool, bool, object]] = {}
         self.state_pub = self.create_publisher(TaskState, '/task/state', 10)
         self.error_pub = self.create_publisher(RobotError, '/robot_error', 10)
@@ -168,6 +170,9 @@ class TaskManagerNode(Node):
             self.transition(task, 'TRANSPORTING', '작업자가 배송 모드로 전환')
             self.send_navigation_goal(task, replace=True)
         elif command == 'CANCEL' and task.state in self.ACTIVE_STATES:
+            if task.awaiting_dock_check or task.undock_requested:
+                self.transition(task, 'DOCKED', '주행 시작 전 취소 — 도킹 상태 유지')
+                return
             task.goal_type, task.target = 'TO_DOCK', tuple(float(value) for value in self.get_parameter(f'{robot_id}_dock_pose').value)
             task.goal_completed = False
             self.transition(task, 'RETURNING', '작업 취소 후 복귀')

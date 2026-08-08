@@ -2,6 +2,7 @@ import rclpy
 from unittest.mock import Mock
 
 from rclpy.duration import Duration
+from rclpy.qos import ReliabilityPolicy
 from robot_status.msg import RobotAssignment, RobotError, RobotStatus
 
 from robot_manager.task_manager_node import TaskManagerNode
@@ -295,6 +296,39 @@ def test_resume_task_does_not_navigate_while_awaiting_dock_check():
         node.resume_task('robot11')
 
         node.nav_clients['robot11'].send_goal_async.assert_not_called()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_cancel_does_not_navigate_while_awaiting_dock_check():
+    rclpy.init()
+    node = TaskManagerNode()
+    try:
+        node.nav_clients['robot11'] = Mock()
+        node.nav_clients['robot11'].wait_for_server.return_value = True
+        _assign(node)  # dock_status_known 없음 -> awaiting_dock_check=True
+        task = node.tasks['robot11']
+        assert task.awaiting_dock_check is True
+
+        from robot_status.msg import TaskCommand
+        cmd = TaskCommand()
+        cmd.command, cmd.robot_id, cmd.task_id = 'CANCEL', 'robot11', task.task_id
+        node.command_callback(cmd)
+
+        node.nav_clients['robot11'].send_goal_async.assert_not_called()
+        assert node.tasks['robot11'].state == 'DOCKED'
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_robot_status_subscription_uses_best_effort_qos():
+    rclpy.init()
+    node = TaskManagerNode()
+    try:
+        for sub in node.status_subscriptions:
+            assert sub.qos_profile.reliability == ReliabilityPolicy.BEST_EFFORT
     finally:
         node.destroy_node()
         rclpy.shutdown()

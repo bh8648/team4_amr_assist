@@ -18,7 +18,7 @@ setup(
     zip_safe=True,
     maintainer='user',
     maintainer_email='user@todo.todo',
-    description='Robot DB Manager and Dummy Publisher Node Package',
+    description='Robot Manager Node Package',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={

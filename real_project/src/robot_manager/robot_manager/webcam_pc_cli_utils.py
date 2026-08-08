@@ -1,7 +1,5 @@
 import math
-from typing import List, Optional, Set, Tuple
-
-ACTIVE_STATES: Set[str] = {'ASSIGNED', 'FOLLOWING', 'TRANSPORTING', 'RETURNING'}
+from typing import List, Optional, Tuple
 
 # 사용자가 확인한 실측 경로: x=-1.5, yaw=-pi/2 고정, y만 0.5에서 -4.0까지 0.5씩 감소
 FOLLOWING_MOCK_POSES: List[Tuple[float, float, float]] = [
