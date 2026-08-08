@@ -86,7 +86,7 @@ class RobotAssignmentNode(Node):
         self.status_subscriptions = [self.create_subscription(RobotStatus, f'/{robot_id}/robot_status', lambda msg, expected=robot_id: self.status_callback(expected, msg), qos) for robot_id in self.VALID_ROBOTS]
         # 로봇1,2 상태정보 수신
         self.goal_subscription = self.create_subscription(              # goal 목표 수신용 Subscriber
-            PointStamped, '/person/call_position', self.goal_callback, call_qos
+            PointStamped, 'person/call_position', self.goal_callback, call_qos
         )
         self.task_state_subscription = self.create_subscription(TaskState, '/task/state', self.task_state_callback, 10)
 
@@ -328,6 +328,7 @@ class RobotAssignmentNode(Node):
 
     def goal_callback(self, goal: PointStamped) -> None:
         """새 작업자 호출 위치를 받아 AMR 배정을 시도한다."""
+        print(11111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111)
 
         # 새로 수신한 Goal의 목표 좌표를 비교와 로그 출력에 사용할 수 있도록 변환한다.
         target_x = float(goal.point.x)
