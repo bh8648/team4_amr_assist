@@ -50,7 +50,7 @@ class HmiBackendNode(Node):
 
         self.db_path = os.path.abspath(os.path.expanduser(self.get_parameter('db_path').value)) # 지도의 경로
         project_root = Path(get_package_prefix('robot_manager')).resolve().parents[1]
-        default_map_path = str(project_root / 'amr_delivery_ui/frontend/maps/map2.yaml')
+        default_map_path = str(project_root / 'real_project/amr_delivery_ui/frontend/maps/map2.yaml')
 
         self.declare_parameter('map_yaml_path', os.environ.get('AMR_MAP_YAML', default_map_path))   # 지도 설정값 경로
         configured_map_path = Path(os.path.expanduser(self.get_parameter('map_yaml_path').value))

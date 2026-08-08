@@ -34,7 +34,7 @@ class RobotAssignmentNode(Node):
         self.declare_parameter('assignment_timeout_sec', 60.0)      # 배정을 대기할 시간
         self.declare_parameter('retry_interval_sec', 5.0)           # 배정 실패시 5초 대기 후 재배정 시도
         project_root = Path(get_package_prefix('robot_manager')).resolve().parents[1]
-        default_map_path = project_root / 'amr_delivery_ui/frontend/maps/map2.yaml'
+        default_map_path = project_root / 'real_project/amr_delivery_ui/frontend/maps/map2.yaml'
         self.declare_parameter('map_yaml_path', os.environ.get('AMR_MAP_YAML', str(default_map_path)))
 
         self.status_timeout_sec = float(

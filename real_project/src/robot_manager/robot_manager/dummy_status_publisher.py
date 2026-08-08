@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 import math
+import os
 import random
+from pathlib import Path
 
 import rclpy
+from ament_index_python.packages import get_package_prefix
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
@@ -29,6 +32,15 @@ class DummyStatusPublisher(Node):
         self.angular_speed = float(self.get_parameter('angular_speed').value)
         self.arrival_tolerance = float(self.get_parameter('arrival_tolerance').value)
 
+        project_root = Path(get_package_prefix('robot_manager')).resolve().parents[1]
+        default_map_path = project_root / 'real_project/amr_delivery_ui/frontend/maps/map2.yaml'
+        self.declare_parameter('map_yaml_path', os.environ.get('AMR_MAP_YAML', str(default_map_path)))
+        configured_map_path = Path(os.path.expanduser(self.get_parameter('map_yaml_path').value))
+        map_yaml_path = (configured_map_path if configured_map_path.is_absolute() else project_root / configured_map_path).resolve()
+        if not map_yaml_path.is_file():
+            map_yaml_path = default_map_path.resolve()
+        self.bounds = self.load_map_bounds(map_yaml_path)
+
         self.robots = {
             'robot5': self.make_robot(0.0, 0.0, 0.0, 95.0),
             'robot11': self.make_robot(-2.235, -5.022, -1.528, 80.0),
@@ -51,6 +63,43 @@ class DummyStatusPublisher(Node):
     @staticmethod
     def normalize_angle(angle):
         return math.atan2(math.sin(angle), math.cos(angle))
+
+    @staticmethod
+    def read_pgm_size(path: Path):
+        """PGM 헤더에서 지도의 가로·세로 셀 수를 읽는다 (robot_assignment_node와 동일 로직)."""
+        data, offset, tokens = path.read_bytes(), 0, []
+        while len(tokens) < 3:
+            while offset < len(data) and data[offset] <= 32:
+                offset += 1
+            if offset < len(data) and data[offset] == 35:
+                while offset < len(data) and data[offset] != 10:
+                    offset += 1
+                continue
+            start = offset
+            while offset < len(data) and data[offset] > 32 and data[offset] != 35:
+                offset += 1
+            tokens.append(data[start:offset].decode('ascii'))
+        if tokens[0] not in ('P2', 'P5'):
+            raise ValueError('지원하지 않는 PGM 형식입니다.')
+        return int(tokens[1]), int(tokens[2])
+
+    def load_map_bounds(self, map_yaml_path: Path):
+        """Nav2 YAML과 PGM 크기로 (min_x, max_x, min_y, max_y) 범위를 계산한다."""
+        if not map_yaml_path.is_file():
+            raise FileNotFoundError(f'지도 YAML을 찾을 수 없습니다: {map_yaml_path}')
+        meta = {}
+        for raw_line in map_yaml_path.read_text(encoding='utf-8').splitlines():
+            line = raw_line.split('#', 1)[0].strip()
+            if line and ':' in line:
+                key, value = line.split(':', 1)
+                meta[key.strip()] = value.strip()
+        resolution = float(meta['resolution'])
+        origin = [float(value.strip()) for value in meta['origin'].strip('[]').split(',')]
+        image_path = (map_yaml_path.parent / meta['image']).resolve()
+        width, height = self.read_pgm_size(image_path)
+        bounds = origin[0], origin[0] + width * resolution, origin[1], origin[1] + height * resolution
+        self.get_logger().info(f'지도 좌표 범위: {bounds[0]:.2f} ≤ x < {bounds[1]:.2f}, {bounds[2]:.2f} ≤ y < {bounds[3]:.2f}')
+        return bounds
 
     def pause_callback(self, robot_id, msg):
         robot = self.robots[robot_id]
