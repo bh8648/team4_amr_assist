@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import math
 import os
 import sqlite3
 import threading
@@ -7,11 +8,14 @@ from typing import Dict, List
 import rclpy
 from rclpy.node import Node
 
+from geometry_msgs.msg import PoseStamped
 from robot_status.msg import AssignmentGoal, RobotAssignment, RobotError, TaskCommand, TaskState
 
 from robot_manager.webcam_pc_cli_utils import (
+    FOLLOWING_MOCK_POSES,
     parse_call_args,
     parse_command,
+    parse_interval,
     select_active_robot,
     select_destination,
 )
@@ -30,6 +34,10 @@ class WebcamPcCliNode(Node):
 
         self.assignment_goal_pub = self.create_publisher(AssignmentGoal, '/assignment_goal', 10)
         self.task_command_pub = self.create_publisher(TaskCommand, '/task/command', 10)
+        self.target_pose_pub = self.create_publisher(PoseStamped, '/robot11/target_person_pose', 10)
+
+        self.following_timer = None
+        self.following_index = 0
 
         self.assignment_sub = self.create_subscription(
             RobotAssignment, '/robot_assignment', self.assignment_callback, 10)
@@ -129,6 +137,44 @@ class WebcamPcCliNode(Node):
         for robot_id, msg in self.task_cache.items():
             print(f'{robot_id}: {msg.state} (task_id={msg.task_id})')
 
+    def _stop_following_timer(self) -> None:
+        if self.following_timer is not None:
+            self.destroy_timer(self.following_timer)
+            self.following_timer = None
+
+    def cmd_follow_start(self, args: List[str]) -> None:
+        interval, error = parse_interval(args)
+        if error:
+            print(error)
+            return
+        if self.following_timer is not None:
+            print('이미 진행 중입니다. 먼저 추종중지를 입력하세요')
+            return
+        self.following_index = 0
+        self.following_timer = self.create_timer(interval, self._publish_next_following_pose)
+        print(f'[추종시작] 간격초={interval}')
+
+    def cmd_follow_stop(self, args: List[str]) -> None:
+        if self.following_timer is None:
+            return
+        self._stop_following_timer()
+        print('[추종중지]')
+
+    def _publish_next_following_pose(self) -> None:
+        if self.following_index >= len(FOLLOWING_MOCK_POSES):
+            self._stop_following_timer()
+            print('[추종완료] mock 좌표 10개 발행 종료')
+            return
+        x, y, yaw = FOLLOWING_MOCK_POSES[self.following_index]
+        msg = PoseStamped()
+        msg.header.frame_id = 'map'
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.pose.position.x, msg.pose.position.y = x, y
+        msg.pose.orientation.z, msg.pose.orientation.w = math.sin(yaw / 2.0), math.cos(yaw / 2.0)
+        self.target_pose_pub.publish(msg)
+        print(f'[추종 {self.following_index + 1}/{len(FOLLOWING_MOCK_POSES)}] ({x}, {y}, {yaw:.3f})')
+        self.following_index += 1
+
     def cmd_quit(self, args: List[str]):
         return QUIT
 
@@ -137,12 +183,14 @@ class WebcamPcCliNode(Node):
             '호출': self.cmd_call,
             '목적지목록': self.cmd_list_destinations,
             '작업자감지': self.cmd_worker_detected,
+            '추종시작': self.cmd_follow_start,
+            '추종중지': self.cmd_follow_stop,
             '배송모드': self.cmd_deliver,
             '배송확인': self.cmd_confirm,
             '상태': self.cmd_status,
             '종료': self.cmd_quit,
         }
-        print('webcam_pc_cli 준비 완료. 명령: 호출/목적지목록/작업자감지/배송모드/배송확인/상태/종료')
+        print('webcam_pc_cli 준비 완료. 명령: 호출/목적지목록/작업자감지/추종시작/추종중지/배송모드/배송확인/상태/종료')
         while rclpy.ok():
             try:
                 line = input('> ')

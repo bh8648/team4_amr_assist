@@ -304,3 +304,107 @@ def test_run_cli_unknown_command_prints_error(monkeypatch, capsys):
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
+
+def test_cmd_follow_start_creates_timer():
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        node.cmd_follow_start([])
+        assert node.following_timer is not None
+        assert node.following_index == 0
+    finally:
+        node.cmd_follow_stop([])
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_cmd_follow_start_rejects_invalid_interval():
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        node.cmd_follow_start(['-1'])
+        assert node.following_timer is None
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_cmd_follow_start_rejects_duplicate_start(capsys):
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        node.cmd_follow_start(['100'])
+        first_timer = node.following_timer
+
+        node.cmd_follow_start(['100'])
+
+        assert node.following_timer is first_timer
+        assert '이미 진행 중' in capsys.readouterr().out
+    finally:
+        node.cmd_follow_stop([])
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_publish_next_following_pose_publishes_correct_pose_and_increments():
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        node.target_pose_pub = Mock()
+        node.following_index = 0
+
+        node._publish_next_following_pose()
+
+        node.target_pose_pub.publish.assert_called_once()
+        sent = node.target_pose_pub.publish.call_args[0][0]
+        assert sent.header.frame_id == 'map'
+        assert sent.pose.position.x == -1.5
+        assert sent.pose.position.y == 0.5
+        assert node.following_index == 1
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_publish_next_following_pose_stops_after_ten_points():
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        node.target_pose_pub = Mock()
+        node._stop_following_timer = Mock()
+        node.following_index = 10
+
+        node._publish_next_following_pose()
+
+        node.target_pose_pub.publish.assert_not_called()
+        node._stop_following_timer.assert_called_once()
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_cmd_follow_stop_cancels_timer():
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        node.cmd_follow_start(['100'])
+        assert node.following_timer is not None
+
+        node.cmd_follow_stop([])
+
+        assert node.following_timer is None
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_cmd_follow_stop_noop_when_not_running():
+    rclpy.init()
+    node = WebcamPcCliNode()
+    try:
+        node.cmd_follow_stop([])  # 예외 없이 통과해야 함
+        assert node.following_timer is None
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
