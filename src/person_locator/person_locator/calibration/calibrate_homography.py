@@ -45,7 +45,10 @@ class FrameGrabber(Node):
         self.declare_parameter(
             'output',
             os.path.join(
-                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                # calibration/calibrate_homography.py -> calibration -> person_locator(패키지) ->
+                # person_locator(패키지 루트, config/가 있는 곳) 이렇게 3단계 위로 올라가야 함 -
+                # calibration/ 서브패키지로 옮기면서 한 단계 늘어남
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                 'config', 'person_homography.yaml',
             ),
         )
