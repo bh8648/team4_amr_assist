@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart LR
-    Vision[Vision PC\n작업자 호출 좌표] -->|AssignmentGoal\n/assignment_goal| Allocation[amr_allocation_node\nrobot_assignment_node]
+    Vision[Vision PC\n작업자 호출 좌표] -->|PointStamped\n/person/call_position| Allocation[amr_allocation_node\nrobot_assignment_node]
     Robots[robot5 · robot11] -->|RobotStatus\n/robot_status| Allocation
     Allocation -->|RobotAssignment\n/robot_assignment| Task[task_manager_node]
     Allocation -->|RobotAssignment\n/robot_assignment| DB[db_manager_node]
@@ -36,7 +36,7 @@ flowchart LR
 
 | 송신 노드 | 데이터 | ROS 이름 | 수신 노드 | 용도 |
 |---|---|---|---|---|
-| Vision | `AssignmentGoal` | `/assignment_goal` | Allocation | 작업자 호출 좌표 전달 |
+| Vision | `PointStamped` | `/person/call_position` | Allocation | 작업자 호출 좌표 전달 |
 | robot5, robot11 | `RobotStatus` | `/robot_status` | Allocation, DB, Deadlock | 위치·방향·배터리·작업 ID 전달 |
 | Allocation | `RobotAssignment` | `/robot_assignment` | Task, DB | 배정 성공 여부·로봇 ID·목표 좌표 전달 |
 | Allocation, Task, Robot | `RobotError` | `/robot_error` | Task, DB | 오류 상태 전환 및 DB 기록 |
@@ -79,7 +79,7 @@ stateDiagram-v2
 
 ```mermaid
 flowchart TD
-    A[/AssignmentGoal 수신/] --> B[x, y 숫자 변환]
+    A[/PointStamped 수신/] --> B[x, y 숫자 변환]
     B --> C{NaN 또는 무한대?}
     C -- 예 --> C1[INVALID_COORDINATE 발행]
     C -- 아니오 --> D{map2 범위 안인가?}

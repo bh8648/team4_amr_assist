@@ -8,7 +8,7 @@ from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool
 
-from robot_status.msg import AssignmentGoal, NavigationResult, RobotError, RobotStatus, TaskState
+from robot_status.msg import NavigationResult, RobotError, RobotStatus, TaskState
 
 
 class DummyStatusPublisher(Node):
@@ -17,25 +17,17 @@ class DummyStatusPublisher(Node):
     def __init__(self):
         super().__init__('dummy_status_publisher')
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
-        self.status_pub = self.create_publisher(RobotStatus, '/robot_status', qos)
+        self.status_publishers = {robot_id: self.create_publisher(RobotStatus, f'/{robot_id}/robot_status', qos) for robot_id in ('robot5', 'robot11')}
         self.error_pub = self.create_publisher(RobotError, '/robot_error', 10)
         self.navigation_result_pub = self.create_publisher(NavigationResult, '/navigation/result', 10)
-        self.assignment_goal_pub = self.create_publisher(AssignmentGoal, '/assignment_goal', 10)
         self.task_state_sub = self.create_subscription(TaskState, '/task/state', self.task_state_callback, 10)
 
         self.declare_parameter('linear_speed', 0.22)
         self.declare_parameter('angular_speed', 1.2)
         self.declare_parameter('arrival_tolerance', 0.08)
-        self.declare_parameter('random_goal_delay', 10.0)
-        self.declare_parameter('map_min_x', -5.4)
-        self.declare_parameter('map_max_x', 0.6)
-        self.declare_parameter('map_min_y', -5.65)
-        self.declare_parameter('map_max_y', 1.5)
         self.linear_speed = float(self.get_parameter('linear_speed').value)
         self.angular_speed = float(self.get_parameter('angular_speed').value)
         self.arrival_tolerance = float(self.get_parameter('arrival_tolerance').value)
-        self.random_goal_delay = float(self.get_parameter('random_goal_delay').value)
-        self.bounds = tuple(float(self.get_parameter(name).value) for name in ('map_min_x', 'map_max_x', 'map_min_y', 'map_max_y'))
 
         self.robots = {
             'robot5': self.make_robot(0.0, 0.0, 0.0, 95.0),
@@ -47,22 +39,10 @@ class DummyStatusPublisher(Node):
             self.create_subscription(Twist, f'/{robot_id}/cmd_vel', lambda msg, rid=robot_id: self.cmd_vel_callback(rid, msg), 10)
 
         self.last_update = self.get_clock().now()
-        self.random_goal_timer = self.create_timer(self.random_goal_delay, self.publish_random_assignment_goal)
         self.create_timer(0.1, self.update_simulation)
         self.create_timer(1.0, self.publish_status)
         self.create_timer(15.0, self.publish_error_sample)
         self.get_logger().info('Dummy AMR Simulator 시작: robot5, robot11')
-
-    def publish_random_assignment_goal(self):
-        """노드 시작 후 한 번만 임의 좌표를 AMR 배정 노드에 요청한다."""
-        self.random_goal_timer.cancel()
-        min_x, max_x, min_y, max_y = self.bounds
-        margin = 0.3
-        goal = AssignmentGoal()
-        goal.x = random.uniform(min_x + margin, max_x - margin)
-        goal.y = random.uniform(min_y + margin, max_y - margin)
-        self.assignment_goal_pub.publish(goal)
-        self.get_logger().info(f'자동 AMR 배정 요청: x={goal.x:.3f}, y={goal.y:.3f}')
 
     @staticmethod
     def make_robot(x, y, yaw, battery):
@@ -181,7 +161,7 @@ class DummyStatusPublisher(Node):
             msg.robot_id = robot_id
             msg.battery = round(robot['battery'], 1)
             msg.x, msg.y, msg.yaw = round(robot['x'], 3), round(robot['y'], 3), round(robot['yaw'], 3)
-            self.status_pub.publish(msg)
+            self.status_publishers[robot_id].publish(msg)
 
     def publish_error_sample(self):
         if random.random() >= 0.3:

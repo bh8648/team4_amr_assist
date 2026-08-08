@@ -11,6 +11,8 @@ from robot_status.msg import RobotAssignment, RobotError, RobotStatus, TaskState
 
 
 class DbManagerNode(Node):
+    VALID_ROBOTS = ('robot5', 'robot11')
+
     def __init__(self):
         super().__init__('db_manager_node')
         
@@ -28,7 +30,7 @@ class DbManagerNode(Node):
 
         # 3-1. Robot Status Subscriber 설정 (상태 수신)
         qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
-        self.status_subscription = self.create_subscription(RobotStatus, '/robot_status', self.status_callback, qos_profile)
+        self.status_subscriptions = [self.create_subscription(RobotStatus, f'/{robot_id}/robot_status', lambda msg, expected=robot_id: self.status_callback(expected, msg), qos_profile) for robot_id in self.VALID_ROBOTS]
         self.assignment_subscription = self.create_subscription(RobotAssignment, '/robot_assignment', self.assignment_callback, 10)
         self.task_state_subscription = self.create_subscription(TaskState, '/task/state', self.task_state_callback, 10)
 
@@ -46,13 +48,15 @@ class DbManagerNode(Node):
         cursor.execute("PRAGMA foreign_keys = ON;")
         self.conn.commit()
 
-    def status_callback(self, msg):
+    def status_callback(self, expected_robot_id, msg):
         """로봇 상태 메시지 수신 시 타임스탬프와 최신 데이터 갱신"""
 
         current_time = self.get_clock().now().nanoseconds / 1e9  # 초 단위 변환
         
-        # msg.robot_id는 string ('robot5' 또는 'robot11')
         robot_id = str(msg.robot_id)
+        if robot_id != expected_robot_id:
+            self.get_logger().warning(f'토픽과 robot_id 불일치: expected={expected_robot_id}, received={robot_id}')
+            return
         self.last_msg_time[robot_id] = current_time
         self.latest_status[robot_id] = msg
 
@@ -103,12 +107,12 @@ class DbManagerNode(Node):
                 """
                 INSERT INTO tasks (
                     task_id, assigned_robot_id, destination_id, state,
-                    created_at, started_at
-                ) VALUES (?, ?, ?, 'ASSIGNED', ?, ?)
+                    created_at
+                ) VALUES (?, ?, ?, 'ASSIGNED', ?)
                 ON CONFLICT(task_id) DO UPDATE SET assigned_robot_id=excluded.assigned_robot_id,
                     destination_id=COALESCE(excluded.destination_id, tasks.destination_id)
                 """,
-                (task_id, str(msg.robot_id), destination_id, assigned_at, assigned_at)
+                (task_id, str(msg.robot_id), destination_id, assigned_at)
             )
             self.conn.commit()
             self.get_logger().info(f'작업 {task_id} 저장 완료: AMR {msg.robot_id}, 목표 ({msg.target_x:.2f}, {msg.target_y:.2f})')
@@ -123,8 +127,8 @@ class DbManagerNode(Node):
         try:
             self.conn.execute(
                 """
-                INSERT INTO tasks (task_id, assigned_robot_id, state, result, created_at, started_at, completed_at)
-                VALUES (?, ?, ?, ?, datetime('now', 'localtime'), datetime('now', 'localtime'), CASE WHEN ? THEN datetime('now', 'localtime') END)
+                INSERT INTO tasks (task_id, assigned_robot_id, state, result, created_at, completed_at)
+                VALUES (?, ?, ?, ?, datetime('now', 'localtime'), CASE WHEN ? THEN datetime('now', 'localtime') END)
                 ON CONFLICT(task_id) DO UPDATE SET assigned_robot_id=excluded.assigned_robot_id, state=excluded.state,
                     result=excluded.result, completed_at=CASE WHEN ? THEN datetime('now', 'localtime') ELSE tasks.completed_at END
                 """,

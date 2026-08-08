@@ -26,7 +26,7 @@
           <mxGeometry x="40" y="630" width="210" height="100" as="geometry"/>
         </mxCell>
 
-        <mxCell id="topic_status" value="&lt;b&gt;/robot_status&lt;/b&gt;&lt;br&gt;RobotStatus&lt;hr&gt;robot_id&lt;br&gt;battery&lt;br&gt;x · y · yaw&lt;br&gt;&lt;font color=&quot;#0284C7&quot;&gt;QoS: BEST_EFFORT&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0F9FF;strokeColor=#38BDF8;fontSize=13;" vertex="1" parent="1">
+        <mxCell id="topic_status" value="&lt;b&gt;/robot5/robot_status&lt;br&gt;/robot11/robot_status&lt;/b&gt;&lt;br&gt;RobotStatus&lt;hr&gt;robot_id&lt;br&gt;battery&lt;br&gt;x · y · yaw&lt;br&gt;&lt;font color=&quot;#0284C7&quot;&gt;QoS: BEST_EFFORT&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F0F9FF;strokeColor=#38BDF8;fontSize=13;" vertex="1" parent="1">
           <mxGeometry x="300" y="125" width="220" height="150" as="geometry"/>
         </mxCell>
         <mxCell id="topic_assignment" value="&lt;b&gt;/robot_assignment&lt;/b&gt;&lt;br&gt;RobotAssignment&lt;hr&gt;assigned · assigned_at&lt;br&gt;robot_id&lt;br&gt;target_x · target_y" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5F3FF;strokeColor=#A78BFA;fontSize=13;" vertex="1" parent="1">
@@ -115,7 +115,7 @@
         <mxCell id="d_subtitle" value="메시지 수신부터 판단·결합·SQLite 반영까지 (코드 표현 제외)" style="text;html=1;align=center;verticalAlign=middle;fontSize=14;fontColor=#64748B;" vertex="1" parent="d1"><mxGeometry x="480" y="65" width="840" height="30" as="geometry"/></mxCell>
 
         <mxCell id="lane_status" value="① 로봇 상태 로그 · 1초 주기" style="swimlane;html=1;rounded=1;startSize=36;fillColor=#F0F9FF;strokeColor=#0284C7;strokeWidth=2;fontSize=16;fontStyle=1;" vertex="1" parent="d1"><mxGeometry x="30" y="115" width="1740" height="225" as="geometry"/></mxCell>
-        <mxCell id="s_receive" value="/robot_status 수신&lt;br&gt;&lt;b&gt;RobotStatus&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontSize=13;" vertex="1" parent="lane_status"><mxGeometry x="25" y="75" width="150" height="70" as="geometry"/></mxCell>
+        <mxCell id="s_receive" value="/robot5/robot_status&lt;br&gt;/robot11/robot_status 수신&lt;br&gt;&lt;b&gt;RobotStatus&lt;/b&gt;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#E0F2FE;strokeColor=#0284C7;fontSize=13;" vertex="1" parent="lane_status"><mxGeometry x="25" y="75" width="150" height="70" as="geometry"/></mxCell>
         <mxCell id="s_cache" value="robot_id별&lt;br&gt;&lt;b&gt;최신 상태·수신 시각&lt;/b&gt;&lt;br&gt;메모리 갱신" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#0284C7;fontSize=13;" vertex="1" parent="lane_status"><mxGeometry x="215" y="65" width="175" height="90" as="geometry"/></mxCell>
         <mxCell id="s_timer" value="1초 저장&lt;br&gt;주기 도래" style="rhombus;whiteSpace=wrap;html=1;fillColor=#ECFDF5;strokeColor=#059669;fontSize=13;" vertex="1" parent="lane_status"><mxGeometry x="440" y="65" width="120" height="90" as="geometry"/></mxCell>
         <mxCell id="s_exists" value="수신한 로봇&lt;br&gt;상태가 있는가?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#FEF3C7;strokeColor=#D97706;fontSize=13;" vertex="1" parent="lane_status"><mxGeometry x="610" y="65" width="135" height="90" as="geometry"/></mxCell>
