@@ -34,6 +34,10 @@ class TaskManagerNode(Node):
 
     VALID_ROBOTS = {'robot5', 'robot11'}
     ACTIVE_STATES = {'ASSIGNED', 'FOLLOWING', 'TRANSPORTING', 'RETURNING'}
+    COMMAND_REJECTION_CODES = (
+        'UNKNOWN_ROBOT_ID', 'TASK_NOT_FOUND', 'STALE_TASK_COMMAND',
+        'INVALID_DESTINATION', 'ROBOT_ALREADY_HAS_TASK', 'INVALID_TRANSITION_',
+    )
 
     def __init__(self):
         super().__init__('task_manager_node')
@@ -247,6 +251,8 @@ class TaskManagerNode(Node):
             self.pause_task(robot_id, f'DEADLOCK_WAIT:{msg.zone_id}')
 
     def error_callback(self, msg: RobotError) -> None:
+        if msg.error_code.startswith(self.COMMAND_REJECTION_CODES):
+            return
         robot_id = self.normalize_robot_id(msg.robot_id)
         task = self.tasks.get(robot_id)
         if task and task.state != 'ERROR':
