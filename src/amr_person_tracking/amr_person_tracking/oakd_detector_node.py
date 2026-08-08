@@ -404,7 +404,11 @@ class OakdDetectorNode(Node):
 
     def _make_detection3d(self, pt_map, box_conf, grade, trunc, track_id, header):
         det = Detection3D()
-        det.header = header
+        # header를 통째로 대입(참조 공유)하면 안 된다 - leg_detector_bridge_node/
+        # reid_tracking_node에서 이미 고친 것과 같은 버그: 아래 frame_id 변경이 호출자가
+        # 넘긴 원본 rgb_msg.header까지 오염시켜, 같은 콜백에서 이후에 header를 다시 쓰는
+        # 코드(publish_detections)가 이미 바뀐 값을 읽게 된다. stamp만 값으로 복사한다.
+        det.header.stamp = header.stamp
         det.header.frame_id = self.map_frame
 
         # 등급이 주는 위치 불확실성에, 동기 시간차 동안 로봇이 움직인 거리를 더한다.
@@ -546,7 +550,7 @@ class OakdDetectorNode(Node):
 
     def publish_detections(self, detections, header):
         msg = Detection3DArray()
-        msg.header = header
+        msg.header.stamp = header.stamp
         msg.header.frame_id = self.map_frame
         msg.detections = detections
         self.detections_pub.publish(msg)

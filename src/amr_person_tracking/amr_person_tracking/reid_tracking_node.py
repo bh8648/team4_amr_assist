@@ -424,15 +424,25 @@ class ReidTrackingNode(Node):
         return det
 
     def publish_target_pose(self, header):
+        """추종 대상이 있을 때만 발행한다.
+
+        예전엔 대상이 없어도 위치(0,0,0)+방향(0,0,0,0, 유효하지 않은 쿼터니언)인 기본값
+        Pose를 그대로 내보냈다 - 구독자가 이를 "map 원점에 있는 대상"으로 오해할 수 있는
+        실제 버그였다. 이 패키지 범위 밖의 Nav2 목표 발행 노드가 아직 없어 지금은 아무도
+        구독하지 않지만, "대상 없음"을 침묵으로 표현하는 게(이 노드의 다른 발행 경로들도
+        전부 이 관례를 따른다 - 예: 라이다 단독 갱신은 락온 중일 때만 발행) 잘못된 좌표를
+        내보내는 것보다 안전하다.
+        """
+        if self.followed_track_id is None or self.followed_track_id not in self.tracks:
+            return
+        track = self.tracks[self.followed_track_id]
         pose = PoseStamped()
         pose.header.stamp = header.stamp
         pose.header.frame_id = self.map_frame
-        if self.followed_track_id is not None and self.followed_track_id in self.tracks:
-            track = self.tracks[self.followed_track_id]
-            pose.pose.position.x = track.x
-            pose.pose.position.y = track.y
-            pose.pose.position.z = 0.0
-            pose.pose.orientation.w = 1.0
+        pose.pose.position.x = track.x
+        pose.pose.position.y = track.y
+        pose.pose.position.z = 0.0
+        pose.pose.orientation.w = 1.0
         self.target_pose_pub.publish(pose)
 
 
