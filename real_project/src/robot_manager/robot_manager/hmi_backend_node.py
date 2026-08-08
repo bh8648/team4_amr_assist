@@ -200,12 +200,16 @@ class HmiBackendNode(Node):
         """FOLLOWING 상태의 로봇에게 목적지를 지정해 배송모드(START_TRANSPORT)를 시작시킨다."""
         if robot_id not in self.control_states:
             return False, f'지원하지 않는 AMR ID: {robot_id}'
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            row = conn.execute(
-                'SELECT position_x, position_y, orientation_yaw FROM destinations WHERE destination_id = ?',
-                (destination_id,),
-            ).fetchone()
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                row = conn.execute(
+                    'SELECT position_x, position_y, orientation_yaw FROM destinations WHERE destination_id = ?',
+                    (destination_id,),
+                ).fetchone()
+        except sqlite3.Error as e:
+            self.get_logger().error(f'배송모드 목적지 조회 실패: {e}')
+            return False, '배송모드 목적지 조회 실패'
         if row is None:
             return False, f'등록되지 않은 목적지: {destination_id}'
         command = TaskCommand()
