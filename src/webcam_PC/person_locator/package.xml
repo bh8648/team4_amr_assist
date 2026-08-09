@@ -3,7 +3,7 @@
 <package format="3">
   <name>person_locator</name>
   <version>0.0.0</version>
-  <description>YOLO-pose + homography: locate a standing person in the map frame and broadcast a TF for AMR navigation to consume</description>
+  <description>YOLO-pose + homography: locate a standing person in the map frame and publish it for AMR navigation to consume</description>
   <maintainer email="rokey@todo.todo">rokey</maintainer>
   <license>Apache-2.0</license>
 
@@ -11,7 +11,6 @@
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>std_msgs</exec_depend>
-  <exec_depend>tf2_ros</exec_depend>
   <exec_depend>nav2_simple_commander</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>

@@ -13,9 +13,6 @@
 #   4. 그 픽셀을 캘리브레이션된 homography 행렬에 통과시켜서 map 프레임 기준
 #      실제 (x, y)를 얻음 (vision_utils.apply_homography).
 #   5. 그 결과를 geometry_msgs/PointStamped로 "person/position"에 publish함.
-#      (person_tf_broadcaster_node가 이걸 구독해서 실제 TF로 바꿔줌 -
-#      무거운 YOLO 추론과 다른 머신에서 돌 수 있도록, 예를 들면 Nav2 옆에서
-#      돌 수 있도록 일부러 별도 노드로 분리해둠.)
 
 import rclpy
 from rclpy.node import Node
@@ -172,6 +169,7 @@ class PoseLocatorNode(Node):
         # std_msgs/Empty: 트리거는 "지금 이 순간"이라는 사실 자체가 페이로드라서
         # 별도 데이터가 필요 없음 - wrist_gesture_node가 제스처를 확정하는
         # 순간에만 한 번 publish함
+        # 이전 트리거 씹히는거 예방 Depth=10, Empty는 빈 데이터기 때문에 부담 적음
         self.call_trigger_sub = self.create_subscription(
             Empty, call_trigger_topic, self.call_trigger_callback, 10
         )
@@ -217,7 +215,7 @@ class PoseLocatorNode(Node):
             tracker=self.tracker_cfg,
             verbose=False,
         )
-        result = results[0]
+        result = results[0] # 감지된 객체의 Bbox
         boxes = result.boxes
 
         # 이번 프레임에 어떤 사람을 따라갈지 결정
@@ -233,6 +231,7 @@ class PoseLocatorNode(Node):
             # (검출 개수, 17) 형태인데 모델 설정에 따라 None일 수도 있음
             keypoints_xy = result.keypoints.xy[index].cpu().numpy()
             keypoints_conf = (
+                # NumPy 및 일반 파이썬 라이브러리는 GPU 메모리에 직접 접근 불가능하므로 cpu 사용
                 result.keypoints.conf[index].cpu().numpy()
                 if result.keypoints.conf is not None
                 else None
@@ -312,7 +311,7 @@ class PoseLocatorNode(Node):
         # 부르는 용도로는 문제 없는 수준
         if self.last_person_point is None:
             self.get_logger().warn(
-                'call_trigger를 받았지만 현재 락온된 사람이 없어 무시함'
+                'call_trigger를 받았지만 현재 락온된 사람이 없어PersonTfBroadcasterNode 무시함'
             )
             return
 

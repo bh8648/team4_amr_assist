@@ -167,7 +167,7 @@ class WristGestureNode(Node):
         # 싶을 때 켜는 옵션. throttle을 걸어서 스팸은 안 나되, 손을 폈다
         # 쥐었다 하는 동안 값 변화를 눈으로 따라가기엔 충분한 주기로 찍음
         self.declare_parameter('log_ratio', True)
-        self.declare_parameter('log_ratio_period_sec', 0.3)
+        self.declare_parameter('log_ratio_period_sec', 1.0)
 
         wrist_roi_topic = self.get_parameter('wrist_roi_topic').value
         call_trigger_topic = self.get_parameter('call_trigger_topic').value

@@ -20,7 +20,7 @@ setup(
     zip_safe=True,
     maintainer='rokey',
     maintainer_email='rokey@todo.todo',
-    description='YOLO-pose + homography: locate a standing person in the map frame and broadcast a TF for AMR navigation to consume',
+    description='YOLO-pose + homography: locate a standing person in the map frame and publish it for AMR navigation to consume',
     license='Apache-2.0',
     extras_require={
         'test': [
@@ -35,7 +35,6 @@ setup(
             'log_amr_positions = person_locator.calibration.log_amr_positions:main',
             'compute_homography_from_points = person_locator.calibration.compute_homography_from_points:main',
             'pose_locator_node = person_locator.pose_locator_node:main',
-            'person_tf_broadcaster_node = person_locator.person_tf_broadcaster_node:main',
             'call_position_nav_test = person_locator.call_position_nav_test:main',
         ],
     },

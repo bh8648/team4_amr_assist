@@ -1,8 +1,7 @@
 # person_locator.launch.py
 #
-# 추론 가능한 머신에 같이 있어야 할 두 노드를 묶음: pose_locator_node
-# (YOLO-pose + homography -> map (x, y))와 person_tf_broadcaster_node
-# (그 점 -> "map" -> "person" TF).
+# 추론 가능한 머신에서 pose_locator_node(YOLO-pose + homography -> map (x, y))를
+# 실행함.
 #
 # camera_publisher는 일부러 여기서 실행하지 않음 - 실제 배포에서는 카메라가
 # 별도 머신(이 개발 PC)에 남아있고, `ros2 run person_locator camera_publisher`로
@@ -55,16 +54,8 @@ def generate_launch_description():
         }],
     )
 
-    tf_broadcaster = Node(
-        package='person_locator',
-        executable='person_tf_broadcaster_node',
-        name='person_tf_broadcaster_node',
-        output='screen',
-    )
-
     return LaunchDescription([
         model_path_arg,
         homography_yaml_arg,
         pose_locator,
-        tf_broadcaster,
     ])

@@ -106,6 +106,7 @@ def extract_standing_pixel(keypoints_xy, keypoints_conf, box_xyxy, ankle_conf_th
     # 신뢰도 정보 자체가 없는 경우 방어 - Ultralytics 설정에 따라 keypoint
     # 신뢰도 없이 좌표만 줄 수도 있음. 신뢰도가 없으면 진짜 발목 검출인지
     # 대충 찍은 건지 구분할 수 없으니 바로 더 안전한 bbox 하단 fallback으로 감
+    # 왼쪽, 오른쪽발목 인덱스 15, 16을 각각 확인해서 둘 다 신뢰도가 낮으면 fallback으로 감
     if keypoints_conf is not None:
         left_conf = float(keypoints_conf[LEFT_ANKLE_IDX])
         right_conf = float(keypoints_conf[RIGHT_ANKLE_IDX])
@@ -180,6 +181,8 @@ def extract_wrist_pixel(keypoints_xy, keypoints_conf, conf_threshold=0.5, locked
     left_ok = left_conf >= conf_threshold
     right_ok = right_conf >= conf_threshold
 
+    # locked_side가 있으면 그 쪽이 이번 프레임에도 신뢰도 기준을 넘는지 확인 -
+    # 넘으면 그대로 유지. 안 넘으면 아래에서 새로 고른다
     if locked_side == 'left' and left_ok:
         u, v = keypoints_xy[LEFT_WRIST_IDX]
         return float(u), float(v), 'left'
@@ -233,7 +236,7 @@ def crop_person_bbox(frame, box_xyxy, padding_ratio=0.15, top_ratio=1.0):
     pad_y = h * padding_ratio
 
     frame_h, frame_w = frame.shape[:2]
-    cx1 = max(0, int(x1 - pad_x))
+    cx1 = max(0, int(x1 - pad_x))   # 상하좌우 경계가 프레임 밖으로 나가면 클램프해서 잘라냄
     cy1 = max(0, int(y1 - pad_y))
     cx2 = min(frame_w, int(x2 + pad_x))
     cy2 = min(frame_h, int(y2 + pad_y))
