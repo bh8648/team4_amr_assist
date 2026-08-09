@@ -725,9 +725,33 @@ class OakdDetectorNode(Node):
         msg.data = matrix.tobytes()
         self.reid_pub.publish(msg)
 
+    def _plot_published_only(self, result):
+        """발행 기준(conf_threshold)을 통과한 검출만 그린 오버레이를 만든다.
+
+        Results를 불리언 마스크로 인덱싱해 걸러낸 뒤 plot한다. 마스크 인덱싱이 안 되는
+        버전이면 원본을 그대로 그려(기능 저하만 있고 동작은 유지) 예외로 죽지 않게 한다.
+        """
+        boxes = getattr(result, 'boxes', None)
+        if boxes is None or len(boxes) == 0:
+            return result.plot()
+        keep = boxes.conf >= self.conf_threshold
+        if bool(keep.all()):
+            return result.plot()
+        if not bool(keep.any()):
+            # 발행할 게 하나도 없으면 상자 없는 원본 프레임을 쓴다.
+            return result.orig_img.copy()
+        try:
+            return result[keep].plot()
+        except Exception:
+            return result.plot()
+
     def _publish_debug_image(self, result, overlay_items, frame_stamp):
         try:
-            overlay = result.plot()
+            # 트래커에는 tracker_conf_threshold(0.1)로 저신뢰 검출까지 넣기 때문에, result에는
+            # 우리가 발행하지 않는 후보까지 들어 있다. 그대로 plot하면 허공에 'person 0.20'
+            # 같은 오검출 상자가 그려져 증거영상을 오독하게 만든다(사용자 지적). 실제로
+            # 발행한 것과 같은 기준(conf_threshold)으로 걸러서 그린다.
+            overlay = self._plot_published_only(result)
         except Exception:
             return
 

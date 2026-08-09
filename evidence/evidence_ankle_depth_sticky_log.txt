@@ -57,3 +57,13 @@ followed_track_id를 참조하는 모든 지점이 이미 None을 안전하게 �
       대상이 화면에 없으면 'TARGET NOT VISIBLE'이 뜬다.
   evidence_ankle_depth_sticky_bag5_after_pose.txt  target_person_pose 원본
       (tools/capture_target_pose.py --analyze 로 재분석 가능)
+
+[추가 - 오버레이에서 미발행 저신뢰 검출 제거]
+트래커에는 tracker_conf_threshold(0.1)로 저신뢰 검출까지 넣는데, result.plot()이 그것까지
+전부 그려서 허공에 'person 0.20' 같은 상자가 보였다(사용자 지적). 발행되는 검출이 아닌데
+영상만 보면 오검출이 파이프라인에 들어간 것처럼 오독된다.
+  -> _plot_published_only(): 발행과 동일한 기준(conf_threshold)으로 걸러서 그린다.
+  실측: my_new_bag5의 314 RGB프레임 중 79프레임에 저신뢰(0.11~0.26) 상자가 있었다.
+  검증: conf 0.21짜리 상자만 있던 프레임에서 기존 plot()은 원본 대비 5297픽셀을 그렸고,
+        필터 적용 후에는 0픽셀(아무것도 안 그림)이었다.
+  영상 evidence_ankle_depth_sticky_bag5_after.mp4는 이 필터가 적용된 버전으로 교체했다.
