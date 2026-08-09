@@ -7,6 +7,8 @@ find_package(rosidl_default_generators REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/Destination.msg"
+  "msg/DestinationList.msg"
   "msg/RobotStatus.msg"
   "msg/RobotAssignment.msg"
   "msg/RobotError.msg"

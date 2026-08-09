@@ -158,15 +158,17 @@ class DbManagerNode(Node):
             self.conn.execute(
                 """
                 INSERT INTO tasks (
-                    task_id, assigned_robot_id, state, result, created_at,
+                    task_id, assigned_robot_id, destination_id, state, result, created_at,
                     completed_at, duration_seconds
                 )
                 VALUES (
-                    ?, ?, ?, ?, datetime('now', 'localtime'),
+                    ?, ?, NULLIF(?, ''), ?, ?, datetime('now', 'localtime'),
                     CASE WHEN ? THEN datetime('now', 'localtime') END,
                     CASE WHEN ? THEN 0 END
                 )
                 ON CONFLICT(task_id) DO UPDATE SET assigned_robot_id=excluded.assigned_robot_id,
+                    -- HMI에서 배송 목적지를 선택한 TaskState부터 목적지 ID를 확정한다.
+                    destination_id=COALESCE(excluded.destination_id, tasks.destination_id),
                     state=CASE
                         -- 취소 후 PAUSE/DOCKED 메시지가 와도 DB의 최종 취소 상태는 보존한다.
                         WHEN tasks.state = 'CANCELED' THEN tasks.state
@@ -186,7 +188,7 @@ class DbManagerNode(Node):
                     END
                 """,
                 (
-                    msg.task_id, robot_id, database_state, result,
+                    msg.task_id, robot_id, str(msg.destination_id), database_state, result,
                     completed, completed, completed, completed,
                 )
             )
@@ -210,10 +212,9 @@ class DbManagerNode(Node):
             # 수신 간격이 5초 이상이면 OFFLINE, 미만이면 ONLINE
             online_state = "ONLINE" if time_diff < 5.0 else "OFFLINE"
 
-            # TaskState has not been received yet, so store IDLE instead of
-            # assuming that the robot is already DOCKED.
+            # TaskState 수신 전 최초 상태는 배정 가능 조건과 동일하게 DOCKED로 기록한다.
             task_state = self.task_states.get(str(robot_id))
-            robot_state = task_state.state if task_state else "IDLE"
+            robot_state = task_state.state if task_state else "DOCKED"
 
             # ERROR도 작업 중 발생한 최종 상태이므로 해당 Task ID를 보존한다.
             # 작업이 정상 종료된 DOCKED에서만 current_task_id를 NULL로 저장한다.

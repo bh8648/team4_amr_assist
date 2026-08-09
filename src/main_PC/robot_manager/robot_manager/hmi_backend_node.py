@@ -16,7 +16,7 @@ import rclpy
 from ament_index_python.packages import get_package_prefix
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
-from robot_status.msg import TaskCommand, TaskState
+from robot_status.msg import NavigationResult, TaskCommand, TaskState
 
 # =========================================================
 # 1. Pydantic 요청 Body 모델
@@ -72,6 +72,9 @@ class HmiBackendNode(Node):
         self.task_command_publisher = self.create_publisher(TaskCommand, '/task/command', 10)   # 정지, 도킹, 언도킹 등의 명령을 보낼 퍼블리셔
         self.teleop_publishers = {robot_id: self.create_publisher(Twist, f'/{robot_id}/cmd_vel', 10) for robot_id in ('robot5', 'robot11')}
         self.task_state_subscription = self.create_subscription(TaskState, '/task/state', self.task_state_callback, 10)
+        # 브릿지의 실제 Dock/Undock 액션 성공 결과로만 HMI 도킹 표시를 확정한다.
+        self.navigation_result_subscription = self.create_subscription(
+            NavigationResult, '/navigation/result', self.navigation_result_callback, 10)
 
         self.control_states = {}
 
@@ -99,6 +102,16 @@ class HmiBackendNode(Node):
         if msg.state == 'ASSIGNED':
             control['canceled'] = 0
             control['teleop_enabled'] = 0
+
+    def navigation_result_callback(self, msg):
+        """브릿지가 보고한 실제 도킹 액션 성공 결과를 HMI 제어 상태에 반영한다."""
+        control = self.control_states.get(str(msg.robot_id))
+        if control is None or not msg.success:
+            return
+        if msg.goal_type == 'DOCK':
+            control['docked'] = 1
+        elif msg.goal_type == 'UNDOCK':
+            control['docked'] = 0
 
     def latest_task_state(self, robot_id: str):
         """재시작 뒤에도 제한을 유지하도록 DB의 가장 최근 작업 상태/결과를 조회한다."""
@@ -240,7 +253,7 @@ class HmiBackendNode(Node):
         command.robot_id, command.command = robot_id, 'DOCK' if dock else 'UNDOCK'
         self.task_command_publisher.publish(command)    # 도킹, 언도킹 명령을 퍼블리시
 
-        self.control_states[robot_id]['docked'] = int(dock)
+        # 요청 시점에는 상태를 바꾸지 않고 브릿지의 실제 액션 성공 결과를 기다린다.
         self.get_logger().info(f'AMR {robot_id} 도킹 요청: {"DOCK" if dock else "UNDOCK"}')
         return True
 

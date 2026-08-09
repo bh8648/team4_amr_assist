@@ -8,6 +8,7 @@
   <license>Apache-2.0</license>
 
   <depend>rclpy</depend>
+  <depend>action_msgs</depend>
   <depend>robot_status</depend>
   <depend>std_msgs</depend>
   <depend>geometry_msgs</depend>
@@ -16,6 +17,8 @@
   <depend>irobot_create_msgs</depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
+  <!-- 전용 launch에서 탑재 HMI 백엔드를 함께 시작한다. -->
+  <exec_depend>robot11_hmi_backend</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
