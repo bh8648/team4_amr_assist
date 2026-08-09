@@ -1,0 +1,74 @@
+[INFO] [launch]: All log files can be found below /home/rokey/.ros/log/2026-08-09-16-29-47-860355-mu-05-12593
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [oakd_detector_node-1]: process started with pid [12596]
+[INFO] [debug_viewer_node-2]: process started with pid [12598]
+[INFO] [leg_detector_bridge_node-3]: process started with pid [12600]
+[INFO] [reid_tracking_node-4]: process started with pid [12602]
+[INFO] [predictive_avoidance_node-5]: process started with pid [12604]
+[debug_viewer_node-2] QFontDatabase: Cannot find font directory /home/rokey/.local/lib/python3.10/site-packages/cv2/qt/fonts.
+[debug_viewer_node-2] Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
+[debug_viewer_node-2] QFontDatabase: Cannot find font directory /home/rokey/.local/lib/python3.10/site-packages/cv2/qt/fonts.
+[debug_viewer_node-2] Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
+[debug_viewer_node-2] QFontDatabase: Cannot find font directory /home/rokey/.local/lib/python3.10/site-packages/cv2/qt/fonts.
+[debug_viewer_node-2] Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
+[debug_viewer_node-2] QFontDatabase: Cannot find font directory /home/rokey/.local/lib/python3.10/site-packages/cv2/qt/fonts.
+[debug_viewer_node-2] Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
+[debug_viewer_node-2] QFontDatabase: Cannot find font directory /home/rokey/.local/lib/python3.10/site-packages/cv2/qt/fonts.
+[debug_viewer_node-2] Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
+[debug_viewer_node-2] [INFO] [1786260588.471982816] [oakd_detector_debug_viewer]: debug_viewer_node 시작 | /robot5/vision/oakd_detector/debug/compressed -> 창 "oakd_detector debug"
+[leg_detector_bridge_node-3] [INFO] [1786260588.506398457] [leg_detector_bridge_node]: leg_detector_bridge_node 시작 (자체 LaserScan 다리검출) | /robot5/scan -> /robot5/vision/leg_detections_3d
+[reid_tracking_node-4] [INFO] [1786260588.519107181] [reid_tracking_node]: reid_tracking_node 시작 | oakd=/robot5/vision/detections_3d webcam=/vision/webcam/detections_3d leg=/robot5/vision/leg_detections_3d -> /robot5/vision/tracked_detections_3d, /robot5/target_person_pose
+[predictive_avoidance_node-5] [INFO] [1786260588.519255482] [predictive_avoidance_node]: predictive_avoidance_node 시작 | /robot5/vision/tracked_detections_3d -> /robot5/vision/predicted_obstacle_points / /robot5/local_costmap/local_costmap/set_parameters (mode=pointcloud)
+[oakd_detector_node-1] /home/rokey/.local/lib/python3.10/site-packages/matplotlib/projections/__init__.py:63: UserWarning: Unable to import Axes3D. This may be due to multiple versions of Matplotlib being installed (e.g. as a system package and as a pip package). As a result, the 3D projection is not available.
+[oakd_detector_node-1]   warnings.warn("Unable to import Axes3D. This may be due to multiple versions of "
+[oakd_detector_node-1] [INFO] [1786260589.391012618] [oakd_detector_node]: YOLO-pose 모델 로드: yolo11n-pose.pt
+[oakd_detector_node-1] [INFO] [1786260589.439504606] [oakd_detector_node]: oakd_detector_node 시작 | ns=robot5 rgb=/robot5/oakd/rgb/image_raw/compressed depth=/robot5/oakd/stereo/image_raw/compressedDepth -> /robot5/vision/detections_3d (slop=0.05s, process_every_n=1)
+[oakd_detector_node-1] [WARN] [1786260590.441577502] [oakd_detector_node]: 이미지 입력 3.0s 이상 없음
+[leg_detector_bridge_node-3] [INFO] [1786260607.978244074] [leg_detector_bridge_node]: 정적 배경 해제: (-0.11, -0.41) 근처 1셀 - 움직임 관측
+[reid_tracking_node-4] [INFO] [1786260610.304203452] [reid_tracking_node]: [lifecycle] 생성 track 1 @(-1.33,-0.28) 출처=oakd 상류id=''(기존매핑 0건) / 기존 트랙 없음 / 갤러리 빔 / 배치검출 1개(기존트랙배정 0건)
+[reid_tracking_node-4] [INFO] [1786260611.223458632] [reid_tracking_node]: 라이다 락온 확정: leg_13 -> track 1
+[reid_tracking_node-4] [INFO] [1786260613.501215398] [reid_tracking_node]: [reid] 임베딩 수신 0 / 검출과 매칭 0 / 짝없음 32 | 갤러리 0개 | 신원복원 누적 0회
+[reid_tracking_node-4] [WARN] [1786260617.863003517] [reid_tracking_node]: 라이다 락온 id leg_13 유실 - 재매칭 진입
+[reid_tracking_node-4] [INFO] [1786260618.501195841] [reid_tracking_node]: [reid] 임베딩 수신 0 / 검출과 매칭 0 / 짝없음 83 | 갤러리 0개 | 신원복원 누적 0회
+[reid_tracking_node-4] [INFO] [1786260623.501506982] [reid_tracking_node]: [reid] 임베딩 수신 0 / 검출과 매칭 0 / 짝없음 132 | 갤러리 0개 | 신원복원 누적 0회
+[reid_tracking_node-4] [INFO] [1786260628.501236563] [reid_tracking_node]: [reid] 임베딩 수신 0 / 검출과 매칭 0 / 짝없음 182 | 갤러리 0개 | 신원복원 누적 0회
+[reid_tracking_node-4] [INFO] [1786260633.501393155] [reid_tracking_node]: [reid] 임베딩 수신 0 / 검출과 매칭 0 / 짝없음 232 | 갤러리 0개 | 신원복원 누적 0회
+[reid_tracking_node-4] [INFO] [1786260637.866087031] [reid_tracking_node]: 라이다 락온 확정: leg_27 -> track 1
+[reid_tracking_node-4] [INFO] [1786260638.501289345] [reid_tracking_node]: [reid] 임베딩 수신 0 / 검출과 매칭 0 / 짝없음 281 | 갤러리 0개 | 신원복원 누적 0회
+[reid_tracking_node-4] [INFO] [1786260639.309149909] [reid_tracking_node]: [lifecycle] 생성 track 2 @(-3.14,-1.15) 출처=oakd 상류id=''(기존매핑 0건) / 최근접 track 1 저장 1.41m / 예측 1.42m (v=0.52m/s) / 갤러리 빔 / 배치검출 1개(기존트랙배정 0건)
+[leg_detector_bridge_node-3] [INFO] [1786260642.149086321] [leg_detector_bridge_node]: 정적 배경 해제: (-2.08, -0.09) 근처 1셀 - 움직임 관측
+[leg_detector_bridge_node-3] [INFO] [1786260642.272495467] [leg_detector_bridge_node]: 정적 배경 해제: (-2.08, -0.07) 근처 1셀 - 움직임 관측
+[reid_tracking_node-4] [WARN] [1786260642.274078217] [reid_tracking_node]: 라이다 락온 id leg_27 유실 - 재매칭 진입
+[reid_tracking_node-4] [INFO] [1786260643.179712453] [reid_tracking_node]: 라이다 락온 확정: leg_30 -> track 1
+[reid_tracking_node-4] [INFO] [1786260643.501393405] [reid_tracking_node]: [reid] 임베딩 수신 0 / 검출과 매칭 0 / 짝없음 309 | 갤러리 0개 | 신원복원 누적 0회
+[leg_detector_bridge_node-3] [INFO] [1786260644.618245443] [leg_detector_bridge_node]: 정적 배경 해제: (-2.15, 0.09) 근처 2셀 - 움직임 관측
+[reid_tracking_node-4] [INFO] [1786260647.003153019] [reid_tracking_node]: [lifecycle] 생성 track 3 @(-3.54,2.41) 출처=oakd 상류id='oakd_7'(기존매핑 0건) / 최근접 track 2 저장 2.57m / 예측 2.57m (v=0.06m/s) / 갤러리 빔 / 배치검출 2개(기존트랙배정 1건)
+[reid_tracking_node-4] [INFO] [1786260648.501206530] [reid_tracking_node]: [reid] 임베딩 수신 0 / 검출과 매칭 0 / 짝없음 359 | 갤러리 0개 | 신원복원 누적 0회
+[reid_tracking_node-4] [INFO] [1786260649.111762987] [reid_tracking_node]: [lifecycle] 생성 track 4 @(-2.83,2.06) 출처=oakd 상류id='oakd_7'(기존매핑 1건) / 최근접 track 1 저장 1.96m / 예측 1.96m (v=0.05m/s) / 갤러리 빔 / 배치검출 2개(기존트랙배정 1건)
+[reid_tracking_node-4] [INFO] [1786260649.409015201] [reid_tracking_node]: [lifecycle] 생성 track 5 @(-4.66,3.52) 출처=oakd 상류id='oakd_7'(기존매핑 1건) / 최근접 track 3 저장 1.10m / 예측 1.21m (v=1.04m/s) / 갤러리 빔 / 배치검출 2개(기존트랙배정 1건)
+[reid_tracking_node-4] [WARN] [1786260650.330458281] [reid_tracking_node]: 라이다 락온 id leg_30 유실 - 재매칭 진입
+[leg_detector_bridge_node-3] [INFO] [1786260650.724330984] [leg_detector_bridge_node]: 정적 배경 해제: (-2.28, 0.10) 근처 1셀 - 움직임 관측
+[reid_tracking_node-4] [INFO] [1786260652.401894755] [reid_tracking_node]: [lifecycle] 소멸 track 3 @(-5.59,4.11) 마지막갱신 3.10s 전 / 수명 2.30s / 추종중=False / 출처=oakd
+[reid_tracking_node-4] [INFO] [1786260653.501254515] [reid_tracking_node]: [reid] 임베딩 수신 0 / 검출과 매칭 0 / 짝없음 409 | 갤러리 1개 | 신원복원 누적 0회
+[reid_tracking_node-4] [INFO] [1786260654.409214781] [reid_tracking_node]: [lifecycle] 소멸 track 4 @(-2.11,1.56) 마지막갱신 3.10s 전 / 수명 2.20s / 추종중=False / 출처=oakd
+[reid_tracking_node-4] [INFO] [1786260655.007666645] [reid_tracking_node]: [lifecycle] 소멸 track 5 @(-6.95,5.25) 마지막갱신 3.10s 전 / 수명 2.50s / 추종중=False / 출처=oakd
+[reid_tracking_node-4] [INFO] [1786260655.114081527] [reid_tracking_node]: [lifecycle] 소멸 track 1 @(-2.04,1.51) 마지막갱신 3.10s 전 / 수명 41.70s / 추종중=True / 출처=oakd
+[reid_tracking_node-4] [INFO] [1786260658.501425727] [reid_tracking_node]: [reid] 임베딩 수신 0 / 검출과 매칭 0 / 짝없음 440 | 갤러리 4개 | 신원복원 누적 0회
+[reid_tracking_node-4] [INFO] [1786260659.604996934] [reid_tracking_node]: [lifecycle] 소멸 track 2 @(-1.46,-0.52) 마지막갱신 3.10s 전 / 수명 17.20s / 추종중=False / 출처=oakd
+[reid_tracking_node-4] [INFO] [1786260663.501257495] [reid_tracking_node]: [reid] 임베딩 수신 0 / 검출과 매칭 0 / 짝없음 440 | 갤러리 5개 | 신원복원 누적 0회
+[reid_tracking_node-4] [INFO] [1786260663.713859749] [reid_tracking_node]: 외형 재식별로 신원 복원: track 2
+[leg_detector_bridge_node-3] [INFO] [1786260666.854402592] [leg_detector_bridge_node]: 정적 배경 해제: (-2.26, 0.05) 근처 2셀 - 움직임 관측
+[reid_tracking_node-4] [INFO] [1786260668.501249873] [reid_tracking_node]: [reid] 임베딩 수신 0 / 검출과 매칭 0 / 짝없음 487 | 갤러리 4개 | 신원복원 누적 1회
+[oakd_detector_node-1] [INFO] [1786260672.103746689] [oakd_detector_node]: 근접 안전모드 진입 (최근접 0.78m)
+[reid_tracking_node-4] [INFO] [1786260672.105044839] [reid_tracking_node]: [lifecycle] 생성 track 6 @(-0.85,-0.29) 출처=oakd 상류id=''(기존매핑 0건) / 최근접 track 2 저장 1.36m / 예측 1.28m (v=0.81m/s) / 갤러리 최근접 1 2.15m / 배치검출 1개(기존트랙배정 0건)
+[oakd_detector_node-1] [INFO] [1786260672.798643175] [oakd_detector_node]: 근접 안전모드 해제 (최근접 3.21m)
+[reid_tracking_node-4] [INFO] [1786260672.800099705] [reid_tracking_node]: [lifecycle] 생성 track 7 @(-3.14,-1.15) 출처=oakd 상류id=''(기존매핑 0건) / 최근접 track 2 저장 1.09m / 예측 1.48m (v=0.81m/s) / 갤러리 최근접 1 2.88m / 배치검출 1개(기존트랙배정 0건)
+[reid_tracking_node-4] [INFO] [1786260673.501148367] [reid_tracking_node]: [reid] 임베딩 수신 0 / 검출과 매칭 0 / 짝없음 524 | 갤러리 4개 | 신원복원 누적 1회
+[leg_detector_bridge_node-3] [INFO] [1786260673.729479712] [leg_detector_bridge_node]: 정적 배경 해제: (-0.12, -0.56) 근처 1셀 - 움직임 관측
+[reid_tracking_node-4] [INFO] [1786260675.119834609] [reid_tracking_node]: [lifecycle] 소멸 track 2 @(-2.13,-0.74) 마지막갱신 3.10s 전 / 수명 8.30s / 추종중=False / 출처=oakd
+[reid_tracking_node-4] [INFO] [1786260675.811462959] [reid_tracking_node]: [lifecycle] 소멸 track 7 @(-3.14,-1.15) 마지막갱신 3.00s 전 / 수명 0.00s / 추종중=False / 출처=oakd
+[oakd_detector_node-1] [INFO] [1786260678.402719898] [oakd_detector_node]: 근접 안전모드 진입 (최근접 0.79m)
+[reid_tracking_node-4] [INFO] [1786260678.501077744] [reid_tracking_node]: [reid] 임베딩 수신 0 / 검출과 매칭 0 / 짝없음 562 | 갤러리 6개 | 신원복원 누적 1회
+[leg_detector_bridge_node-3] [INFO] [1786260679.328239660] [leg_detector_bridge_node]: 정적 배경 해제: (-0.10, -0.34) 근처 1셀 - 움직임 관측
+[oakd_detector_node-1] [WARN] [1786260679.605109503] [oakd_detector_node]: 근접 경보 해제: 검출이 1.0s 이상 없음
+[leg_detector_bridge_node-3] [INFO] [1786260679.722234904] [leg_detector_bridge_node]: 정적 배경 해제: (-0.08, -0.35) 근처 1셀 - 움직임 관측

@@ -116,6 +116,7 @@ class OakdDetectorNode(Node):
         self.tf_timeout = Duration(seconds=self.get_parameter('tf_timeout').value)
         self.tf_allow_latest_fallback = self.get_parameter('tf_allow_latest_fallback').value
         self.conf_threshold = self.get_parameter('conf_threshold').value
+        self.max_detection_distance = self.get_parameter('max_detection_distance').value
         self.tracker_conf_threshold = self.get_parameter('tracker_conf_threshold').value
         self.kp_conf_threshold = self.get_parameter('kp_conf_threshold').value
         self.depth_scale = self.get_parameter('depth_scale').value
@@ -156,6 +157,7 @@ class OakdDetectorNode(Node):
         # 상류 트래커가 이 프레임에 id를 하나도 못 낸 횟수. reid_tracking_node의 상류 id 구제가
         # 무력화되는 조건이라(det.id가 빈 문자열로 나감) 트랙 churn의 직접 원인 후보다.
         self._stat_no_track_id = 0
+        self._stat_too_far = 0
         self._stat_detections = 0
         self._stat_depth_invalid = 0
         self._stat_depth_substituted = 0
@@ -312,6 +314,14 @@ class OakdDetectorNode(Node):
         # 검증에 쓴 bag(rosbag2_2026_08_06-12_27_59)에는 사람이 찍히지 않아 분포를 볼 수 없었다.
         # 사람이 나오는 근접 주행 bag이 생기면 person conf 분포를 보고 다시 정해야 한다.
         self.declare_parameter('conf_threshold', 0.3)
+        # base_link 기준 이 거리를 넘는 검출은 발행하지 않는다(0 이하면 끔).
+        # 원거리 검출은 depth 오차가 커서 map 좌표가 프레임마다 수 m씩 튀는데, 그런 유령
+        # 검출이 만든 트랙이 추종 트랙을 끌고 가 실제로 대상을 잃게 만들었다(실기 16:29 로그:
+        # 3~6m에 상류id oakd_7 하나가 (-3.54,2.41)/(-2.83,2.06)/(-4.66,3.52)로 튀는 동안
+        # 추종 track 1이 y -0.28 -> +1.51로 1.8m 끌려간 뒤 소멸). 사람 추종에 원거리 검출은
+        # 쓰이지 않는다 - 원거리 획득은 웹캠 호출좌표 담당이고, 라이다도
+        # scan_range_limit=5.0으로 같은 상한을 쓴다.
+        self.declare_parameter('max_detection_distance', 5.0)
         # 트래커에 넣을 때만 쓰는 낮은 임계. YOLO의 .track()에 conf_threshold를 그대로 주면
         # 저신뢰 검출이 트래커에 도달하기도 전에 잘려, TrackTrack/ByteTrack 계열의 2단계
         # 연결(track_low_thresh=0.25로 저신뢰 검출을 기존 트랙에 이어붙여 끊김을 막는 장치)이
@@ -529,6 +539,9 @@ class OakdDetectorNode(Node):
                 continue
 
             distance = math.hypot(pt_base.point.x, pt_base.point.y)
+            if 0.0 < self.max_detection_distance < distance:
+                self._stat_too_far += 1
+                continue
             bearing = math.atan2(pt_base.point.y, pt_base.point.x)
             if nearest is None or distance < nearest[0]:
                 nearest = (distance, bearing)
@@ -908,6 +921,7 @@ class OakdDetectorNode(Node):
             KeyValue(key='tf_failures', value=str(self._stat_tf_failures)),
             KeyValue(key='truncated_count', value=str(self._stat_truncated)),
             KeyValue(key='frames_without_track_id', value=str(self._stat_no_track_id)),
+            KeyValue(key='dropped_too_far', value=str(self._stat_too_far)),
             KeyValue(key='proximity_alert', value=str(self.proximity_active).lower()),
             KeyValue(key='ir_check', value=self._stat_ir_check),
             KeyValue(key='ir_value', value=str(self._stat_ir_value)),
@@ -933,6 +947,7 @@ class OakdDetectorNode(Node):
         # 상류 트래커가 이 프레임에 id를 하나도 못 낸 횟수. reid_tracking_node의 상류 id 구제가
         # 무력화되는 조건이라(det.id가 빈 문자열로 나감) 트랙 churn의 직접 원인 후보다.
         self._stat_no_track_id = 0
+        self._stat_too_far = 0
         self._stat_detections = 0
         self._stat_depth_invalid = 0
         self._stat_depth_substituted = 0

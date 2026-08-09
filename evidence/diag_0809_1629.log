@@ -1,0 +1,6396 @@
+header:
+  stamp:
+    sec: 1786260600
+    nanosec: 440737296
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '9.99'
+  - key: detections
+    value: '0'
+  - key: nearest_distance_m
+    value: n/a
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '9'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.0'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260600
+    nanosec: 624426617
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260601
+    nanosec: 439831585
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.01'
+  - key: detections
+    value: '0'
+  - key: nearest_distance_m
+    value: n/a
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '6'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260601
+    nanosec: 623639585
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260602
+    nanosec: 439603081
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '0'
+  - key: nearest_distance_m
+    value: n/a
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '9'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260602
+    nanosec: 623575934
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260603
+    nanosec: 439617463
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '0'
+  - key: nearest_distance_m
+    value: n/a
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '8'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260603
+    nanosec: 623584394
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260604
+    nanosec: 439620451
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '0'
+  - key: nearest_distance_m
+    value: n/a
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '10'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260604
+    nanosec: 623667612
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260605
+    nanosec: 439678489
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '0'
+  - key: nearest_distance_m
+    value: n/a
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '8'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260605
+    nanosec: 623744571
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260606
+    nanosec: 439916747
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '0'
+  - key: nearest_distance_m
+    value: n/a
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '7'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260606
+    nanosec: 623568106
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260607
+    nanosec: 439913791
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '0'
+  - key: nearest_distance_m
+    value: n/a
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '9'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260607
+    nanosec: 623584936
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260608
+    nanosec: 440035085
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '0'
+  - key: nearest_distance_m
+    value: n/a
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '9'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260608
+    nanosec: 623713895
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260609
+    nanosec: 439846361
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '0'
+  - key: nearest_distance_m
+    value: n/a
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '5'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260609
+    nanosec: 623573189
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260610
+    nanosec: 439679521
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '2'
+  - key: nearest_distance_m
+    value: '1.23'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '2'
+  - key: frames_without_track_id
+    value: '5'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '2'
+---
+header:
+  stamp:
+    sec: 1786260610
+    nanosec: 623570038
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260611
+    nanosec: 439737053
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '1.27'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '1'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '8'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '1'
+  - key: grade_knee_corrected
+    value: '1'
+  - key: grade_toe_direct
+    value: '8'
+---
+header:
+  stamp:
+    sec: 1786260611
+    nanosec: 623728940
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260612
+    nanosec: 439734342
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '1.56'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260612
+    nanosec: 623695030
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260613
+    nanosec: 439657335
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '1.84'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260613
+    nanosec: 623624268
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260614
+    nanosec: 439636073
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.01'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260614
+    nanosec: 623545155
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260615
+    nanosec: 439759244
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.01'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260615
+    nanosec: 623584855
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260616
+    nanosec: 440142955
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.12'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260616
+    nanosec: 623663314
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260617
+    nanosec: 439806722
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.12'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260617
+    nanosec: 623633070
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260618
+    nanosec: 439673174
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.12'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260618
+    nanosec: 623583419
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260619
+    nanosec: 439653665
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.12'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260619
+    nanosec: 623596231
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260620
+    nanosec: 439640183
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.16'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260620
+    nanosec: 623574005
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260621
+    nanosec: 439790941
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.12'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260621
+    nanosec: 623593076
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260622
+    nanosec: 439729764
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.12'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260622
+    nanosec: 623727145
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260623
+    nanosec: 439655930
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.12'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.0'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260623
+    nanosec: 623645921
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260624
+    nanosec: 440252557
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '9.99'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.12'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260624
+    nanosec: 623633084
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260625
+    nanosec: 439835248
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.12'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260625
+    nanosec: 623555026
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260626
+    nanosec: 439779262
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.12'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260626
+    nanosec: 623630430
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260627
+    nanosec: 439752753
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.12'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260627
+    nanosec: 623702889
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260628
+    nanosec: 439787757
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.12'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260628
+    nanosec: 623533998
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260629
+    nanosec: 439637452
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.12'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260629
+    nanosec: 623596031
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260630
+    nanosec: 439846275
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.12'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260630
+    nanosec: 624024413
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260631
+    nanosec: 439925740
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.12'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260631
+    nanosec: 623618099
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260632
+    nanosec: 439704430
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.13'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260632
+    nanosec: 623656910
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260633
+    nanosec: 439995028
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.13'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260633
+    nanosec: 623559056
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260634
+    nanosec: 439751631
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.12'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260634
+    nanosec: 623697681
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260635
+    nanosec: 439627015
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.13'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260635
+    nanosec: 623562920
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260636
+    nanosec: 439806173
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.12'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260636
+    nanosec: 623562139
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260637
+    nanosec: 439747222
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '1.90'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260637
+    nanosec: 623574339
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260638
+    nanosec: 439629961
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '9'
+  - key: nearest_distance_m
+    value: '1.88'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '7'
+  - key: frames_without_track_id
+    value: '1'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '1'
+  - key: grade_toe_direct
+    value: '8'
+---
+header:
+  stamp:
+    sec: 1786260638
+    nanosec: 623557040
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260639
+    nanosec: 439982796
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '2'
+  - key: nearest_distance_m
+    value: '3.21'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '7'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '2'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260639
+    nanosec: 623717479
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260640
+    nanosec: 439736400
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '5'
+  - key: nearest_distance_m
+    value: '3.21'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '10'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '5'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260640
+    nanosec: 623581700
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260641
+    nanosec: 439819750
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '3'
+  - key: nearest_distance_m
+    value: '3.21'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '5'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '3'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260641
+    nanosec: 623706288
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260642
+    nanosec: 439946835
+  frame_id: ''
+status:
+- level: "\x01"
+  name: 'robot5: oakd_detector_node'
+  message: depth 무효 또는 tf 변환 실패 발생
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '8'
+  - key: nearest_distance_m
+    value: '1.87'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '1'
+  - key: depth_substituted
+    value: '2'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '8'
+  - key: frames_without_track_id
+    value: '5'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.0'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '4'
+  - key: grade_toe_direct
+    value: '4'
+---
+header:
+  stamp:
+    sec: 1786260642
+    nanosec: 623573286
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260643
+    nanosec: 439839515
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '1.91'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260643
+    nanosec: 623594060
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260644
+    nanosec: 439589252
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '1.92'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.0'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260644
+    nanosec: 623664778
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260645
+    nanosec: 439804783
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.02'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260645
+    nanosec: 623599776
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260646
+    nanosec: 439562184
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.13'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260646
+    nanosec: 623579773
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260647
+    nanosec: 439644397
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '14'
+  - key: nearest_distance_m
+    value: '2.22'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '1'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '14'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '4'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260647
+    nanosec: 623570918
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260648
+    nanosec: 439659315
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '20'
+  - key: nearest_distance_m
+    value: '2.22'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '4'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '20'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '10'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260648
+    nanosec: 623581433
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260649
+    nanosec: 439966772
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '20'
+  - key: nearest_distance_m
+    value: '2.22'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '8'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '13'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '10'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260649
+    nanosec: 623633003
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260650
+    nanosec: 439664329
+  frame_id: ''
+status:
+- level: "\x01"
+  name: 'robot5: oakd_detector_node'
+  message: depth 무효 또는 tf 변환 실패 발생
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '19'
+  - key: nearest_distance_m
+    value: '2.22'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '1'
+  - key: depth_substituted
+    value: '6'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.0'
+  - key: grade_angle_only
+    value: '9'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260650
+    nanosec: 623665611
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260651
+    nanosec: 439701290
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '20'
+  - key: nearest_distance_m
+    value: '2.26'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '8'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '10'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260651
+    nanosec: 623572238
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260652
+    nanosec: 439860579
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '16'
+  - key: nearest_distance_m
+    value: '2.26'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '6'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260652
+    nanosec: 623548179
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260653
+    nanosec: 439610502
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.31'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260653
+    nanosec: 623604305
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260654
+    nanosec: 439588570
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.26'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260654
+    nanosec: 623848281
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260655
+    nanosec: 439720922
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '1.91'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260655
+    nanosec: 623612706
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260656
+    nanosec: 439645708
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '1.56'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '1'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.0'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '1'
+  - key: grade_toe_direct
+    value: '9'
+---
+header:
+  stamp:
+    sec: 1786260656
+    nanosec: 623646388
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260657
+    nanosec: 439806449
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '1'
+  - key: nearest_distance_m
+    value: '1.44'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '1'
+  - key: frames_without_track_id
+    value: '4'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '1'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260657
+    nanosec: 623599755
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260658
+    nanosec: 439638490
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '0'
+  - key: nearest_distance_m
+    value: n/a
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '3'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260658
+    nanosec: 623617814
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260659
+    nanosec: 439752011
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '0'
+  - key: nearest_distance_m
+    value: n/a
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '1'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260659
+    nanosec: 623565235
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260660
+    nanosec: 439956527
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '0'
+  - key: nearest_distance_m
+    value: n/a
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '2'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260660
+    nanosec: 623710246
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260661
+    nanosec: 439745637
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '0'
+  - key: nearest_distance_m
+    value: n/a
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '8'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260661
+    nanosec: 623699481
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260662
+    nanosec: 439647156
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '0'
+  - key: nearest_distance_m
+    value: n/a
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '9'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260662
+    nanosec: 623573791
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260663
+    nanosec: 439731569
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '0'
+  - key: nearest_distance_m
+    value: n/a
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '8'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260663
+    nanosec: 623563100
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260664
+    nanosec: 439632005
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '7'
+  - key: nearest_distance_m
+    value: '0.84'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '7'
+  - key: frames_without_track_id
+    value: '10'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.0'
+  - key: grade_angle_only
+    value: '1'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '6'
+---
+header:
+  stamp:
+    sec: 1786260664
+    nanosec: 623559279
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260665
+    nanosec: 439631063
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '0.86'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.0'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260665
+    nanosec: 623542162
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260666
+    nanosec: 439679346
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '1.63'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260666
+    nanosec: 623743524
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260667
+    nanosec: 439616718
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '1.95'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260667
+    nanosec: 623728055
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260668
+    nanosec: 439605803
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.30'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260668
+    nanosec: 623695679
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260669
+    nanosec: 439749047
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.30'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260669
+    nanosec: 623608452
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260670
+    nanosec: 439583629
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.30'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260670
+    nanosec: 623729574
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260671
+    nanosec: 439774837
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '2.22'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260671
+    nanosec: 623590588
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260672
+    nanosec: 439698802
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '6'
+  - key: nearest_distance_m
+    value: '0.78'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '4'
+  - key: frames_without_track_id
+    value: '2'
+  - key: proximity_alert
+    value: 'true'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.0'
+  - key: grade_angle_only
+    value: '2'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '4'
+---
+header:
+  stamp:
+    sec: 1786260672
+    nanosec: 623656897
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260673
+    nanosec: 440056763
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '1'
+  - key: nearest_distance_m
+    value: '3.21'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '8'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '1'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260673
+    nanosec: 623612224
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260674
+    nanosec: 439635555
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '8.00'
+  - key: detections
+    value: '1'
+  - key: nearest_distance_m
+    value: '0.87'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '2'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '1'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260674
+    nanosec: 623651199
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260675
+    nanosec: 439820612
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '7'
+  - key: nearest_distance_m
+    value: '1.09'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '5'
+  - key: frames_without_track_id
+    value: '7'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '3'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '4'
+---
+header:
+  stamp:
+    sec: 1786260675
+    nanosec: 623732267
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260676
+    nanosec: 439813634
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '1.18'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260676
+    nanosec: 623655095
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260677
+    nanosec: 443640977
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '9.96'
+  - key: detections
+    value: '10'
+  - key: nearest_distance_m
+    value: '1.07'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '10'
+  - key: frames_without_track_id
+    value: '0'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.0'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '10'
+---
+header:
+  stamp:
+    sec: 1786260677
+    nanosec: 623614756
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260678
+    nanosec: 439763275
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.04'
+  - key: detections
+    value: '9'
+  - key: nearest_distance_m
+    value: '0.79'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '8'
+  - key: frames_without_track_id
+    value: '2'
+  - key: proximity_alert
+    value: 'true'
+  - key: ir_check
+    value: unavailable
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '1'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '8'
+---
+header:
+  stamp:
+    sec: 1786260678
+    nanosec: 623697693
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260679
+    nanosec: 439599654
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '1'
+  - key: nearest_distance_m
+    value: '0.80'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '3'
+  - key: proximity_alert
+    value: 'true'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '1'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260679
+    nanosec: 623616188
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260680
+    nanosec: 439658531
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '0'
+  - key: nearest_distance_m
+    value: n/a
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '0'
+  - key: frames_without_track_id
+    value: '8'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '0'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260680
+    nanosec: 623615127
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---
+header:
+  stamp:
+    sec: 1786260681
+    nanosec: 439583748
+  frame_id: ''
+status:
+- level: "\0"
+  name: 'robot5: oakd_detector_node'
+  message: 정상
+  hardware_id: robot5
+  values:
+  - key: fps
+    value: '10.00'
+  - key: detections
+    value: '2'
+  - key: nearest_distance_m
+    value: '1.76'
+  - key: rgb_depth_dt_ms
+    value: '0.1'
+  - key: depth_invalid
+    value: '0'
+  - key: depth_substituted
+    value: '0'
+  - key: tf_failures
+    value: '0'
+  - key: truncated_count
+    value: '1'
+  - key: frames_without_track_id
+    value: '2'
+  - key: proximity_alert
+    value: 'false'
+  - key: ir_check
+    value: idle
+  - key: ir_value
+    value: '0'
+  - key: last_frame_age_s
+    value: '0.1'
+  - key: grade_angle_only
+    value: '2'
+  - key: grade_knee_corrected
+    value: '0'
+  - key: grade_toe_direct
+    value: '0'
+---
+header:
+  stamp:
+    sec: 1786260681
+    nanosec: 623574769
+  frame_id: ''
+status:
+- level: "\x02"
+  name: 'joy_linux_node: Joystick Driver Status'
+  message: Joystick not open.
+  hardware_id: none
+  values:
+  - key: topic
+    value: /robot5/joy
+  - key: device
+    value: /dev/input/js0
+  - key: device name
+    value: ''
+  - key: dead zone
+    value: '0.05'
+  - key: autorepeat rate (Hz)
+    value: '20'
+  - key: coalesce interval (s)
+    value: '0.001'
+  - key: recent joystick event rate (Hz)
+    value: '0'
+  - key: recent publication rate (Hz)
+    value: '0'
+  - key: subscribers
+    value: '2'
+  - key: default trig val
+    value: 'False'
+  - key: sticky buttons
+    value: 'False'
+---

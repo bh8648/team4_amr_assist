@@ -62,6 +62,9 @@ def generate_launch_description():
         # 한 사람이 서 있는데 트랙이 여러 개 만들어지는(=추종이 깜빡이는) 원인을 가리기 위한
         # 진단 로그. 트랙 생성/소멸을 좌표·상류id·최근접 기존트랙 거리와 함께 찍는다.
         DeclareLaunchArgument('log_track_lifecycle', default_value='false'),
+        # base_link 기준 검출 거리 상한(m). 원거리 검출은 depth 오차로 map 좌표가 수 m씩
+        # 튀고, 그 유령 트랙이 추종 트랙을 끌고 가 대상을 잃게 만든다. 0 이하면 끈다.
+        DeclareLaunchArgument('max_detection_distance', default_value='5.0'),
         # 전역 좌표계. 각 노드가 tf2 조회/출력 frame_id에 사용한다. AMCL/nav2가 없는 로스백
         # 재생 테스트에서는 map 프레임이 존재하지 않으므로 odom으로 넘겨야 tf lookup이 성공한다.
         DeclareLaunchArgument('map_frame', default_value='map'),
@@ -144,6 +147,7 @@ def generate_launch_description():
             'diagnostics_topic': diagnostics_topic,
             'debug_image_topic': debug_image_topic,
             'publish_debug_image': LaunchConfiguration('publish_debug_image'),
+            'max_detection_distance': LaunchConfiguration('max_detection_distance'),
             'reid_embeddings_topic': embeddings_topic,
             'follow_target_topic': target_pose_topic,
             'map_frame': LaunchConfiguration('map_frame'),
