@@ -26,14 +26,38 @@ Nav2 goal을 트리거한다.
 
 ### 4) 위치추정 - OAK-D PRO (AMR 탑재, `amr_person_tracking` 구현)
 로봇-작업자 거리가 대략 1.5~2m 이하로 좁혀지면 정밀 위치로 전환한다. `oakd_detector_node`가
-OAK-D의 RGB/Depth 스트림에서 직접 YOLO-pose로 사람의 발끝 keypoint를 추출하고, 같은 픽셀의
-depth 값을 camera_info 내부 파라미터로 역투영해 camera_link 기준 3D 좌표를 얻는다. 발끝이
-가려져 직접 검출되지 않는 경우를 대비해 좌표 산출 방식에 등급(각도만 추정 / 무릎 keypoint로
-보정 / 발끝 직접 검출)을 매겨 신뢰도 플래그로 함께 싣는다. depth가 MinZ 이하로 가까워지면
-추적 방향에 해당하는 IR 근접센서 값을 같이 확인해 근접 안전모드로 전환한다.
+OAK-D의 RGB/Depth 스트림에서 직접 YOLO-pose로 사람의 발끝 keypoint를 추출하고, depth 값을
+camera_info 내부 파라미터로 역투영해 camera_link 기준 3D 좌표를 얻는다. 발끝이 가려져 직접
+검출되지 않는 경우를 대비해 좌표 산출 방식에 등급(각도만 추정 / 무릎 keypoint로 보정 / 발끝
+직접 검출)을 매겨 신뢰도 플래그로 함께 싣는다. depth가 MinZ 이하로 가까워지면 추적 방향에
+해당하는 IR 근접센서 값을 같이 확인해 근접 안전모드로 전환한다.
+
+**접지점 depth를 어디서 재는가** — 좌우 발목이 모두 보일 때 두 픽셀을 평균한 "중점"에서 depth를
+읽으면 안 된다. 걸을 때 다리가 벌어지면 그 중점은 두 다리 사이 허공이라 뒤쪽 벽/바닥 거리가
+찍힌다(실측: 두 발목이 모두 검출된 프레임의 22.1%가 몸통 깊이와 0.4m 이상 어긋남. 발목 간격
+중앙값 77px, 90%분위 219px). 그래서 `foot_pixel_candidates()`가 각 발목을 **개별 후보**로
+내보내고, 노드는 **방향(u,v)은 후보들의 중점, 거리(z)는 각 발목에서 실제로 잰 depth의 평균**을
+쓴다. 중점 픽셀은 사람의 좌우 중심이라 안정적이고 depth는 실제 사람 표면에서 온다. 발목 하나만
+고르는 방식도 검토했지만 걸을 때 앞발/뒷발이 프레임마다 번갈아 뽑혀 보폭만큼 진동했다.
+그래도 몸통 깊이와 크게 어긋나면(`depth_consistency_tolerance`, 기본 0.4m) bbox 안쪽에서 구한
+사람 표면 깊이로 대체하는 최후 안전망을 두는데, 위 방식 도입 후 이 안전망은 실측상 발동하지
+않는다(22.2% → 0.0%).
+
+**검출 신뢰도 임계는 두 단계로 분리**돼 있다. YOLO 트래커에는 `tracker_conf_threshold`(기본 0.1)로
+저신뢰 검출까지 넣어 TrackTrack/ByteTrack 계열의 2단계 연결(저신뢰 검출을 기존 트랙에 이어붙여
+끊김을 막는 장치)을 살리고, 실제로 발행하는 검출은 `conf_threshold`(기본 0.3)로 따로 거른다.
+하류가 받는 검출 품질은 그대로면서 트랙 연속성만 얻는 구성이다(실측: 3인 교차 bag에서 YOLO
+고유 track_id 11개 → 6개, 실제 인원 3명에 근접).
 
 웹캠(3번)의 world XY에서 이 노드의 depth 3D XY로 전환되는 시점에는 좌표가 불연속으로 튈 수
-있는데, 이는 재식별/트래킹 노드(7번)가 칼만필터로 블렌딩해 완화한다.
+있는데, 이는 재식별/트래킹 노드(7번)가 출처 전환 블렌딩으로 완화한다.
+
+**처리 성능(실측, RTX 4070 노트북 + bag 재생 기준)** — 프레임당 약 27ms(외형 ReID 미사용 시,
+기본 구성)로 이론상 37Hz까지 가능하다. 실제 달성 레이트는 **4.84Hz**인데 이는 연산 한계가 아니라
+**depth 스트림이 5Hz**이기 때문이다(RGB는 이미 10Hz). 10Hz로 올리려면 로봇 쪽 depth 발행률을
+올려야 하며 이 패키지 코드 변경은 필요 없다. 외형 ReID를 켜면 프레임당 54ms로 늘어난다(ReID
+onnx가 CPU로 동작 — onnxruntime-gpu가 CUDA 12를 요구하는데 이 환경은 torch용 CUDA 13만 있어
+GPU 초기화에 실패한다).
 
 터틀봇4는 카메라 장착 높이가 낮아서, 사람에게 더 가까이 접근하는 초근접 구간에서는 OAK-D
 프레임에 다리만 잡혀 depth 기반 발끝 검출 자체가 불안정해진다. 이 구간은 오히려 2D 라이다가
@@ -64,12 +88,43 @@ Nav2 voxel_layer의 observation_source로 라이다 obstacle_layer와 병렬 등
 적용되어 결과적으로 그 물체 주변만 더 넓게 부풀려진다. 접근 속도에 비례해 local_costmap의
 inflation 파라미터를 직접 조정하는 방식도 대안으로 지원한다.
 
-### 7) 재식별/트래킹 (AMR 탑재, `amr_person_tracking` 구현 — 틀만 구성, 추후 디벨롭)
+### 7) 재식별/트래킹 (AMR 탑재, `amr_person_tracking` 구현)
 가려짐·프레임 이탈 후에도 같은 사람을 같은 트랙으로 유지한다. `reid_tracking_node`가 웹캠
-로컬라이제이션 스트림과 `oakd_detector_node`의 근접 검출 스트림을 함께 받아, 3D 위치 기반으로
-마지막 위치+속도 게이팅으로 매칭한다. 다인원이 자주 겹치는 경우를 위해 appearance 임베딩(OSNet)
-매칭도 추가할 수 있게 구조를 열어둔다. 동일 인물의 출처가 웹캠→OAK-D로 전환되는 시점에는
-칼만필터로 좌표를 블렌딩해 불연속을 완화한다.
+로컬라이제이션 스트림과 `oakd_detector_node`의 근접 검출 스트림을 함께 받아 통합 트랙을 관리한다.
+동일 인물의 출처가 웹캠→OAK-D로 전환되는 첫 프레임만 위치를 블렌딩해 불연속을 완화한다.
+
+검출 하나가 들어오면 **4단계를 순서대로** 거쳐 내부 트랙 ID를 정한다:
+
+1. **위치+속도 게이팅 + Hungarian 전역 최적 배정** — 게이트 반경은 `max(gating_min_gate,
+   gating_max_speed × dt)`. 예전에는 최근접부터 그리디로 확정했으나, 지역적으로 최선인 선택이
+   전체로는 더 나쁜 조합을 만들 수 있어 `scipy.optimize.linear_sum_assignment`로 교체했다.
+2. **상류 트래커 id 구제** — 상류(YOLO `track(persist=True)`) id가 이전에 어떤 내부 트랙에
+   매핑됐고 그 트랙이 아직 살아있으면, 위치 게이팅 결과와 **무관하게** 그 매핑을 우선한다.
+   갓 생성된 트랙이 다음 프레임에 자기 게이트를 살짝 벗어나 중복 트랙이 생기면 두 트랙이 같은
+   상류 id의 검출을 번갈아 차지하며 추종 좌표가 순간이동했기 때문이다(실측 6.4m/s → 3.1m/s).
+   상류 id 재사용으로 다른 사람에게 붙는 것을 막기 위해 절대 거리 상한을 둔다.
+3. **dormant identity gallery 부활** — 새 ID를 발급하기 직전, 최근 사라진 신원 중 마지막으로
+   보이던 자리에서 `revival_max_distance`(1.5m) 이내로 돌아온 것이 있으면 그 신원을 되살린다
+   (위치는 새 관측으로 리셋하고 속도는 0에서 재추정 — 공백 동안의 낡은 속도로 외삽하면 안 된다).
+4. 전부 실패하면 새 트랙 ID 발급.
+
+**추종 대상 유지(sticky_follow)** — 한 번 정해진 대상은 사라져도 다른 사람으로 갈아타지 않는다.
+예전에는 추종 트랙이 `track_timeout`(3초)으로 지워지면 곧바로 그 시점에 살아있는 아무 사람을
+골라, 추종 대상이 실제로 다른 사람에게 건너뛰었다. 이제는 사라진 트랙을 `dormant_ttl`(30초)
+동안 갤러리에 마지막 위치와 함께 보관하고, **기다리는 신원이 있는 동안에는 새 대상을 고르지
+않는다.** 그 사이 `target_person_pose`는 발행되지 않는데, 이는 이 노드가 "대상 없음"을 침묵으로
+표현하는 관례와 같고 엉뚱한 사람 좌표를 내보내는 것보다 안전하다. 그 사람이 마지막으로 보이던
+자리에서 `revival_max_distance`(1.5m) 이내로 다시 나타나면 원래 신원으로 되살려 추종을 복구한다.
+`dormant_ttl`이 상한이라 영영 아무도 안 따라가는 상태는 생기지 않는다.
+
+**아직 임시인 부분** — 최초 대상 획득은 "가장 먼저 잡힌(가장 오래된) 트랙"이라는 자리표시자
+정책이다. 제스처나 웹캠 호출좌표 기반의 실제 대상 지정이 붙으면 이 자리를 대체하면 되고,
+sticky 로직은 그대로 재사용된다.
+
+**검증했지만 기본으로 끈 기능** — 외형(ReID) 임베딩 매칭과 칼만필터/마할라노비스 게이팅은
+구현·단위테스트까지 돼 있으나 이 현장 데이터에서 이득이 없어 파라미터로 꺼뒀다. 각각
+`evidence/evidence_reid_embedding_log.txt`, `evidence/evidence_kalman_mahalanobis_log.txt`에
+측정 근거와 켜는 법이 있다.
 
 `leg_detector_bridge_node`가 편입시킨 라이다 다리검출 스트림은 위치/속도만 알 뿐 신원을
 모르므로, 웹캠이 추종하던 타겟과 같은 사람인지는 이 노드가 별도로 판별한다. 절차는 다음과
@@ -106,12 +161,12 @@ inflation 파라미터를 직접 조정하는 방식도 대안으로 지원한�
 | 위험·장애물 브로드캐스트 노드 | 송신 | `sensor_msgs/msg/PointCloud2`(`/vision/person_points`, `/vision/obstacle_points`) | → 각 로봇 `nav2_costmap_2d`(voxel_layer/obstacle_layer, observation_sources) | 라이다 사각지대 보완 겸용, 클래스별 안전마진 차등 적용 |
 | `depthai_ros_driver`(기성 패키지) | 송신 | RGB/Depth/CameraInfo (compressed) | → `oakd_detector_node` | OAK-D-PRO 하드웨어 스트림, 대역폭 절약을 위해 compressed로 발행 |
 | `oakd_detector_node` (`amr_person_tracking`) | 수신 | `sensor_msgs/msg/CompressedImage`(rgb, depth) + `sensor_msgs/msg/CameraInfo` | `depthai_ros_driver` | YOLO-pose 추론부터 3D 역투영까지 이 노드에서 직접 수행 |
-| `oakd_detector_node` (`amr_person_tracking`) | 송신 | `vision_msgs/msg/Detection3DArray` (frame_id=map, tf2로 변환 완료) | → 재식별/트래킹 노드 | 고정캠 스트림과 동일 스키마로 합류 — 하위 노드가 출처 구분 불필요 |
+| `oakd_detector_node` (`amr_person_tracking`) | 송신 | `vision_msgs/msg/Detection3DArray` (frame_id=map, tf2로 변환 완료) | → 재식별/트래킹 노드 | 고정캠 스트림과 동일 스키마로 합류 — 하위 노드가 출처 구분 불필요. `pose.covariance[0]`에 등급+동기시간차 기반 위치 분산을 실어 보냄 |
 | `leg_detector_bridge_node` (`amr_person_tracking`) | 수신 | `sensor_msgs/msg/LaserScan` | LiDAR 드라이버 | 자체 구현 검출기 - 곡률필터+칼만필터 기반 정적배경 제외. range+bearing 센서라 depth 역투영/호모그래피 불필요, tf 변환만 수행 |
 | `leg_detector_bridge_node` (`amr_person_tracking`) | 송신 | `vision_msgs/msg/Detection3DArray` (frame_id=map) | → 재식별/트래킹 노드 | 다른 두 소스와 동일 스키마로 합류. 신원은 모름 — id 필드엔 라이다 쪽 트랙 ID만 실림 |
-| `reid_tracking_node` (`amr_person_tracking`) | 수신 | 로컬라이제이션 노드 + `oakd_detector_node` + `leg_detector_bridge_node`의 `Detection3DArray` (통합 스트림) | 상동 | 3D 위치 기반 게이팅(마지막 위치+속도로 근접 매칭), 라이다 스트림은 시간정렬 예측→게이팅→N프레임 확인 후 락온하는 별도 신원 매칭 절차를 거침 |
+| `reid_tracking_node` (`amr_person_tracking`) | 수신 | 로컬라이제이션 노드 + `oakd_detector_node` + `leg_detector_bridge_node`의 `Detection3DArray` (통합 스트림) | 상동 | 위치+속도 게이팅 → Hungarian 전역 배정 → 상류 id 구제 → 갤러리 부활 4단계. 라이다 스트림은 시간정렬 예측→게이팅→N프레임 확인 후 락온하는 별도 신원 매칭 절차를 거침 |
 | `reid_tracking_node` (`amr_person_tracking`) | 송신 | `vision_msgs/msg/Detection3DArray` (표준 id 필드에 지속 트랙ID 기록해 재발행) | → 예측 회피 노드, 스케줄러(비전 범위 밖) | 커스텀 ID 메시지 대신 표준 필드 재사용 |
-| `reid_tracking_node` (`amr_person_tracking`) | 송신 | `geometry_msgs/msg/PoseStamped` (frame_id=map) | → Nav2 goal 발행 노드 (범위 밖) | 추종 대상 트랙의 2D map 좌표만 제공, Nav2 액션 호출은 별도 노드 담당 |
+| `reid_tracking_node` (`amr_person_tracking`) | 송신 | `geometry_msgs/msg/PoseStamped` (frame_id=map) | → Nav2 goal 발행 노드 (범위 밖) | 추종 대상 트랙의 2D map 좌표만 제공, Nav2 액션 호출은 별도 노드 담당. **추종 대상이 있을 때만 발행**(없으면 침묵) |
 | `predictive_avoidance_node` (`amr_person_tracking`) | 수신 | id 포함 `Detection3DArray` 시계열 | 재식별/트래킹 노드 | 칼만필터(등속도 모델)로 속도 추정+예측, Δt는 `header.stamp` 기준 |
 | `predictive_avoidance_node` (`amr_person_tracking`) | 송신 | `rcl_interfaces/srv/SetParameters` | → 각 로봇 `local_costmap` 노드(nav2_costmap_2d) | 접근 속도에 비례해 inflation 파라미터 동적 조정 |
 | `predictive_avoidance_node` (`amr_person_tracking`) | 송신(대안) | `sensor_msgs/msg/PointCloud2` (가상 포인트) | → `nav2_costmap_2d` voxel_layer | `avoidance_mode` 파라미터로 SetParameters 방식과 양자택일/병행 |
@@ -125,10 +180,33 @@ src/amr_person_tracking/
   amr_person_tracking/
     oakd_detector_node.py        # 4번: YOLO-pose + depth 3D 역투영
     leg_detector_bridge_node.py  # 4번 보완: 초근접 구간 라이다 다리검출 편입
-    reid_tracking_node.py        # 7번: 재식별/트래킹 + 좌표 블렌딩 + 웹캠-라이다 신원 매칭 + Nav2 좌표 발행
+    reid_tracking_node.py        # 7번: 재식별/트래킹 + 웹캠-라이다 신원 매칭 + Nav2 좌표 발행
     predictive_avoidance_node.py # 6번: 칼만필터 예측 회피
-  launch/amr_person_tracking.launch.py   # 위 4개 노드 일괄 기동
+    debug_viewer_node.py         # (검증용) 디버그 이미지 뷰어
+    depth_view_republisher_node.py   # (검증용) depth를 컬러맵 jpeg로 재발행
+    mock_webcam_publisher_node.py    # (검증용) 웹캠 목업
+    vision_utils.py              # 접지점 후보/depth 샘플링/역투영 등 순수함수
+    tracking_utils.py            # Track, Hungarian 배정, 코사인 유사도 등 순수 로직
+    predictive_utils.py          # 등속도 칼만필터(+마할라노비스), 다리 정지판정
+  config/tracktrack_reid.yaml    # (기본 미사용) 외형 ReID를 켤 때 쓰는 트래커 설정
+  launch/amr_person_tracking.launch.py   # 노드 일괄 기동
+  test/                          # 순수함수 단위테스트 45건
+  tools/                         # 검증 도구 (아래 4절)
 ```
+
+## 4. 검증 도구 (`tools/`)
+
+파이프라인 변경의 효과를 감이 아니라 수치로 확인하기 위한 도구들이다. 모두 격리 도메인
+(`ROS_DISCOVERY_SERVER="" ROS_LOCALHOST_ONLY=1 ROS_DOMAIN_ID=<실기와 다른 값>`)에서 쓴다 —
+실기 접속 설정 그대로 bag을 재생하면 실시간 로봇 데이터가 섞여 측정이 오염된다.
+
+| 도구 | 용도 |
+|---|---|
+| `capture_target_pose.py` | `target_person_pose` + `tracked_detections_3d`를 캡처하고 `--analyze`로 순간이동 점프·동시 트랙 수를 정량화 |
+| `measure_detection_jitter.py` | reid 노드를 거치기 **전** 원시 검출 좌표의 프레임간 점프를 측정. "ID 매칭 문제인가 측정 문제인가"를 가르는 데 씀 |
+| `reid_embedding_eval.py` | 외형 기술자 후보들의 신원 판별력(AUC·최적 임계)을 bag으로 측정. 수동 라벨링 없이 "동일 프레임 다른 검출=다른 사람"을 음성 GT로 씀 |
+| `record_debug_video.py` | 디버그 이미지 토픽을 H.264 mp4로 직접 녹화(화면 캡처 방식은 창이 가려지면 정지화면만 남아 교체) |
+| `record_monitor.py`, `qos_overrides.yaml`, `fastdds_profile.xml` | bag 녹화 시 토픽 유실 감시 및 QoS/버퍼 설정 |
 
 | 노드 | 파일 | 대응 역할 |
 |---|---|---|

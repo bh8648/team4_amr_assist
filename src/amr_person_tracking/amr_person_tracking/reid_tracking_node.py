@@ -138,6 +138,9 @@ class ReidTrackingNode(Node):
         # 기다린다). 기다리는 동안 target_person_pose는 발행되지 않는다 - 엉뚱한 사람을
         # 따라가게 하는 것보다 안전하다. dormant_ttl이 상한 역할을 한다.
         self.declare_parameter('sticky_follow', True)
+        # 외형 임베딩이 없을 때 갤러리에서 신원을 되살릴 최대 거리(m). "마지막으로 보이던
+        # 자리 근처로 돌아왔는가"로 판단한다. 너무 키우면 다른 사람을 같은 사람으로 잇는다.
+        self.declare_parameter('revival_max_distance', 1.5)
         # 트랙 위치/속도를 등속도 칼만필터로 추정한다(끄면 기존 지수평활).
         # [실측 결과 - 기본값을 끈 이유] my_new_bag5에서 어떤 설정도 기준선을 명확히 이기지
         # 못했다. 점프는 줄지만 **추종 좌표 발행 커버리지가 함께 떨어지는 맞교환**이었다:
@@ -217,6 +220,7 @@ class ReidTrackingNode(Node):
         self.dormant_ttl = self.get_parameter('dormant_ttl').value
         self.revival_similarity = self.get_parameter('revival_similarity').value
         self.sticky_follow = self.get_parameter('sticky_follow').value
+        self.revival_max_distance = self.get_parameter('revival_max_distance').value
         self.use_kalman = self.get_parameter('use_kalman').value
         self.kalman_process_noise = self.get_parameter('kalman_process_noise').value
         self.kalman_default_variance = self.get_parameter('kalman_default_variance').value
@@ -410,7 +414,7 @@ class ReidTrackingNode(Node):
                 # [dormant gallery] 새 신원을 발급하기 직전에, 최근에 사라진 신원 중 외형이
                 # 충분히 닮은 것이 있으면 그 신원을 되살린다. 이게 없으면 사람이 화면 밖으로
                 # 나갔다 돌아올 때마다 새 id가 붙는다(실측: 3명인데 YOLO id 11개).
-                revived = self._revive_from_gallery(embedding, batch_stamp, claimed)
+                revived = self._revive_from_gallery(embedding, batch_stamp, claimed, x, y)
                 if revived is not None:
                     track_id = revived
                     claimed.add(track_id)
@@ -463,24 +467,37 @@ class ReidTrackingNode(Node):
         self.publish_tracked(msg.header)
         self.publish_target_pose(msg.header)
 
-    def _revive_from_gallery(self, embedding, now, claimed):
+    def _revive_from_gallery(self, embedding, now, claimed, x=None, y=None):
         """갤러리에서 외형이 가장 닮은 신원을 찾는다. 기준 미만이면 None(=새 신원 발급).
 
         위치는 보지 않는다 - 갤러리에 있다는 것 자체가 "한동안 안 보여서 예측 위치가 이미
         의미 없어진" 상태라, 위치로 거르면 정작 되살려야 할 재등장을 놓친다. 대신 잘못된
         병합을 막기 위해 임계(revival_similarity)를 실측 최적치보다 보수적으로 잡는다.
         """
-        if embedding is None or not self.dormant_gallery:
+        if not self.dormant_gallery:
             return None
-        best_id, best_sim = None, None
-        for tid, (emb, _x, _y, _stamp) in self.dormant_gallery.items():
+        best_id, best_score = None, None
+        for tid, (emb, gx, gy, _stamp) in self.dormant_gallery.items():
             if tid in claimed or tid in self.tracks:
                 continue
             sim = cosine_similarity(embedding, emb)
-            if sim is None or sim < self.revival_similarity:
-                continue
-            if best_sim is None or sim > best_sim:
-                best_id, best_sim = tid, sim
+            if sim is not None:
+                # 외형을 쓸 수 있으면 그쪽이 우선 - 위치와 달리 사람이 이동해도 유효하다.
+                if sim < self.revival_similarity:
+                    continue
+                score = 1.0 + sim          # 외형 매칭을 위치 매칭보다 항상 우선
+            else:
+                # 외형이 없으면 "마지막으로 보이던 자리 근처로 돌아왔는가"로 판단한다.
+                # 사람이 완전히 다른 곳으로 이동해 돌아오면 못 살리지만, 그 경우 새 신원을
+                # 발급하는 게 다른 사람을 같은 사람으로 잘못 잇는 것보다 안전하다.
+                if x is None or y is None:
+                    continue
+                d = distance(gx, gy, x, y)
+                if d > self.revival_max_distance:
+                    continue
+                score = 1.0 - d / max(self.revival_max_distance, 1e-6)
+            if best_score is None or score > best_score:
+                best_id, best_score = tid, score
         return best_id
 
     def _prune_tracks(self, now):
@@ -492,8 +509,11 @@ class ReidTrackingNode(Node):
         stale = [tid for tid, tr in self.tracks.items() if now - tr.last_stamp > self.track_timeout]
         for tid in stale:
             track = self.tracks[tid]
-            if track.embedding is not None:
-                self.dormant_gallery[tid] = (track.embedding, track.x, track.y, track.last_stamp)
+            # 임베딩이 없어도(외형 ReID를 안 쓰는 기본 구성) 갤러리에 넣는다. 예전에는
+            # 임베딩이 있는 트랙만 보관해서, 기본 구성에서는 갤러리가 늘 비고 sticky_follow가
+            # 통째로 무력화됐다(대상을 잃으면 곧바로 다른 사람으로 갈아탐). 외형이 없으면
+            # 아래 _revive_from_gallery가 마지막 위치 근접으로 되살린다.
+            self.dormant_gallery[tid] = (track.embedding, track.x, track.y, track.last_stamp)
             del self.tracks[tid]
             self.last_independent_update.pop(tid, None)
             if self.followed_track_id == tid:
