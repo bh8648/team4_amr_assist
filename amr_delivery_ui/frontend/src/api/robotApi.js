@@ -28,5 +28,7 @@ export const robotApi = {
   cancelTask: (id) => req(`/api/robot/${id}/cancel`, { method: 'POST', body: JSON.stringify({ return_to: 'CURRENT' }) }),
   setEstop: (active, id) => req(`/api/robot/${id}/estop`, { method: 'POST', body: JSON.stringify({ active }) }),
   teleop: (linear, angular, id) => req(`/api/robot/${id}/teleop`, { method: 'POST', body: JSON.stringify({ linear, angular }) }),
+  // 방향키 속도 전송과 분리된 텔레옵 활성화 토글 API
+  setTeleopMode: (active, id) => req(`/api/robot/${id}/teleop/mode`, { method: 'POST', body: JSON.stringify({ active }) }),
   setDock: (dock, id) => req(`/api/robot/${id}/dock`, { method: 'POST', body: JSON.stringify({ dock }) }),
 };

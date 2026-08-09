@@ -27,6 +27,7 @@ class ManagedTask:  # 로봇의 정보를 모델 클래스
     nav_generation: int = 0
     goal_pending: bool = False
     goal_completed: bool = False
+    canceled: bool = False  # ROS 상태 문자열과 별도로 취소된 작업의 수동 복구 권한을 보존한다.
 
 
 class TaskManagerNode(Node):
@@ -34,9 +35,11 @@ class TaskManagerNode(Node):
 
     VALID_ROBOTS = {'robot5', 'robot11'}
     ACTIVE_STATES = {'ASSIGNED', 'FOLLOWING', 'TRANSPORTING', 'RETURNING'}  # 로봇의 상태 목록
+    CANCELABLE_STATES = ACTIVE_STATES | {'PAUSED'}  # 일시정지한 작업도 HMI에서 취소할 수 있다.
     COMMAND_REJECTION_CODES = (     # 에러 코드
         'UNKNOWN_ROBOT_ID', 'TASK_NOT_FOUND', 'STALE_TASK_COMMAND',
         'INVALID_DESTINATION', 'ROBOT_ALREADY_HAS_TASK', 'INVALID_TRANSITION_',
+        'MANUAL_CONTROL_NOT_ALLOWED',  # 명령 거부 자체가 실제 로봇 ERROR로 전환되지 않게 제외한다.
     )
 
     def __init__(self):
@@ -99,8 +102,16 @@ class TaskManagerNode(Node):
             self.pause_task(robot_id, 'HMI_PAUSE')
         elif command == 'RESUME':
             self.resume_task(robot_id)
-        elif command in ('DOCK', 'UNDOCK'):
-            self.dock_publishers[robot_id].publish(Bool(data=command == 'DOCK'))
+        elif command in ('DOCK', 'UNDOCK', 'TELEOP_ENABLE'):
+            # HMI를 우회한 명령도 막기 위해 Task Manager에서 CANCELED/ERROR 조건을 다시 검증한다.
+            if task is None or (not task.canceled and task.state != 'ERROR'):
+                self.publish_error(robot_id, msg.task_id, 'MANUAL_CONTROL_NOT_ALLOWED')
+                return
+            # 취소 복귀 goal 등이 남아 있으면 수동 조작과 충돌하므로 먼저 완전히 중단한다.
+            self.invalidate_navigation_goal(task)
+            self.stop_publishers[robot_id].publish(Bool(data=True))
+            if command in ('DOCK', 'UNDOCK'):
+                self.dock_publishers[robot_id].publish(Bool(data=command == 'DOCK'))
         elif task is None:
             self.publish_error(robot_id, msg.task_id, 'TASK_NOT_FOUND')
         elif msg.task_id and msg.task_id != task.task_id:
@@ -122,7 +133,12 @@ class TaskManagerNode(Node):
             task.goal_completed = False
             self.transition(task, 'RETURNING', '배송 확인 완료')
             self.send_navigation_goal(task, replace=True)
-        elif command == 'CANCEL' and task.state in self.ACTIVE_STATES:
+        elif command == 'CANCEL' and task.state in self.CANCELABLE_STATES:
+            # ROS TaskState에는 CANCELED가 없으므로 별도 플래그로 수동 복구 허가를 유지한다.
+            task.canceled = True
+            # PAUSED 상태에서 취소한 경우 정지 요청을 해제해야 복귀 Nav2 goal이 실행된다.
+            task.pause_reason = ''
+            self.stop_publishers[robot_id].publish(Bool(data=False))
             task.goal_type, task.target = 'TO_DOCK', tuple(float(value) for value in self.get_parameter(f'{robot_id}_dock_pose').value)
             task.goal_completed = False
             self.transition(task, 'RETURNING', '작업 취소 후 복귀')
@@ -138,6 +154,10 @@ class TaskManagerNode(Node):
         task = self.tasks.get(robot_id)
         if task is None:
             self.idle_paused.add(robot_id)
+            self.stop_publishers[robot_id].publish(Bool(data=True))
+            return
+        # ERROR는 이미 goal과 구동이 중단된 최종 상태이므로 PAUSED로 덮어쓰지 않는다.
+        if task.state == 'ERROR':
             self.stop_publishers[robot_id].publish(Bool(data=True))
             return
         if task.state == 'PAUSED':

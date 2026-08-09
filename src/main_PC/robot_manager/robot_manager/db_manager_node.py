@@ -168,7 +168,8 @@ class DbManagerNode(Node):
                 )
                 ON CONFLICT(task_id) DO UPDATE SET assigned_robot_id=excluded.assigned_robot_id,
                     state=CASE
-                        WHEN excluded.state = 'COMPLETED' AND tasks.state = 'CANCELED' THEN tasks.state
+                        -- 취소 후 PAUSE/DOCKED 메시지가 와도 DB의 최종 취소 상태는 보존한다.
+                        WHEN tasks.state = 'CANCELED' THEN tasks.state
                         ELSE excluded.state
                     END,
                     result=CASE

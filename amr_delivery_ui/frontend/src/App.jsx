@@ -3,10 +3,13 @@ import './App.css';
 import { robotApi } from './api/robotApi';
 import { renderFleetMap, worldToCanvas } from './mapRenderer';
 
-const LABELS = { AVAILABLE: '대기', IDLE: '대기', ASSIGNED: '작업자에게 이동', FOLLOWING: '작업자 추종', TRANSPORTING: '배송 중', RETURNING: '복귀 중', PAUSED: '일시정지', DOCKED: '도킹 완료', ERROR: '오류' };
+// DB의 최종 상태(COMPLETED/CANCELED)도 HMI에서 한글로 표시한다.
+const LABELS = { AVAILABLE: '대기', IDLE: '대기', ASSIGNED: '작업자에게 이동', FOLLOWING: '작업자 추종', TRANSPORTING: '배송 중', RETURNING: '복귀 중', PAUSED: '일시정지', DOCKED: '도킹 완료', COMPLETED: '작업 완료', CANCELED: '작업 취소', ERROR: '오류' };
 const ACTIVE = new Set(['ASSIGNED', 'FOLLOWING', 'TRANSPORTING', 'RETURNING', 'PAUSED']);
 const IDLE = new Set(['AVAILABLE', 'IDLE']);
-const TASK_LABELS = { ASSIGNED: '작업자에게 이동', FOLLOWING: '작업자 추종', TRANSPORTING: '배송 중', RETURNING: '복귀 중', PAUSED: '일시정지', DOCKED: '완료', ERROR: '오류' };
+const TASK_LABELS = { ASSIGNED: '작업자에게 이동', FOLLOWING: '작업자 추종', TRANSPORTING: '배송 중', RETURNING: '복귀 중', PAUSED: '일시정지', DOCKED: '완료', COMPLETED: '완료', CANCELED: '취소', ERROR: '오류' };
+// 도킹·언도킹·텔레옵 버튼을 열어 주는 유일한 작업 상태 목록
+const MANUAL_CONTROL = new Set(['CANCELED', 'ERROR']);
 
 function LoginScreen({ onLogin }) {
   const [username, setUsername] = useState('');
@@ -169,15 +172,6 @@ function RobotPanel({ robot, selected, onSelect }) {
   </button>;
 }
 
-function TeleopButton({ label, linear = 0, angular = 0, disabled, robotId }) {
-  const timer = useRef(null);
-  const command = (l, a) => robotApi.teleop(l, a, robotId).catch(() => {});
-  const stop = () => { if (timer.current) clearInterval(timer.current); timer.current = null; command(0, 0); };
-  const start = (event) => { event.currentTarget.setPointerCapture?.(event.pointerId); command(linear, angular); timer.current = setInterval(() => command(linear, angular), 150); };
-  useEffect(() => () => timer.current && clearInterval(timer.current), []);
-  return <button disabled={disabled} onPointerDown={start} onPointerUp={stop} onPointerCancel={stop} onPointerLeave={stop}>{label}</button>;
-}
-
 export default function App() {
   const [authenticated, setAuthenticated] = useState(() => !!sessionStorage.getItem('hmi_auth_token'));
   const [robots, setRobots] = useState([]);
@@ -187,6 +181,8 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [view, setView] = useState('map');
+  // null이면 비활성화, robot_id가 있으면 해당 로봇의 키보드 텔레옵이 활성화된 상태다.
+  const [teleopRobotId, setTeleopRobotId] = useState(null);
   useEffect(() => {
     const expire = () => setAuthenticated(false);
     window.addEventListener('hmi-auth-expired', expire);
@@ -199,17 +195,60 @@ export default function App() {
     const refresh = async () => { try { const data = await robotApi.getRobots(); if (!alive) return; setRobots(data); setConnected(true); setSelectedId((id) => id || data[0]?.robot_id || null); } catch { if (alive) setConnected(false); } };
     refresh(); const timer = setInterval(refresh, 1000); return () => { alive = false; clearInterval(timer); };
   }, [authenticated]);
-  if (!authenticated) return <LoginScreen onLogin={() => setAuthenticated(true)} />;
   const selected = robots.find((robot) => robot.robot_id === selectedId);
+  const manualReady = !!selected && MANUAL_CONTROL.has(selected.mode);
+
+  // 텔레옵 활성화 중에는 방향키 조합을 100 ms마다 cmd_vel로 갱신한다.
+  useEffect(() => {
+    if (!teleopRobotId) return undefined;
+    const pressed = new Set();
+    const directions = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
+    const send = () => {
+      const linear = (pressed.has('ArrowUp') ? 0.18 : 0) + (pressed.has('ArrowDown') ? -0.15 : 0);
+      const angular = (pressed.has('ArrowLeft') ? 0.8 : 0) + (pressed.has('ArrowRight') ? -0.8 : 0);
+      robotApi.teleop(linear, angular, teleopRobotId).catch(() => {});
+    };
+    const keydown = (event) => { if (directions.has(event.key)) { event.preventDefault(); pressed.add(event.key); send(); } };
+    const keyup = (event) => { if (directions.has(event.key)) { event.preventDefault(); pressed.delete(event.key); send(); } };
+    const stop = () => { pressed.clear(); send(); };
+    const timer = window.setInterval(() => pressed.size && send(), 100);
+    window.addEventListener('keydown', keydown);
+    window.addEventListener('keyup', keyup);
+    window.addEventListener('blur', stop);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('keydown', keydown);
+      window.removeEventListener('keyup', keyup);
+      window.removeEventListener('blur', stop);
+      robotApi.teleop(0, 0, teleopRobotId).catch(() => {});
+    };
+  }, [teleopRobotId]);
+
+  // 선택 로봇이 바뀌거나 허용 상태를 벗어나면 텔레옵을 자동으로 해제한다.
+  useEffect(() => {
+    if (!teleopRobotId || (selectedId === teleopRobotId && manualReady)) return;
+    robotApi.setTeleopMode(false, teleopRobotId).catch(() => {});
+    setTeleopRobotId(null);
+  }, [manualReady, selectedId, teleopRobotId]);
+
+  if (!authenticated) return <LoginScreen onLogin={() => setAuthenticated(true)} />;
   const execute = async (action, message) => { setBusy(true); try { await action(); setNotice(message); } catch (error) { setNotice(`실행 실패 · ${error.message}`); } finally { setBusy(false); setTimeout(() => setNotice(''), 2300); } };
   const logout = () => {
+    if (teleopRobotId) robotApi.setTeleopMode(false, teleopRobotId).catch(() => {});
+    setTeleopRobotId(null);
     sessionStorage.removeItem('hmi_auth_token');
     setAuthenticated(false);
     setRobots([]);
     setSelectedId(null);
   };
   const selectedTask = selected ? taskInfo(selected) : null;
-  const teleopReady = selected && IDLE.has(selected.mode) && !selected.docked && !selected.estopped;
+  const teleopActive = teleopRobotId === selectedId;
+  // 토글 API가 성공한 뒤에만 화면의 활성화 상태를 변경한다.
+  const toggleTeleop = async () => {
+    if (!selected) return;
+    const next = !teleopActive;
+    await execute(() => robotApi.setTeleopMode(next, selected.robot_id).then(() => setTeleopRobotId(next ? selected.robot_id : null)), next ? '텔레옵 활성화 · 방향키로 조종하세요' : '텔레옵 비활성화');
+  };
 
   return <div className="operations-app">
     <header className="app-header"><div className="title"><span>AMR</span><div><h1>중앙 관리 제어</h1><small>관리자 대시보드</small></div></div><div className="view-toggle"><button className={view === 'map' ? 'active' : ''} onClick={() => setView('map')}>지도 관제</button><button className={view === 'video' ? 'active' : ''} onClick={() => setView('video')}>영상 관제</button><button className={view === 'database' ? 'active' : ''} onClick={() => setView('database')}>DB 관제</button></div><div className="global-status"><span className={connected ? '' : 'offline'}><i />{connected ? 'DB · GATEWAY 연결' : '연결 확인 중'}</span><b>{robots.filter((robot) => !robot.estopped).length}/{robots.length} 운용 가능</b><button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? '라이트' : '다크'}</button><button className="logout-button" onClick={logout}>로그아웃</button></div></header>
@@ -221,13 +260,15 @@ export default function App() {
 
       <aside className="control-rail">
         {selected ? <>
-          <section className="selected-unit"><div><small>SELECTED UNIT</small><h2>{selected.robot_id.toUpperCase()}</h2><p>{LABELS[selected.mode] || selected.mode} · X {selected.pose_x.toFixed(2)}, Y {selected.pose_y.toFixed(2)}</p></div><span className={IDLE.has(selected.mode) ? 'ready' : ''}>{selectedTask.active ? '작업 수행 중' : selected.mode === 'DOCKED' ? '도킹 상태' : selected.mode === 'ERROR' ? '오류 상태' : '수동 제어 가능'}</span></section>
+          <section className="selected-unit"><div><small>SELECTED UNIT</small><h2>{selected.robot_id.toUpperCase()}</h2><p>{LABELS[selected.mode] || selected.mode} · X {selected.pose_x.toFixed(2)}, Y {selected.pose_y.toFixed(2)}</p></div><span className={manualReady ? 'ready' : ''}>{selectedTask.active ? '작업 수행 중' : manualReady ? '수동 제어 가능' : selected.mode === 'DOCKED' ? '도킹 상태' : '수동 제어 잠금'}</span></section>
 
           <section className="quick-actions"><header><strong>작업·안전 제어</strong></header><div><button className="cancel" disabled={busy || !selectedTask.active} onClick={() => window.confirm(`${selected.robot_id.toUpperCase()} 작업을 취소할까요?`) && execute(() => robotApi.cancelTask(selected.robot_id), '작업 취소 요청 완료')}>작업 취소</button><button className={`pause ${selected.estopped ? 'resume' : ''}`} disabled={busy} onClick={() => execute(() => robotApi.setEstop(!selected.estopped, selected.robot_id), selected.estopped ? '운행 재개 요청 완료' : '일시정지 요청 완료')}>{selected.estopped ? '운행 재개' : '일시정지'}</button></div></section>
 
-          <section className="dock-box"><header><strong>도킹 제어</strong><small>대기 상태 전용</small></header><div><button disabled={busy || !IDLE.has(selected.mode) || selected.docked} onClick={() => execute(() => robotApi.setDock(true, selected.robot_id), '도킹 요청 완료')}>도킹</button><button disabled={busy || (!IDLE.has(selected.mode) && selected.mode !== 'DOCKED') || !selected.docked} onClick={() => execute(() => robotApi.setDock(false, selected.robot_id), '언도킹 요청 완료')}>언도킹</button></div></section>
+          {/* 수동 도킹 버튼은 CANCELED/ERROR 상태에서만 활성화한다. */}
+          <section className="dock-box"><header><strong>도킹 제어</strong><small>취소·오류 상태 전용</small></header><div><button disabled={busy || !manualReady || selected.docked} onClick={() => execute(() => robotApi.setDock(true, selected.robot_id), '도킹 요청 완료')}>도킹</button><button disabled={busy || !manualReady || !selected.docked} onClick={() => execute(() => robotApi.setDock(false, selected.robot_id), '언도킹 요청 완료')}>언도킹</button></div></section>
 
-          <section className="teleop-box"><header><div><strong>텔레옵</strong><small>{teleopReady ? '누르는 동안 이동' : '대기·언도킹 상태 전용'}</small></div><span className={teleopReady ? 'ready' : ''}>{teleopReady ? 'READY' : 'LOCKED'}</span></header><div className="teleop"><span /><TeleopButton label="↑" linear={0.18} disabled={!teleopReady} robotId={selected.robot_id} /><span /><TeleopButton label="↶" angular={0.8} disabled={!teleopReady} robotId={selected.robot_id} /><TeleopButton label="■" disabled={!IDLE.has(selected.mode)} robotId={selected.robot_id} /><TeleopButton label="↷" angular={-0.8} disabled={!teleopReady} robotId={selected.robot_id} /><span /><TeleopButton label="↓" linear={-0.15} disabled={!teleopReady} robotId={selected.robot_id} /></div></section>
+          {/* 기존 방향 버튼 대신 키보드 텔레옵을 켜고 끄는 단일 토글만 제공한다. */}
+          <section className="teleop-box"><header><div><strong>키보드 텔레옵</strong><small>{teleopActive ? '방향키 ↑ ↓ ← → 로 조종' : '취소·오류 상태에서만 활성화'}</small></div><span className={teleopActive ? 'ready' : ''}>{teleopActive ? 'ACTIVE' : manualReady ? 'READY' : 'LOCKED'}</span></header><button className={`teleop-toggle ${teleopActive ? 'active' : ''}`} disabled={busy || (!manualReady && !teleopActive)} onClick={toggleTeleop}>{teleopActive ? '텔레옵 비활성화' : '텔레옵 활성화'}</button></section>
 
           <section className="task-queue"><header><strong>현재 작업</strong><small>{robots.filter((robot) => taskInfo(robot).active).length}건</small></header>{robots.map((robot) => { const info = taskInfo(robot); return <div key={robot.robot_id}><i className={info.active ? '' : 'idle'} /><span><strong>{robot.robot_id.toUpperCase()}</strong><small>{info.active ? TASK_LABELS[info.state] || info.state || LABELS[robot.mode] : '배정 대기'}</small></span><b>{info.active ? '진행' : '대기'}</b></div>; })}</section>
         </> : <div className="empty">로봇 상태를 불러오는 중입니다.</div>}

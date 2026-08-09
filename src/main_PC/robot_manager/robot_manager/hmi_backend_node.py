@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import math
 import secrets
 import sqlite3
 import threading
@@ -33,6 +34,11 @@ class TeleopRequest(BaseModel):
     angular: float = 0.0
 
 
+class TeleopModeRequest(BaseModel):
+    # HMI의 단일 토글 버튼에서 전달하는 텔레옵 활성화 상태
+    active: bool
+
+
 class LoginRequest(BaseModel):      # HMI 로그인 요청
     username: str
     password: str
@@ -42,6 +48,11 @@ class LoginRequest(BaseModel):      # HMI 로그인 요청
 # 2. HMI 백엔드 ROS 2 노드
 # =========================================================
 class HmiBackendNode(Node):
+    # 도킹/언도킹과 텔레옵은 작업이 취소되었거나 오류가 난 로봇에서만 허용한다.
+    MANUAL_CONTROL_STATES = {'CANCELED', 'ERROR'}
+    MAX_TELEOP_LINEAR = 0.25
+    MAX_TELEOP_ANGULAR = 1.0
+
     def __init__(self):
         super().__init__('hmi_backend_node')
 
@@ -65,7 +76,10 @@ class HmiBackendNode(Node):
         self.control_states = {}
 
         for robot_id in ('robot5', 'robot11'):  # 로봇마다 비상정지, 도킹 상태를 관리하기 위한 딕셔너리 초기화
-            self.control_states[robot_id] = {'estopped': 0, 'docked': 1}
+            self.control_states[robot_id] = {
+                'estopped': 0, 'docked': 1, 'task_state': 'DOCKED',
+                'canceled': 0, 'teleop_enabled': 0,
+            }
 
         self.get_logger().info('HMI Backend Node시작')
 
@@ -73,10 +87,54 @@ class HmiBackendNode(Node):
         control = self.control_states.get(str(msg.robot_id))
         if control is None:
             return
+        control['task_state'] = str(msg.state).upper()
         if msg.state == 'DOCKED':
             control['docked'] = 1
         elif msg.state in ('ASSIGNED', 'FOLLOWING', 'TRANSPORTING', 'RETURNING'):
             control['docked'] = 0
+        if msg.state == 'RETURNING' and msg.detail == '작업 취소 후 복귀':
+            # TaskState에 CANCELED 값이 없으므로 취소 복귀 메시지를 별도로 기억한다.
+            control['canceled'] = 1
+        # 새 작업이 시작되면 이전 작업의 취소/수동조작 허가를 반드시 초기화한다.
+        if msg.state == 'ASSIGNED':
+            control['canceled'] = 0
+            control['teleop_enabled'] = 0
+
+    def latest_task_state(self, robot_id: str):
+        """재시작 뒤에도 제한을 유지하도록 DB의 가장 최근 작업 상태/결과를 조회한다."""
+        if not os.path.exists(self.db_path):
+            return None, None
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                row = conn.execute(
+                    """
+                    SELECT state, result FROM tasks
+                    WHERE assigned_robot_id = ?
+                    ORDER BY created_at DESC LIMIT 1
+                    """,
+                    (robot_id,),
+                ).fetchone()
+            return (str(row[0]).upper(), str(row[1]).upper() if row[1] else None) if row else (None, None)
+        except sqlite3.Error as error:
+            self.get_logger().error(f'수동 제어 상태 DB 조회 실패: {error}')
+            return None, None
+
+    def manual_control_allowed(self, robot_id: str) -> bool:
+        """ROS 실시간 상태와 DB 상태 중 하나가 CANCELED/ERROR일 때만 수동 제어를 허용한다."""
+        robot_id = str(robot_id)
+        control = self.control_states.get(robot_id)
+        if control is None:
+            return False
+        if control['task_state'] == 'ERROR' or control['canceled']:
+            return True
+        state, result = self.latest_task_state(robot_id)
+        return state in self.MANUAL_CONTROL_STATES or result in self.MANUAL_CONTROL_STATES
+
+    def publish_zero_velocity(self, robot_id: str) -> None:
+        """텔레옵 해제·도킹 전 로봇이 즉시 멈추도록 0 속도를 발행한다."""
+        publisher = self.teleop_publishers.get(robot_id)
+        if publisher is not None:
+            publisher.publish(Twist())
 
     def fetch_latest_robot_status(self):
         """DB에서 각 로봇별 가장 최근 상태 1개씩 가져와 robot_id를 Key로 하는 딕셔너리로 반환"""
@@ -170,6 +228,12 @@ class HmiBackendNode(Node):
         robot_id = str(robot_id)
         if robot_id not in self.control_states: # 대상 로봇 검증
             return False
+        if not self.manual_control_allowed(robot_id):
+            return False
+
+        # 도킹 동작과 cmd_vel이 동시에 실행되지 않도록 텔레옵을 먼저 끈다.
+        self.control_states[robot_id]['teleop_enabled'] = 0
+        self.publish_zero_velocity(robot_id)
         
         command = TaskCommand()
         command.stamp = self.get_clock().now().to_msg()
@@ -187,15 +251,45 @@ class HmiBackendNode(Node):
         command.stamp = self.get_clock().now().to_msg()
         command.robot_id, command.command = robot_id, 'CANCEL'
         self.task_command_publisher.publish(command)
+        self.control_states[robot_id]['teleop_enabled'] = 0
         return True
 
     def publish_teleop(self, robot_id: str, linear: float, angular: float):
         publisher = self.teleop_publishers.get(robot_id)
-        if publisher is None:
+        control = self.control_states.get(robot_id)
+        if publisher is None or control is None:
+            return False
+        # API를 직접 호출하더라도 텔레옵 토글과 작업 상태 조건을 모두 만족해야 한다.
+        if not control['teleop_enabled'] or not self.manual_control_allowed(robot_id):
+            return False
+        linear, angular = float(linear), float(angular)
+        # 비정상 숫자와 HMI에서 사용하지 않는 과도한 속도 명령을 차단한다.
+        if (not math.isfinite(linear) or not math.isfinite(angular)
+                or abs(linear) > self.MAX_TELEOP_LINEAR
+                or abs(angular) > self.MAX_TELEOP_ANGULAR):
             return False
         command = Twist()
-        command.linear.x, command.angular.z = float(linear), float(angular)
+        command.linear.x, command.angular.z = linear, angular
         publisher.publish(command)
+        return True
+
+    def set_teleop_mode(self, robot_id: str, active: bool):
+        robot_id = str(robot_id)
+        control = self.control_states.get(robot_id)
+        if control is None:
+            return False
+        if active and not self.manual_control_allowed(robot_id):
+            return False
+
+        # Task Manager가 남아 있는 자동 Nav2 goal을 취소한 뒤 키보드 cmd_vel을 받게 한다.
+        if active:
+            command = TaskCommand()
+            command.stamp = self.get_clock().now().to_msg()
+            command.robot_id, command.command = robot_id, 'TELEOP_ENABLE'
+            self.task_command_publisher.publish(command)
+        else:
+            self.publish_zero_velocity(robot_id)
+        control['teleop_enabled'] = int(active)
         return True
 
     @staticmethod
@@ -398,8 +492,11 @@ def set_robot_dock(robot_id: str, data: DockRequest):
     """AMR별 도킹/언도킹 요청 토픽 발행."""
     if not ros_node:
         raise HTTPException(status_code=503, detail="ROS 노드가 준비되지 않았습니다.")
-    if not ros_node.set_dock(robot_id, data.dock):
+    if robot_id not in ros_node.control_states:
         raise HTTPException(status_code=404, detail=f"지원하지 않는 AMR ID: {robot_id}")
+    # 존재하는 로봇이라도 CANCELED/ERROR가 아니면 충돌 응답으로 거부한다.
+    if not ros_node.set_dock(robot_id, data.dock):
+        raise HTTPException(status_code=409, detail="도킹/언도킹은 CANCELED 또는 ERROR 상태에서만 가능합니다.")
     return {"accepted": True, "robot_id": robot_id, "docked": data.dock}
 
 
@@ -412,9 +509,26 @@ def cancel_robot_task(robot_id: str):
 
 @app.post("/api/robot/{robot_id}/teleop")
 def teleop_robot(robot_id: str, data: TeleopRequest):
-    if not ros_node or not ros_node.publish_teleop(robot_id, data.linear, data.angular):
+    if not ros_node:
+        raise HTTPException(status_code=503, detail="ROS 노드가 준비되지 않았습니다.")
+    if robot_id not in ros_node.control_states:
         raise HTTPException(status_code=404, detail=f"지원하지 않는 AMR ID: {robot_id}")
+    # 텔레옵 미활성화 또는 허용 상태가 아닌 요청은 cmd_vel로 전달하지 않는다.
+    if not ros_node.publish_teleop(robot_id, data.linear, data.angular):
+        raise HTTPException(status_code=409, detail="텔레옵 활성화와 CANCELED/ERROR 상태를 확인해 주세요.")
     return {"accepted": True, "robot_id": robot_id}
+
+
+@app.post("/api/robot/{robot_id}/teleop/mode")
+def set_robot_teleop_mode(robot_id: str, data: TeleopModeRequest):
+    """키보드 텔레옵 활성화 토글. 비활성화할 때는 즉시 정지 속도를 발행한다."""
+    if not ros_node:
+        raise HTTPException(status_code=503, detail="ROS 노드가 준비되지 않았습니다.")
+    if robot_id not in ros_node.control_states:
+        raise HTTPException(status_code=404, detail=f"지원하지 않는 AMR ID: {robot_id}")
+    if not ros_node.set_teleop_mode(robot_id, data.active):
+        raise HTTPException(status_code=409, detail="텔레옵은 CANCELED 또는 ERROR 상태에서만 활성화할 수 있습니다.")
+    return {"accepted": True, "robot_id": robot_id, "active": data.active}
 
 
 # =========================================================

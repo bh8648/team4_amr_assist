@@ -59,3 +59,6 @@
 .database-workspace > footer { padding: 11px 18px; border-top: 1px solid rgba(100,120,128,.15); color: #75868c; font-size: 11px; }
 .global-status .logout-button { border-color: rgba(194,59,50,.35); color: #c23b32; }
 .global-status .logout-button:hover { border-color: #c23b32; background: rgba(194,59,50,.08); }
+/* 방향 버튼을 대체하는 텔레옵 활성화/비활성화 단일 토글 */
+.teleop-toggle { width: 100%; min-height: 42px; margin-top: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-raised); color: var(--text); font-size: 10px; font-weight: 900; }
+.teleop-toggle.active { border-color: var(--danger); background: var(--danger); color: #fff; }
