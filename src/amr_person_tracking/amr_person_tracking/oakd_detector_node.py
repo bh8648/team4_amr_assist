@@ -153,6 +153,9 @@ class OakdDetectorNode(Node):
 
         # ---- 1주기 진단 카운터 ----
         self._stat_frames = 0
+        # 상류 트래커가 이 프레임에 id를 하나도 못 낸 횟수. reid_tracking_node의 상류 id 구제가
+        # 무력화되는 조건이라(det.id가 빈 문자열로 나감) 트랙 churn의 직접 원인 후보다.
+        self._stat_no_track_id = 0
         self._stat_detections = 0
         self._stat_depth_invalid = 0
         self._stat_depth_substituted = 0
@@ -420,6 +423,8 @@ class OakdDetectorNode(Node):
         self.publish_detections(detections, rgb_msg.header)
 
         self._stat_frames += 1
+        if results and getattr(results[0].boxes, 'id', None) is None and len(results[0].boxes):
+            self._stat_no_track_id += 1
         self._stat_detections += len(detections)
         if nearest is not None:
             dist = nearest[0]
@@ -902,6 +907,7 @@ class OakdDetectorNode(Node):
             KeyValue(key='depth_substituted', value=str(self._stat_depth_substituted)),
             KeyValue(key='tf_failures', value=str(self._stat_tf_failures)),
             KeyValue(key='truncated_count', value=str(self._stat_truncated)),
+            KeyValue(key='frames_without_track_id', value=str(self._stat_no_track_id)),
             KeyValue(key='proximity_alert', value=str(self.proximity_active).lower()),
             KeyValue(key='ir_check', value=self._stat_ir_check),
             KeyValue(key='ir_value', value=str(self._stat_ir_value)),
@@ -924,6 +930,9 @@ class OakdDetectorNode(Node):
     def _reset_diagnostic_counters(self, now):
         self._diag_last_time = now
         self._stat_frames = 0
+        # 상류 트래커가 이 프레임에 id를 하나도 못 낸 횟수. reid_tracking_node의 상류 id 구제가
+        # 무력화되는 조건이라(det.id가 빈 문자열로 나감) 트랙 churn의 직접 원인 후보다.
+        self._stat_no_track_id = 0
         self._stat_detections = 0
         self._stat_depth_invalid = 0
         self._stat_depth_substituted = 0

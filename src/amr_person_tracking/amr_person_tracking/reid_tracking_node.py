@@ -151,7 +151,12 @@ class ReidTrackingNode(Node):
         # 구별할 수 없는 것을 구별하겠다고 기다리면, 눈앞의 사람을 두고 아무도 따라가지 않는
         # 상태가 길게 이어진다(실기 15:36 로그에서 실측). 후보가 둘 이상일 때는 여전히
         # 기다린다 - 그때가 sticky_follow가 실제로 값을 하는 유일한 상황이다.
-        self.declare_parameter('sticky_follow_adopt_when_alone', True)
+        # 기본을 끈다. 실기(16:06 로그 + 영상)에서 이 기능이 추종 대상을 다른 사람에게
+        # 넘기는 것이 실측됐다: 트랙 churn이 심한 구간에서 "살아있는 유일한 트랙"이 원래
+        # 대상이 아닌 옆 사람일 수 있고, 두 사람이 0.63m 거리로 붙어 있으면
+        # revival_max_distance 가드(1.5m)가 아무 구별도 못 한다. 트랙 churn의 근본 원인
+        # (상류 트래커 id 미수신)을 먼저 잡은 뒤 다시 평가할 것.
+        self.declare_parameter('sticky_follow_adopt_when_alone', False)
         # 외형 임베딩이 없을 때 갤러리에서 신원을 되살릴 최대 거리(m). "마지막으로 보이던
         # 자리 근처로 돌아왔는가"로 판단한다. 너무 키우면 다른 사람을 같은 사람으로 잇는다.
         self.declare_parameter('revival_max_distance', 1.5)
