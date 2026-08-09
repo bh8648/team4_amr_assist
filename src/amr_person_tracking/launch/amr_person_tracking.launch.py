@@ -59,6 +59,9 @@ def generate_launch_description():
         ),
         # 예측 회피 노드가 접근 대상 반영 방식을 고를 파라미터: pointcloud | costmap_params | both
         DeclareLaunchArgument('avoidance_mode', default_value='pointcloud'),
+        # 한 사람이 서 있는데 트랙이 여러 개 만들어지는(=추종이 깜빡이는) 원인을 가리기 위한
+        # 진단 로그. 트랙 생성/소멸을 좌표·상류id·최근접 기존트랙 거리와 함께 찍는다.
+        DeclareLaunchArgument('log_track_lifecycle', default_value='false'),
         # 전역 좌표계. 각 노드가 tf2 조회/출력 frame_id에 사용한다. AMCL/nav2가 없는 로스백
         # 재생 테스트에서는 map 프레임이 존재하지 않으므로 odom으로 넘겨야 tf lookup이 성공한다.
         DeclareLaunchArgument('map_frame', default_value='map'),
@@ -233,6 +236,7 @@ def generate_launch_description():
             'tracked_detections_topic': tracked_topic,
             'target_pose_topic': target_pose_topic,
             'reid_embeddings_topic': embeddings_topic,
+            'log_track_lifecycle': LaunchConfiguration('log_track_lifecycle'),
             'map_frame': LaunchConfiguration('map_frame'),
         }],
     )

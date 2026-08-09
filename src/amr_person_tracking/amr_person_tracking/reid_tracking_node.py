@@ -100,6 +100,9 @@ class ReidTrackingNode(Node):
         self.declare_parameter('oakd_detections_topic', '/robot5/vision/detections_3d')
         self.declare_parameter('webcam_detections_topic', '/vision/webcam/detections_3d')
         self.declare_parameter('leg_detections_topic', '/robot5/vision/leg_detections_3d')
+        # 트랙 생성/소멸을 좌표·상류id·최근접 기존트랙 거리와 함께 찍는다. 한 사람이 서 있는데
+        # 트랙이 여러 개 만들어지는(=추종이 깜빡이는) 원인을 가리기 위한 진단용이라 기본은 꺼둔다.
+        self.declare_parameter('log_track_lifecycle', False)
         self.declare_parameter('tracked_detections_topic', '/robot5/vision/tracked_detections_3d')
         self.declare_parameter('target_pose_topic', '/robot5/target_person_pose')
         self.declare_parameter('map_frame', 'map')
@@ -142,6 +145,13 @@ class ReidTrackingNode(Node):
         # 기다린다). 기다리는 동안 target_person_pose는 발행되지 않는다 - 엉뚱한 사람을
         # 따라가게 하는 것보다 안전하다. dormant_ttl이 상한 역할을 한다.
         self.declare_parameter('sticky_follow', True)
+        # sticky_follow가 기다리는 동안, 살아있는 트랙이 **정확히 하나뿐이면** 그 사람을 대상으로
+        # 삼는다. 임베딩이 꺼져 있으면(기본) 갤러리 복원은 위치 근접만 보는데, "사라진 자리
+        # 근처에 사람이 있나"는 "눈앞에 사람이 있나"와 사실상 같은 정보라 구별력이 없다.
+        # 구별할 수 없는 것을 구별하겠다고 기다리면, 눈앞의 사람을 두고 아무도 따라가지 않는
+        # 상태가 길게 이어진다(실기 15:36 로그에서 실측). 후보가 둘 이상일 때는 여전히
+        # 기다린다 - 그때가 sticky_follow가 실제로 값을 하는 유일한 상황이다.
+        self.declare_parameter('sticky_follow_adopt_when_alone', True)
         # 외형 임베딩이 없을 때 갤러리에서 신원을 되살릴 최대 거리(m). "마지막으로 보이던
         # 자리 근처로 돌아왔는가"로 판단한다. 너무 키우면 다른 사람을 같은 사람으로 잇는다.
         self.declare_parameter('revival_max_distance', 1.5)
@@ -234,6 +244,9 @@ class ReidTrackingNode(Node):
         self.dormant_ttl = self.get_parameter('dormant_ttl').value
         self.revival_similarity = self.get_parameter('revival_similarity').value
         self.sticky_follow = self.get_parameter('sticky_follow').value
+        self.sticky_follow_adopt_when_alone = self.get_parameter(
+            'sticky_follow_adopt_when_alone').value
+        self.log_track_lifecycle = self.get_parameter('log_track_lifecycle').value
         self.revival_max_distance = self.get_parameter('revival_max_distance').value
         self.use_kalman = self.get_parameter('use_kalman').value
         self.kalman_process_noise = self.get_parameter('kalman_process_noise').value
@@ -452,6 +465,8 @@ class ReidTrackingNode(Node):
                     self._next_track_id += 1
                     self.tracks[track_id] = self._new_track(
                         track_id, x, y, stamp, source, var)
+                    if self.log_track_lifecycle:
+                        self._log_new_track(track_id, x, y, stamp, source, det_id)
             elif track_id == self.followed_track_id and self.locked_leg_id is not None:
                 # 락온 중에는 문서 5단계("재매칭 없이 락온된 라이다 트랙을 그대로 추종")대로
                 # 웹캠/OAK-D가 트랙의 위치·속도를 직접 덮어쓰지 않는다. 두 출처가 서로 다른
@@ -527,6 +542,12 @@ class ReidTrackingNode(Node):
             # 임베딩이 있는 트랙만 보관해서, 기본 구성에서는 갤러리가 늘 비고 sticky_follow가
             # 통째로 무력화됐다(대상을 잃으면 곧바로 다른 사람으로 갈아탐). 외형이 없으면
             # 아래 _revive_from_gallery가 마지막 위치 근접으로 되살린다.
+            if self.log_track_lifecycle:
+                self.get_logger().info(
+                    f'[lifecycle] 소멸 track {tid} @({track.x:.2f},{track.y:.2f}) '
+                    f'마지막갱신 {now - track.last_stamp:.2f}s 전 / 수명 '
+                    f'{track.last_stamp - track.created_stamp:.2f}s / '
+                    f'추종중={self.followed_track_id == tid} / 출처={track.last_source}')
             self.dormant_gallery[tid] = (track.embedding, track.x, track.y, track.last_stamp)
             del self.tracks[tid]
             self.last_independent_update.pop(tid, None)
@@ -559,6 +580,32 @@ class ReidTrackingNode(Node):
                 # 되살아나길 기다리던 대상이 TTL을 넘겼다 - 더는 기다리지 않는다.
                 self.dormant_followed_id = None
 
+    def _log_new_track(self, track_id, x, y, stamp, source, det_id):
+        """새 트랙이 왜 생겼는지 판단할 재료를 남긴다.
+
+        한 사람이 서 있는데 트랙이 여러 개 생기는 원인 후보가 셋이라(상류 트래커 id 변경 /
+        위치 게이팅 실패 / 상류 id 재사용 오구제), 생성 시점의 "가장 가까운 기존 트랙까지
+        거리"와 "이 상류 id를 전에 본 적 있는지"를 함께 찍어야 구분된다.
+        """
+        nearest, nearest_d = None, None
+        for tr in self.tracks.values():
+            if tr.id == track_id:
+                continue
+            d = distance(tr.x, tr.y, x, y)
+            if nearest_d is None or d < nearest_d:
+                nearest, nearest_d = tr.id, d
+        seen = [k for k in self.source_id_to_track if k[1] == det_id]
+        near_txt = f'최근접 track {nearest} {nearest_d:.2f}m' if nearest is not None else '기존 트랙 없음'
+        gallery_d = None
+        for gid, (_e, gx, gy, _s) in self.dormant_gallery.items():
+            d = distance(gx, gy, x, y)
+            if gallery_d is None or d < gallery_d[1]:
+                gallery_d = (gid, d)
+        gal_txt = f'갤러리 최근접 {gallery_d[0]} {gallery_d[1]:.2f}m' if gallery_d else '갤러리 빔'
+        self.get_logger().info(
+            f'[lifecycle] 생성 track {track_id} @({x:.2f},{y:.2f}) 출처={source} '
+            f'상류id={det_id!r}(기존매핑 {len(seen)}건) / {near_txt} / {gal_txt}')
+
     def _maybe_select_followed_track(self):
         """추종 대상 선정 정책. 실제 대상 지정(제스처/호출좌표 등)은 아직 이 패키지 범위 밖이라
         초기 획득은 "가장 먼저 잡힌(가장 오래된) 트랙"이라는 단순한 기본값을 쓴다.
@@ -577,7 +624,28 @@ class ReidTrackingNode(Node):
         if self.followed_track_id is not None and self.followed_track_id in self.tracks:
             return
         if self.sticky_follow and self.dormant_followed_id is not None:
-            return
+            # 후보가 정확히 하나면 기다릴 이유가 없다(위 파라미터 주석 참고).
+            if not (self.sticky_follow_adopt_when_alone and len(self.tracks) == 1):
+                return
+            adopted = next(iter(self.tracks.values()))
+            # 기다리던 신원이 아직 갤러리에 있으면, 그 신원이 사라진 자리에서 너무 멀리
+            # 떨어진 사람은 받아들이지 않는다 - 다인원 현장에서 원래 대상이 나가고 **다른**
+            # 사람만 남은 경우를 그대로 넘겨받는 것이 sticky_follow가 막으려던 바로 그
+            # 상황이다. 갤러리에서 이미 만료됐다면 비교할 근거가 없으므로 그냥 받아들인다.
+            waiting = self.dormant_gallery.get(self.dormant_followed_id)
+            if waiting is not None:
+                d = distance(waiting[1], waiting[2], adopted.x, adopted.y)
+                if d > self.revival_max_distance:
+                    self.get_logger().info(
+                        f'sticky 대기 유지: 유일 후보 track {adopted.id}가 기다리던 신원 '
+                        f'{self.dormant_followed_id}의 마지막 위치에서 {d:.2f}m '
+                        f'(> {self.revival_max_distance:.2f}m) 떨어져 있다',
+                        throttle_duration_sec=2.0)
+                    return
+            self.get_logger().info(
+                f'sticky 대기 해제: 후보가 track {adopted.id} 하나뿐이라 추종 대상으로 삼는다 '
+                f'(기다리던 신원 {self.dormant_followed_id})')
+            self.dormant_followed_id = None
         if not self.tracks:
             self.followed_track_id = None
             return
