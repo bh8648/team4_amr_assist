@@ -72,6 +72,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 
+import math
 import array
 
 from vision_msgs.msg import Detection3D, Detection3DArray, ObjectHypothesis, ObjectHypothesisWithPose
@@ -471,7 +472,8 @@ class ReidTrackingNode(Node):
                     self.tracks[track_id] = self._new_track(
                         track_id, x, y, stamp, source, var)
                     if self.log_track_lifecycle:
-                        self._log_new_track(track_id, x, y, stamp, source, det_id)
+                        self._log_new_track(track_id, x, y, stamp, source, det_id,
+                                            batch_stamp, len(entries), track_ids)
             elif track_id == self.followed_track_id and self.locked_leg_id is not None:
                 # 락온 중에는 문서 5단계("재매칭 없이 락온된 라이다 트랙을 그대로 추종")대로
                 # 웹캠/OAK-D가 트랙의 위치·속도를 직접 덮어쓰지 않는다. 두 출처가 서로 다른
@@ -585,22 +587,39 @@ class ReidTrackingNode(Node):
                 # 되살아나길 기다리던 대상이 TTL을 넘겼다 - 더는 기다리지 않는다.
                 self.dormant_followed_id = None
 
-    def _log_new_track(self, track_id, x, y, stamp, source, det_id):
+    def _log_new_track(self, track_id, x, y, stamp, source, det_id,
+                       batch_stamp=None, batch_n=None, batch_ids=None):
         """새 트랙이 왜 생겼는지 판단할 재료를 남긴다.
 
         한 사람이 서 있는데 트랙이 여러 개 생기는 원인 후보가 셋이라(상류 트래커 id 변경 /
         위치 게이팅 실패 / 상류 id 재사용 오구제), 생성 시점의 "가장 가까운 기존 트랙까지
         거리"와 "이 상류 id를 전에 본 적 있는지"를 함께 찍어야 구분된다.
         """
-        nearest, nearest_d = None, None
+        # 게이팅은 저장된 위치가 아니라 batch_stamp로 **예측한** 위치와 비교하므로 둘 다 찍는다.
+        # 저장 위치는 붙어 있는데 예측 위치가 멀면 원인은 속도 추정 오버슛이다.
+        nearest, nearest_d, nearest_pred_d, nearest_v = None, None, None, None
         for tr in self.tracks.values():
             if tr.id == track_id:
                 continue
             d = distance(tr.x, tr.y, x, y)
             if nearest_d is None or d < nearest_d:
+                px, py = (tr.predict(batch_stamp, max_dt=self.leg_match_max_extrapolation)
+                          if batch_stamp is not None else (tr.x, tr.y))
                 nearest, nearest_d = tr.id, d
+                nearest_pred_d = distance(px, py, x, y)
+                nearest_v = math.hypot(tr.vx, tr.vy)
         seen = [k for k in self.source_id_to_track if k[1] == det_id]
-        near_txt = f'최근접 track {nearest} {nearest_d:.2f}m' if nearest is not None else '기존 트랙 없음'
+        if nearest is not None:
+            near_txt = (f'최근접 track {nearest} 저장 {nearest_d:.2f}m / 예측 {nearest_pred_d:.2f}m '
+                        f'(v={nearest_v:.2f}m/s)')
+        else:
+            near_txt = '기존 트랙 없음'
+        # 같은 배치에 검출이 여러 개면, 배타적 배정 때문에 가까운 트랙이 이미 다른 검출에
+        # 선점됐을 수 있다 - 한 사람이 두 번 검출되는(중복 bbox) 경우가 여기 해당한다.
+        batch_txt = ''
+        if batch_n is not None:
+            taken = [t for t in (batch_ids or []) if t is not None]
+            batch_txt = f' / 배치검출 {batch_n}개(기존트랙배정 {len(taken)}건)'
         gallery_d = None
         for gid, (_e, gx, gy, _s) in self.dormant_gallery.items():
             d = distance(gx, gy, x, y)
@@ -609,7 +628,7 @@ class ReidTrackingNode(Node):
         gal_txt = f'갤러리 최근접 {gallery_d[0]} {gallery_d[1]:.2f}m' if gallery_d else '갤러리 빔'
         self.get_logger().info(
             f'[lifecycle] 생성 track {track_id} @({x:.2f},{y:.2f}) 출처={source} '
-            f'상류id={det_id!r}(기존매핑 {len(seen)}건) / {near_txt} / {gal_txt}')
+            f'상류id={det_id!r}(기존매핑 {len(seen)}건) / {near_txt} / {gal_txt}{batch_txt}')
 
     def _maybe_select_followed_track(self):
         """추종 대상 선정 정책. 실제 대상 지정(제스처/호출좌표 등)은 아직 이 패키지 범위 밖이라
