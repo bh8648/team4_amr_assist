@@ -135,6 +135,7 @@ class OakdDetectorNode(Node):
         self.publish_debug_image = self.get_parameter('publish_debug_image').value
         self.follow_target_max_age = self.get_parameter('follow_target_max_age').value
         self.follow_target_match_distance = self.get_parameter('follow_target_match_distance').value
+        self.log_follow_overlay_misses = self.get_parameter('log_follow_overlay_misses').value
 
         # ---- 캐시 상태 (콜백이 갱신, 동기 콜백/타이머가 소비) ----
         self.camera_k = None          # (fx, fy, cx, cy)
@@ -371,6 +372,8 @@ class OakdDetectorNode(Node):
         # FOLLOWING 표시를 하지 않는다. 이 상한이 없으면 화면의 유일한 검출이 무조건 칠해져
         # 오버레이가 착시를 준다.
         self.declare_parameter('follow_target_match_distance', 0.8)
+        # 화면에 검출이 있는데 FOLLOWING이 안 칠해진 이유를 로그로 남긴다(2초 throttle).
+        self.declare_parameter('log_follow_overlay_misses', False)
 
     # ------------------------------------------------------------------ 캐시 콜백
 
@@ -809,9 +812,17 @@ class OakdDetectorNode(Node):
         # 의 벽시계는 로스백 재생(use_sim_time 미설정) 시 메시지 타임스탬프와 기준이 완전히
         # 달라 신선도 검사가 항상 실패하는 버그가 있었다(실측 확인: FOLLOWING이 전혀 안 뜸).
         follow_idx = None
+        why = None   # FOLLOWING을 못 칠한 이유(진단 로그용)
+        if not overlay_items:
+            why = None            # 그릴 검출 자체가 없으면 설명할 것도 없다
+        elif self.latest_follow_target is None:
+            why = '추종 좌표 미수신(reid가 아직 대상을 못 정했거나 토픽 미연결)'
         if self.latest_follow_target is not None and overlay_items:
             fx, fy, f_stamp = self.latest_follow_target
             frame_sec = _stamp_to_sec(frame_stamp)
+            if abs(frame_sec - f_stamp) > self.follow_target_max_age:
+                why = (f'추종 좌표가 낡음 {abs(frame_sec - f_stamp):.2f}s '
+                       f'(> {self.follow_target_max_age:.2f}s)')
             if abs(frame_sec - f_stamp) <= self.follow_target_max_age:
                 best_d = None
                 for idx, item in enumerate(overlay_items):
@@ -825,7 +836,14 @@ class OakdDetectorNode(Node):
                 # (실제로 그렇게 잘못 표시된 영상을 만들었다). 매칭이 안 되면 아무것도 칠하지
                 # 않고 아래에서 'TARGET NOT VISIBLE'을 표시한다.
                 if best_d is None or best_d > self.follow_target_match_distance:
+                    why = (f'가장 가까운 검출이 추종 좌표에서 {best_d:.2f}m '
+                           f'(> {self.follow_target_match_distance:.2f}m) '
+                           f'| 추종좌표 ({fx:.2f},{fy:.2f})')
                     follow_idx = None
+        if why is not None and self.log_follow_overlay_misses:
+            # 사람이 화면에 있는데 FOLLOWING이 안 뜨는 이유를 한 줄로 남긴다. 원인이
+            # "대상 미선정 / 좌표 낡음 / 매칭 거리 초과" 셋으로 갈려 로그 없이는 구분되지 않는다.
+            self.get_logger().info(f'[follow] 미표시: {why}', throttle_duration_sec=2.0)
 
         for i, (u, v, grade, distance, track_id, map_x, map_y, bbox) in enumerate(overlay_items):
             if i == follow_idx:

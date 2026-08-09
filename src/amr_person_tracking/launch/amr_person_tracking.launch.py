@@ -65,6 +65,8 @@ def generate_launch_description():
         # base_link 기준 검출 거리 상한(m). 원거리 검출은 depth 오차로 map 좌표가 수 m씩
         # 튀고, 그 유령 트랙이 추종 트랙을 끌고 가 대상을 잃게 만든다. 0 이하면 끈다.
         DeclareLaunchArgument('max_detection_distance', default_value='5.0'),
+        # 화면에 사람이 있는데 FOLLOWING이 안 칠해질 때 그 이유를 로그로 남긴다.
+        DeclareLaunchArgument('log_follow_overlay_misses', default_value='false'),
         # 전역 좌표계. 각 노드가 tf2 조회/출력 frame_id에 사용한다. AMCL/nav2가 없는 로스백
         # 재생 테스트에서는 map 프레임이 존재하지 않으므로 odom으로 넘겨야 tf lookup이 성공한다.
         DeclareLaunchArgument('map_frame', default_value='map'),
@@ -148,6 +150,7 @@ def generate_launch_description():
             'debug_image_topic': debug_image_topic,
             'publish_debug_image': LaunchConfiguration('publish_debug_image'),
             'max_detection_distance': LaunchConfiguration('max_detection_distance'),
+            'log_follow_overlay_misses': LaunchConfiguration('log_follow_overlay_misses'),
             'reid_embeddings_topic': embeddings_topic,
             'follow_target_topic': target_pose_topic,
             'map_frame': LaunchConfiguration('map_frame'),
