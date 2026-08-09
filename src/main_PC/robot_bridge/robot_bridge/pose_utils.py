@@ -35,5 +35,4 @@ def build_robot_status(robot_id: str, battery_percent: float, x: float, y: float
     msg.x = float(x)
     msg.y = float(y)
     msg.yaw = float(yaw)
-    msg.current_task_id = ''
     return msg

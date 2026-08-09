@@ -29,62 +29,64 @@ class Robot11BridgeNode(Node):
         self.latest_y: Optional[float] = None
         self.latest_yaw: Optional[float] = None
         self.latest_battery_percent: Optional[float] = None
+        self.nav_goal_handle = None
 
         self.current_task_state: str = ''
         self.nav_generation = 0
 
-        self.amcl_sub = self.create_subscription(
+        # --------------------------------subscription---------------------------------------------------------------
+        self.amcl_sub = self.create_subscription(       # 로봇 위치 수신
             PoseWithCovarianceStamped, f'/{ROBOT_ID}/amcl_pose', self.amcl_pose_callback, 10)
         # Create3/TurtleBot4 센서 토픽은 BEST_EFFORT로 발행되는 경우가 많다.
         # BEST_EFFORT 구독자는 BEST_EFFORT/RELIABLE 발행자 모두와 호환된다.
-        self.battery_sub = self.create_subscription(
+        self.battery_sub = self.create_subscription(        # 로봇 배터리 상태 수신
             BatteryState, f'/{ROBOT_ID}/battery_state', self.battery_callback,
             qos_profile_sensor_data)
 
-        self.status_pub = self.create_publisher(RobotStatus, '/robot_status', status_qos)
-        self.status_timer = self.create_timer(1.0, self.publish_robot_status)
+        self.task_state_sub = self.create_subscription(     # 로봇의 작업상태 수신
+                    TaskState, '/task/state', self.task_state_callback, 10)
 
-        self.nav_goal_handle = None
-
-        self.pause_sub = self.create_subscription(
-            Bool, f'/{ROBOT_ID}/pause/request', self.pause_callback, 10)
-
-        self.nav_client = ActionClient(self, NavigateToPose, f'/{ROBOT_ID}/navigate_to_pose')
-
-        self.dock_sub = self.create_subscription(
+        self.pause_sub = self.create_subscription(      # 일시정지 요청 수신
+                    Bool, f'/{ROBOT_ID}/pause/request', self.pause_callback, 10)
+        
+        self.dock_sub = self.create_subscription(       # 도킹 요청 수신
             Bool, f'/{ROBOT_ID}/dock/request', self.dock_callback, 10)
 
-        self.dock_client = ActionClient(self, Dock, f'/{ROBOT_ID}/dock')
-        self.undock_client = ActionClient(self, Undock, f'/{ROBOT_ID}/undock')
+        # --------------------------------publisher---------------------------------------------------------------
+        self.status_pub = self.create_publisher(RobotStatus, '/robot_status', status_qos)   # 로봇 상태 퍼블리시
+        self.status_timer = self.create_timer(1.0, self.publish_robot_status)   # 1초마다 로봇 상태 퍼블리시
+
+        # --------------------------------Action_client---------------------------------------------------------------
+        self.nav_client = ActionClient(self, NavigateToPose, f'/{ROBOT_ID}/navigate_to_pose')       # Goal 요청 액션 클라이언트
+        self.dock_client = ActionClient(self, Dock, f'/{ROBOT_ID}/dock')        # 도킹 요청 액션 클라이언트
+        self.undock_client = ActionClient(self, Undock, f'/{ROBOT_ID}/undock')  # 언도킹 요청 액션 클라이언트
 
         self.target_person_pose_sub = self.create_subscription(
             PoseStamped, f'/{ROBOT_ID}/target_person_pose', self.target_person_pose_callback, 10)
-        self.task_state_sub = self.create_subscription(
-            TaskState, '/task/state', self.task_state_callback, 10)
-
+        
         self.get_logger().info(f'{ROBOT_ID} 브릿지 노드 시작')
 
-    def amcl_pose_callback(self, msg: PoseWithCovarianceStamped) -> None:
+    def amcl_pose_callback(self, msg: PoseWithCovarianceStamped) -> None:   # 로봇의 현재 위치와 각도(라디안)를 받아옴
         position = msg.pose.pose.position
         orientation = msg.pose.pose.orientation
         self.latest_x, self.latest_y = position.x, position.y
         self.latest_yaw = quaternion_to_yaw(orientation.x, orientation.y, orientation.z, orientation.w)
 
-    def battery_callback(self, msg: BatteryState) -> None:
+    def battery_callback(self, msg: BatteryState) -> None:      # 배터리 상태 받아옴(% 단위)
         self.latest_battery_percent = msg.percentage * 100.0
 
-    def build_status_message(self) -> Optional[RobotStatus]:
+    def build_status_message(self) -> Optional[RobotStatus]:    # 로봇의 상태를 메시지 형태로 정리
         if self.latest_x is None or self.latest_battery_percent is None:
             return None
         return build_robot_status(
             ROBOT_ID, self.latest_battery_percent, self.latest_x, self.latest_y, self.latest_yaw)
 
-    def publish_robot_status(self) -> None:
+    def publish_robot_status(self) -> None:     # 로봇 상태 퍼블리시(아이디, 배터리, x, y, yaw)
         msg = self.build_status_message()
         if msg is not None:
             self.status_pub.publish(msg)
 
-    def pause_callback(self, msg: Bool) -> None:
+    def pause_callback(self, msg: Bool) -> None:    # 진행 중인 Action goal 중단 요청
         if not msg.data:
             return
         # 아직 응답이 오지 않은 in-flight goal도 무효화한다.
@@ -94,20 +96,20 @@ class Robot11BridgeNode(Node):
             self.nav_goal_handle.cancel_goal_async()
             self.nav_goal_handle = None
 
-    def dock_callback(self, msg: Bool) -> None:
+    def dock_callback(self, msg: Bool) -> None:     # 도킹/언도킹 수행
         if msg.data:
             self._send_dock_goal()
         else:
             self._send_undock_goal()
 
-    def _send_dock_goal(self) -> None:
+    def _send_dock_goal(self) -> None:      # 도킹 액션 보내기
         if not self.dock_client.wait_for_server(timeout_sec=0.2):
             self.get_logger().warn('dock 액션 서버 대기 중')
             return
         future = self.dock_client.send_goal_async(Dock.Goal())
         future.add_done_callback(self._dock_response_callback)
 
-    def _send_undock_goal(self) -> None:
+    def _send_undock_goal(self) -> None:        # 언도킹 액션 보내기
         if not self.undock_client.wait_for_server(timeout_sec=0.2):
             self.get_logger().warn('undock 액션 서버 대기 중')
             return
@@ -130,11 +132,11 @@ class Robot11BridgeNode(Node):
         goal_handle.get_result_async().add_done_callback(
             lambda result: self.get_logger().info(f'undock 결과: is_docked={result.result().result.is_docked}'))
 
-    def task_state_callback(self, msg: TaskState) -> None:
+    def task_state_callback(self, msg: TaskState) -> None:      # 현재 로봇의 작업상태 저장
         if msg.robot_id == ROBOT_ID:
             self.current_task_state = msg.state
 
-    def target_person_pose_callback(self, msg: PoseStamped) -> None:
+    def target_person_pose_callback(self, msg: PoseStamped) -> None:     # 추종 상태일 때만 goal 보내기
         if self.current_task_state != 'FOLLOWING':
             return
         if msg.header.frame_id != 'map':

@@ -30,7 +30,9 @@ class DbManagerNode(Node):
 
         # 3-1. Robot Status Subscriber 설정 (상태 수신)
         qos_profile = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
-        self.status_subscriptions = [self.create_subscription(RobotStatus, f'/{robot_id}/robot_status', lambda msg, expected=robot_id: self.status_callback(expected, msg), qos_profile) for robot_id in self.VALID_ROBOTS]
+        self.status_subscription = self.create_subscription(
+            RobotStatus, '/robot_status',
+            lambda msg: self.status_callback(str(msg.robot_id).strip(), msg), qos_profile)
         self.assignment_subscription = self.create_subscription(RobotAssignment, '/robot_assignment', self.assignment_callback, 10)
         self.task_state_subscription = self.create_subscription(TaskState, '/task/state', self.task_state_callback, 10)
 
@@ -54,6 +56,9 @@ class DbManagerNode(Node):
         current_time = self.get_clock().now().nanoseconds / 1e9  # 초 단위 변환
         
         robot_id = str(msg.robot_id)
+        if robot_id not in self.VALID_ROBOTS:
+            self.get_logger().warning(f'Unknown robot_id on /robot_status: {robot_id or "EMPTY"}')
+            return
         if robot_id != expected_robot_id:
             self.get_logger().warning(f'토픽과 robot_id 불일치: expected={expected_robot_id}, received={robot_id}')
             return
@@ -123,16 +128,53 @@ class DbManagerNode(Node):
         """Task Manager의 상태 전환을 tasks 테이블에 저장한다."""
         robot_id = str(msg.robot_id)
         self.task_states[robot_id] = msg
+
+        # Task Manager의 DOCKED는 복귀와 도킹이 끝난 작업이므로
+        # DB에서는 명세의 최종 상태인 COMPLETED로 변환해 저장한다.
         completed = msg.state in ('DOCKED', 'ERROR')
+        database_state = 'COMPLETED' if msg.state == 'DOCKED' else msg.state
+
+        # result는 상태 설명(detail)이 아니라 최종 결과만 저장한다.
+        # 취소 후 복귀 중에 CANCELED를 먼저 저장하고, 도킹 완료 시 그 값을 유지한다.
+        if msg.state == 'ERROR':
+            result = 'FAILED'
+        elif msg.state == 'RETURNING' and msg.detail == '작업 취소 후 복귀':
+            result = 'CANCELED'
+        elif msg.state == 'DOCKED':
+            result = 'SUCCESS'
+        else:
+            result = None
+
         try:
             self.conn.execute(
                 """
-                INSERT INTO tasks (task_id, assigned_robot_id, state, result, created_at, completed_at)
-                VALUES (?, ?, ?, ?, datetime('now', 'localtime'), CASE WHEN ? THEN datetime('now', 'localtime') END)
+                INSERT INTO tasks (
+                    task_id, assigned_robot_id, state, result, created_at,
+                    completed_at, duration_seconds
+                )
+                VALUES (
+                    ?, ?, ?, ?, datetime('now', 'localtime'),
+                    CASE WHEN ? THEN datetime('now', 'localtime') END,
+                    CASE WHEN ? THEN 0 END
+                )
                 ON CONFLICT(task_id) DO UPDATE SET assigned_robot_id=excluded.assigned_robot_id, state=excluded.state,
-                    result=excluded.result, completed_at=CASE WHEN ? THEN datetime('now', 'localtime') ELSE tasks.completed_at END
+                    result=CASE
+                        WHEN excluded.result = 'SUCCESS' AND tasks.result = 'CANCELED' THEN tasks.result
+                        ELSE COALESCE(excluded.result, tasks.result)
+                    END,
+                    completed_at=CASE WHEN ? THEN datetime('now', 'localtime') ELSE tasks.completed_at END,
+                    duration_seconds=CASE
+                        WHEN ? THEN CAST(
+                            (julianday('now', 'localtime') - julianday(tasks.created_at)) * 86400
+                            AS INTEGER
+                        )
+                        ELSE tasks.duration_seconds
+                    END
                 """,
-                (msg.task_id, robot_id, msg.state, msg.detail or None, completed, completed)
+                (
+                    msg.task_id, robot_id, database_state, result,
+                    completed, completed, completed, completed,
+                )
             )
             self.conn.commit()
             self.get_logger().info(f'Task 상태 저장: {msg.task_id} · {robot_id} · {msg.state}')
@@ -154,11 +196,14 @@ class DbManagerNode(Node):
             # 수신 간격이 5초 이상이면 OFFLINE, 미만이면 ONLINE
             online_state = "ONLINE" if time_diff < 5.0 else "OFFLINE"
 
-            # 작업 상태는 현재 메시지에 없으므로 기본 상태를 사용한다.
-            # 연결 여부는 별도의 online 컬럼에 저장한다.
+            # TaskState has not been received yet, so store IDLE instead of
+            # assuming that the robot is already DOCKED.
             task_state = self.task_states.get(str(robot_id))
-            robot_state = task_state.state if task_state else "DOCKED"
-            task_id = task_state.task_id if task_state and task_state.state not in ('DOCKED', 'ERROR') else None
+            robot_state = task_state.state if task_state else "IDLE"
+
+            # ERROR도 작업 중 발생한 최종 상태이므로 해당 Task ID를 보존한다.
+            # 작업이 정상 종료된 DOCKED에서만 current_task_id를 NULL로 저장한다.
+            task_id = task_state.task_id if task_state and task_state.state != 'DOCKED' else None
 
             query = """
                 INSERT INTO robot_status_logs (

@@ -83,7 +83,9 @@ class RobotAssignmentNode(Node):
         )
         call_qos = QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE, history=HistoryPolicy.KEEP_LAST)
 
-        self.status_subscriptions = [self.create_subscription(RobotStatus, f'/{robot_id}/robot_status', lambda msg, expected=robot_id: self.status_callback(expected, msg), qos) for robot_id in self.VALID_ROBOTS]
+        self.status_subscription = self.create_subscription(
+            RobotStatus, '/robot_status',
+            lambda msg: self.status_callback(str(msg.robot_id).strip(), msg), qos)
         # 로봇1,2 상태정보 수신
         self.goal_subscription = self.create_subscription(              # goal 목표 수신용 Subscriber
             PointStamped, '/person/call_position', self.goal_callback, call_qos
@@ -152,6 +154,9 @@ class RobotAssignmentNode(Node):
 
     def status_callback(self, expected_robot_id: str, msg: RobotStatus) -> None:    # 로봇 상태와 실제 수신 시각을 저장
         robot_id = str(msg.robot_id)
+        if robot_id not in self.VALID_ROBOTS:
+            self.get_logger().warning(f'Unknown robot_id on /robot_status: {robot_id or "EMPTY"}')
+            return
         if robot_id != expected_robot_id:
             self.get_logger().warning(f'토픽과 robot_id 불일치: expected={expected_robot_id}, received={robot_id}')
             return

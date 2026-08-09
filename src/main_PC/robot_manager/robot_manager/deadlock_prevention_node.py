@@ -44,7 +44,9 @@ class DeadlockPreventionNode(Node):
         self.task_states: Dict[str, Tuple[str, str]] = {}
         self.active_conflict: Optional[Tuple[str, str]] = None
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
-        self.status_subscriptions = [self.create_subscription(RobotStatus, f'/{robot_id}/robot_status', lambda msg, expected=robot_id: self.status_callback(expected, msg), qos) for robot_id in (self.ROBOT5, self.ROBOT11)]
+        self.status_subscription = self.create_subscription(
+            RobotStatus, '/robot_status',
+            lambda msg: self.status_callback(self.normalize_robot_id(msg.robot_id), msg), qos)
         self.task_state_sub = self.create_subscription(TaskState, '/task/state', self.task_state_callback, 10)
         self.permission_pub = self.create_publisher(DeadlockPermission, '/deadlock/permission', 10)
         self.timer = self.create_timer(float(self.get_parameter('check_interval_sec').value), self.evaluate)
@@ -57,6 +59,9 @@ class DeadlockPreventionNode(Node):
 
     def status_callback(self, expected_robot_id: str, msg: RobotStatus) -> None:
         robot_id = self.normalize_robot_id(msg.robot_id)
+        if robot_id not in (self.ROBOT5, self.ROBOT11):
+            self.get_logger().warning(f'Unknown robot_id on /robot_status: {msg.robot_id or "EMPTY"}')
+            return
         if robot_id != expected_robot_id:
             self.get_logger().warning(f'토픽과 robot_id 불일치: expected={expected_robot_id}, received={robot_id}')
             return

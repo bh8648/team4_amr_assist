@@ -20,7 +20,7 @@ class DummyStatusPublisher(Node):
     def __init__(self):
         super().__init__('dummy_status_publisher')
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
-        self.status_publishers = {robot_id: self.create_publisher(RobotStatus, f'/{robot_id}/robot_status', qos) for robot_id in ('robot5', 'robot11')}
+        self.status_publisher = self.create_publisher(RobotStatus, '/robot_status', qos)
         self.error_pub = self.create_publisher(RobotError, '/robot_error', 10)
         self.navigation_result_pub = self.create_publisher(NavigationResult, '/navigation/result', 10)
         self.task_state_sub = self.create_subscription(TaskState, '/task/state', self.task_state_callback, 10)
@@ -210,7 +210,7 @@ class DummyStatusPublisher(Node):
             msg.robot_id = robot_id
             msg.battery = round(robot['battery'], 1)
             msg.x, msg.y, msg.yaw = round(robot['x'], 3), round(robot['y'], 3), round(robot['yaw'], 3)
-            self.status_publishers[robot_id].publish(msg)
+            self.status_publisher.publish(msg)
 
     def publish_error_sample(self):
         if random.random() >= 0.3:

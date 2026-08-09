@@ -15,7 +15,7 @@ from robot_status.msg import DeadlockPermission, NavigationResult, RobotAssignme
 
 
 @dataclass
-class ManagedTask:
+class ManagedTask:  # 로봇의 정보를 모델 클래스
     task_id: str
     robot_id: str
     state: str = 'DOCKED'
@@ -33,46 +33,55 @@ class TaskManagerNode(Node):
     """AMR 배정 이후 Task 상태 전환과 Nav2 Goal 실행을 중앙에서 관리한다."""
 
     VALID_ROBOTS = {'robot5', 'robot11'}
-    ACTIVE_STATES = {'ASSIGNED', 'FOLLOWING', 'TRANSPORTING', 'RETURNING'}
-    COMMAND_REJECTION_CODES = (
+    ACTIVE_STATES = {'ASSIGNED', 'FOLLOWING', 'TRANSPORTING', 'RETURNING'}  # 로봇의 상태 목록
+    COMMAND_REJECTION_CODES = (     # 에러 코드
         'UNKNOWN_ROBOT_ID', 'TASK_NOT_FOUND', 'STALE_TASK_COMMAND',
         'INVALID_DESTINATION', 'ROBOT_ALREADY_HAS_TASK', 'INVALID_TRANSITION_',
     )
 
     def __init__(self):
         super().__init__('task_manager_node')
-        self.declare_parameter('robot5_dock_pose', [0.0, 0.0, 0.0])
-        self.declare_parameter('robot11_dock_pose', [-2.3, -3.6, -math.pi / 2])
+        self.declare_parameter('robot5_dock_pose', [0.0, 0.0, 0.0])     # 로봇5 도킹 위치
+        self.declare_parameter('robot11_dock_pose', [-2.3, -3.6, -math.pi / 2]) # 로봇11 도킹 위치
         self.tasks: Dict[str, ManagedTask] = {}
         self.idle_paused: Set[str] = set()
-        self.assignment_sub = self.create_subscription(RobotAssignment, '/robot_assignment', self.assignment_callback, 10)
-        self.command_sub = self.create_subscription(TaskCommand, '/task/command', self.command_callback, 10)
-        self.navigation_result_sub = self.create_subscription(NavigationResult, '/navigation/result', self.navigation_result_callback, 10)
+
+        # --------------------------------subscription---------------------------------------------------------------
+        self.assignment_sub = self.create_subscription(RobotAssignment, '/robot_assignment', self.assignment_callback, 10)  # 할당된 로봇 및 작업자 위치 받아옴
+        self.command_sub = self.create_subscription(TaskCommand, '/task/command', self.command_callback, 10)    # 작업자 상태 변환 수신
+        self.navigation_result_sub = self.create_subscription(NavigationResult, '/navigation/result', self.navigation_result_callback, 10)  # 
         self.deadlock_sub = self.create_subscription(DeadlockPermission, '/deadlock/permission', self.deadlock_callback, 10)
         self.error_sub = self.create_subscription(RobotError, '/robot_error', self.error_callback, 10)
+
+        # --------------------------------publisher---------------------------------------------------------------
         self.state_pub = self.create_publisher(TaskState, '/task/state', 10)
         self.error_pub = self.create_publisher(RobotError, '/robot_error', 10)
         self.stop_publishers = {robot_id: self.create_publisher(Bool, f'/{robot_id}/pause/request', 10) for robot_id in self.VALID_ROBOTS}
         self.dock_publishers = {robot_id: self.create_publisher(Bool, f'/{robot_id}/dock/request', 10) for robot_id in self.VALID_ROBOTS}
+
+        # --------------------------------Action_client---------------------------------------------------------------
         self.nav_clients = {robot_id: ActionClient(self, NavigateToPose, f'/{robot_id}/navigate_to_pose') for robot_id in self.VALID_ROBOTS}
         self.nav_retry_timer = self.create_timer(1.0, self.retry_navigation_goals)
         self.get_logger().info('Task Manager 시작: robot5, robot11')
 
     @staticmethod
-    def normalize_robot_id(robot_id: str) -> str:
+    def normalize_robot_id(robot_id: str) -> str:       # robot5, robot11 반환
         value = str(robot_id).strip()
         return value if value.startswith('robot') else f'robot{value}'
 
-    def assignment_callback(self, msg: RobotAssignment) -> None:
+    def assignment_callback(self, msg: RobotAssignment) -> None:    # 로봇에 작업id와 상태를 부여 후 Nav2에 Action goal 요청
         if not msg.assigned:
             return
+        
         robot_id = self.normalize_robot_id(msg.robot_id)
-        if robot_id not in self.VALID_ROBOTS:
+        if robot_id not in self.VALID_ROBOTS:       # 로봇이 5, 11 아닌 다른 로봇일 때
             self.publish_error(robot_id, '', 'UNKNOWN_ROBOT_ID')
             return
-        if robot_id in self.tasks and self.tasks[robot_id].state != 'DOCKED':
+        
+        if robot_id in self.tasks and self.tasks[robot_id].state != 'DOCKED':   # 로봇이 이미 다른 작업을 수행중일 때
             self.publish_error(robot_id, self.tasks[robot_id].task_id, 'ROBOT_ALREADY_HAS_TASK')
             return
+        
         task_id = f'TASK_{msg.assigned_at.sec}_{msg.assigned_at.nanosec}'
         task = ManagedTask(task_id=task_id, robot_id=robot_id, state='ASSIGNED', goal_type='TO_WORKER', target=(float(msg.target_x), float(msg.target_y), 0.0))
         self.tasks[robot_id] = task
@@ -121,7 +130,7 @@ class TaskManagerNode(Node):
         else:
             self.publish_error(robot_id, task.task_id, f'INVALID_TRANSITION_{task.state}_{command}')
 
-    def transition(self, task: ManagedTask, new_state: str, detail: str) -> None:
+    def transition(self, task: ManagedTask, new_state: str, detail: str) -> None:   # 상태 전환
         task.previous_state, task.state = task.state, new_state
         self.publish_state(task, detail)
 
@@ -161,24 +170,27 @@ class TaskManagerNode(Node):
         if task.target and not task.goal_completed and task.state in ('ASSIGNED', 'TRANSPORTING', 'RETURNING'):
             self.send_navigation_goal(task)
 
-    def invalidate_navigation_goal(self, task: ManagedTask) -> None:
+    def invalidate_navigation_goal(self, task: ManagedTask) -> None:    # Nav2 goal 요청 취소
         task.nav_generation += 1
         task.goal_pending = False
         goal_handle, task.goal_handle = task.goal_handle, None
         if goal_handle is not None:
             goal_handle.cancel_goal_async()
 
-    def send_navigation_goal(self, task: ManagedTask, replace: bool = False) -> None:
-        if task.target is None:
+    def send_navigation_goal(self, task: ManagedTask, replace: bool = False) -> None:   # Nav2로 Action goal 요청하기
+        if task.target is None:     # goal 목표가 없을 때
             return
-        if task.goal_handle is not None or task.goal_pending:
-            if not replace:
+        
+        if task.goal_handle is not None or task.goal_pending:   # 주행 중 or 서버 응답 대기중 
+            if not replace: # 기존 주행 유지
                 return
-            self.invalidate_navigation_goal(task)
+            self.invalidate_navigation_goal(task)   # goal 취소
+
         client = self.nav_clients[task.robot_id]
         if not client.wait_for_server(timeout_sec=0.2):
             self.get_logger().warn(f'{task.robot_id} Nav2 Action 서버 대기 중: {task.goal_type}')
             return
+        
         x, y, yaw = task.target
         pose = PoseStamped()
         pose.header.stamp = self.get_clock().now().to_msg()
@@ -190,10 +202,10 @@ class TaskManagerNode(Node):
         task.nav_generation += 1
         generation = task.nav_generation
         task.goal_pending = True
-        future = client.send_goal_async(goal)
+        future = client.send_goal_async(goal)       # Nav2 goal 전송
         future.add_done_callback(lambda result, rid=task.robot_id, goal_type=task.goal_type, gen=generation: self.goal_response_callback(result, rid, goal_type, gen))
 
-    def goal_response_callback(self, future, robot_id: str, goal_type: str, generation: int) -> None:
+    def goal_response_callback(self, future, robot_id: str, goal_type: str, generation: int) -> None:   # Action goal 수락 여부
         task = self.tasks.get(robot_id)
         if task is None or generation != task.nav_generation:
             return
@@ -205,7 +217,7 @@ class TaskManagerNode(Node):
         result_future = task.goal_handle.get_result_async()
         result_future.add_done_callback(lambda result, rid=robot_id, kind=goal_type, gen=generation: self.action_result_callback(result, rid, kind, gen))
 
-    def action_result_callback(self, future, robot_id: str, goal_type: str, generation: int) -> None:
+    def action_result_callback(self, future, robot_id: str, goal_type: str, generation: int) -> None:   # Action goal 결과
         task = self.tasks.get(robot_id)
         if task is None or generation != task.nav_generation:
             return
@@ -225,7 +237,7 @@ class TaskManagerNode(Node):
             return
         task.goal_handle, task.goal_pending = None, False
         if not success:
-            self.transition(task, 'ERROR', error_code or 'NAVIGATION_FAILED')
+            self.transition(task, 'ERROR', error_code or 'NAVIGATION_FAILED')   # Nav2 도착 실패
             self.publish_error(robot_id, task.task_id, error_code or 'NAVIGATION_FAILED')
         else:
             task.goal_completed = True
