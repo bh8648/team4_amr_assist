@@ -18,11 +18,14 @@ setup(
     zip_safe=True,
     maintainer='user',
     maintainer_email='user@todo.todo',
-    description='robot11 노트북용 중앙 시스템 연동 브릿지 노드',
+    # 동일 구현으로 robot5와 robot11을 연결하는 공통 브릿지 패키지다.
+    description='robot5/robot11 중앙 시스템 연동 브릿지 노드',
     license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            # 기존 robot11 실행 이름은 호환성을 위해 유지하고 robot5 실행 이름을 추가한다.
+            'robot5_bridge_node = robot_bridge.robot11_bridge_node:main_robot5',
             'robot11_bridge_node = robot_bridge.robot11_bridge_node:main',
         ],
     },
