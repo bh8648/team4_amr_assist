@@ -723,7 +723,7 @@ class ReidTrackingNode(Node):
             if last_seen is not None and stamp - last_seen[2] > self.leg_lock_grace_period:
                 self.get_logger().warn(
                     f'라이다 락온 id {self.locked_leg_id} 유실 - 재매칭 진입')
-                self._reset_leg_lock()
+                self._reset_leg_lock(stamp)
             return
 
         x, y = positions[self.locked_leg_id]
@@ -740,7 +740,7 @@ class ReidTrackingNode(Node):
             if self.swap_check_streak >= self.lidar_swap_confirm_frames:
                 self.get_logger().warn(
                     f'라이다 락온({self.locked_leg_id}) ID 스왑 의심 - 재매칭 진입')
-                self._reset_leg_lock()
+                self._reset_leg_lock(stamp)
                 return
 
         # [5. 추종 유지] 재매칭 없이 락온된 id를 그대로 반영
@@ -795,10 +795,56 @@ class ReidTrackingNode(Node):
                         max_speed=self.gating_max_speed)
         self.get_logger().info(f'라이다 락온 확정: {best_rid} -> track {self.followed_track_id}')
 
-    def _reset_leg_lock(self):
+    def _reset_leg_lock(self, stamp=None):
+        """라이다 락온 상태를 푼다. stamp를 주면 추종 트랙을 카메라 관측 위치로 되돌린다.
+
+        stamp는 "지금 살아있는 락온을 놓는 중"인 호출에서만 넘긴다(_handle_locked의 유실/스왑
+        경로). 초기 대상 선정이나 트랙 삭제처럼 애초에 락온이 없던 경로는 되돌릴 것도 없다.
+        """
+        if stamp is not None and self.locked_leg_id is not None:
+            self._restore_camera_position(stamp)
         self.locked_leg_id = None
         self.lock_candidate_streak = {}
         self.swap_check_streak = 0
+
+    def _restore_camera_position(self, stamp):
+        """락온을 놓는 순간, 추종 트랙을 카메라가 마지막으로 독립 관측한 위치로 되돌린다.
+
+        락온 중에는 트랙 위치를 라이다 다리검출만 갱신한다(카메라 덮어쓰기 금지 - 위 분기 참고).
+        그 좌표는 카메라가 보는 위치에서 수십 cm씩 벌어지는데, 락온이 끊긴 뒤 트랙을 그 자리에
+        그대로 두면 카메라 검출이 위치 게이팅을 통과하지 못한다. 그러면 카메라가 사람을 계속
+        보고 있는데도 그 검출은 **다른 트랙**으로 가고, 추종 트랙만 아무에게도 갱신되지 않아
+        track_timeout 뒤에 굶어 죽는다.
+
+        실기(evidence/live_run_0809_1648.log)에서 이 경로로 추종 대상을 두 번 잃었다:
+          18.6s 락온 -> 24.5s 유실 -> 26.5s 소멸 track 1 수명 6.95s 추종중=True 출처=lidar_leg
+          32.3s 락온 -> 34.0s 유실 -> 36.0s 소멸 track 1 수명 1.63s 추종중=True 출처=lidar_leg
+        죽은 트랙의 마지막 출처가 둘 다 lidar_leg다.
+
+        속도도 라이다 좌표 점프로 오염돼 있어(예측 위치가 날아가 게이팅을 또 깨뜨린다) 함께
+        0으로 되돌린다. 카메라 관측이 swap_check_max_age보다 오래됐으면 되돌릴 근거가 없으므로
+        그냥 둔다 - 그 경우는 카메라도 사람을 못 보고 있다는 뜻이다.
+        """
+        if self.followed_track_id is None:
+            return
+        track = self.tracks.get(self.followed_track_id)
+        independent = self.last_independent_update.get(self.followed_track_id)
+        if track is None or independent is None:
+            return
+        x, y, obs_stamp = independent
+        if stamp - obs_stamp > self.swap_check_max_age:
+            return
+        moved = distance(track.x, track.y, x, y)
+        track.x, track.y = x, y
+        track.vx = track.vy = 0.0
+        if track.kalman is not None:
+            track.kalman = ConstantVelocityKalman2D(
+                x, y, stamp,
+                process_noise=self.kalman_process_noise,
+                measurement_noise=self.kalman_default_variance)
+        self.get_logger().info(
+            f'락온 해제 - 추종 track {self.followed_track_id} 위치를 카메라 관측으로 되돌림 '
+            f'({moved:.2f}m 이동, 관측 {stamp - obs_stamp:.2f}s 전)')
 
     def _update_leg_last_seen(self, positions, stamp):
         """이번 프레임에 보인 raw leg id만 갱신한다(통째로 덮어쓰지 않음) - 그래야 이번 프레임에
