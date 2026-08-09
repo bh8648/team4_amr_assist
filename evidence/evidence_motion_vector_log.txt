@@ -1,0 +1,78 @@
+이동 벡터(속도 추정) 검증 - my_new_bag5
+=========================================
+증거영상: evidence_motion_vector_bag5.mp4 (h264, 700x700, 53.5s, 10fps)
+도구:     src/amr_person_tracking/tools/record_motion_vector_video.py
+실행조건: ROS_DISCOVERY_SERVER="" ROS_LOCALHOST_ONLY=1 ROS_DOMAIN_ID=77
+          bag play --clock --rate 1.0, map_frame=odom(이 bag엔 map 프레임 없음),
+          TF는 /robot5/tf, /robot5/tf_static 로 remap
+노드:     oakd_detector_node + leg_detector_bridge_node + reid_tracking_node
+          + predictive_avoidance_node (avoidance_mode=pointcloud, 기본 파라미터)
+
+
+1. 이동 벡터가 어디서 나오는가
+------------------------------
+파이프라인에 속도 추정이 세 군데 있고, 회피에 실제로 쓰이는 건 하나뿐이다.
+
+  (a) reid_tracking_node - Track.vx/vy
+      유한차분 + 지수평활(velocity_alpha), gating_max_speed로 클램프.
+      용도는 **매칭 게이팅**뿐이고 밖으로 발행하지 않는다. use_kalman은 기본 false.
+
+  (b) predictive_avoidance_node - 트랙별 ConstantVelocityKalman2D  <-- 실제 소비처
+      tracked_detections_3d의 det.id로 시계열을 이어붙여 트랙마다 KF를 하나씩 유지한다.
+      predict_future(predict_horizon)로 미래 위치를 뽑아 가상 장애물 포인트 링을 만들고
+      predicted_obstacle_points로 발행한다(또는 costmap 인플레이션 파라미터를 조정).
+
+  (c) LegKalmanTracker (lidar) - 정적배경 분류용이며 회피 속도와 무관.
+
+즉 "움직이는 객체의 이동 벡터" = (b)의 KF state[2:4].
+
+
+2. 구현 단계
+-------------
+predictive_avoidance_node는 두 모드(pointcloud / costmap_params) 모두 구현돼 있고
+launch 파일에도 들어가 있으나, 이번 세션 전까지 **한 번도 실측 검증된 적이 없었다**
+(evidence/ 에 관련 로그 0건).
+
+이번 실행으로 확인한 것:
+  - tracked_detections 286건 -> predicted_obstacle_points 286건 발행. 에러 없음.
+  - 가상 포인트 링이 각 트랙의 predict_horizon 뒤 예측 위치에 정확히 찍힌다
+    (영상에서 초록 화살표 끝과 링 중심이 일치 - 서로 독립적으로 계산된 값이라 교차검증이 된다).
+
+아직 검증되지 않은 것:
+  - Nav2가 predicted_obstacle_points를 실제로 voxel_layer에 물어가는지
+    (costmap 설정은 이 리포지토리 밖이다).
+  - costmap_params 모드(SetParameters 호출 경로)는 이번에 실행하지 않았다.
+
+
+3. 속도 추정 품질
+------------------
+영상에 표시된 화살표 크기 표본 n=586:
+
+    중앙값 0.24 | 90%분위 0.78 | 최대 1.28 m/s | 보행 상한(2.0m/s) 초과 0%
+
+최대 1.28m/s는 빠른 걸음 수준으로 물리적으로 타당하며, 비현실적인 값이 하나도 없다.
+비교군으로 같은 트랙에 단순 유한차분을 적용하면:
+
+    중앙값 0.00 | 90%분위 1.29 | 최대 60.94 m/s | 보행 상한 초과 7%
+
+검출 좌표 자체는 프레임마다 튀지만 KF가 그걸 걸러내고 있다는 뜻이다.
+(reid의 Track.vx는 클램프가 있어 60m/s가 그대로 나가진 않지만, 원 신호가 이만큼 거칠다.)
+
+
+4. 시각화 도구에서 고친 것 (측정 결과 해석에 영향이 있었음)
+------------------------------------------------------------
+  - 처음엔 "트랙에서 가장 가까운 예측 링 중심"으로 화살표를 그렸다. 사람이 둘 이상이면
+    링과 트랙이 잘못 짝지어져 최대 4.09m/s, 22%가 2m/s 초과로 보였다. 전부 시각화
+    artifact였고 노드 결함이 아니다. 지금은 도구가 노드와 **같은 클래스·같은 기본
+    파라미터**(process_noise=1.0, measurement_noise=0.1)로 트랙별 속도를 직접 추정한다.
+  - 로봇을 캔버스 원점에 고정해 그리는 바람에 거리 링이 'odom 원점에서의 거리'였다.
+    TF(map_frame<-base_frame)로 실제 로봇 위치를 잡아 캔버스 중심에 두도록 고쳐,
+    링이 사람-로봇 실이격거리를 나타내게 했다.
+
+
+5. 남은 관찰
+-------------
+이 실행에서는 bag 초반 ~20초 구간에 트랙이 잡히지 않았다(영상 앞부분이 비어 있다).
+직전 디버그 실행에서는 bag t=1.4s부터 트랙 1이 잡혔으므로 실행 간 편차로 보이며,
+검출 파이프라인 기동 타이밍이 원인일 가능성이 높다. 이번 측정 목적(속도 추정 품질)에는
+영향이 없지만 별도로 확인할 가치가 있다.
