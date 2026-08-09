@@ -171,6 +171,7 @@ class TaskManagerNode(Node):
             self.send_navigation_goal(task, replace=True)
         elif command == 'CANCEL' and task.state in self.ACTIVE_STATES:
             if task.awaiting_dock_check or task.undock_requested:
+                task.awaiting_dock_check, task.undock_requested, task.dock_check_started_at = False, False, None
                 self.transition(task, 'DOCKED', '주행 시작 전 취소 — 도킹 상태 유지')
                 return
             task.goal_type, task.target = 'TO_DOCK', tuple(float(value) for value in self.get_parameter(f'{robot_id}_dock_pose').value)

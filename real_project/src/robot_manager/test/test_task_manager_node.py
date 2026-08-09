@@ -323,6 +323,39 @@ def test_cancel_does_not_navigate_while_awaiting_dock_check():
         rclpy.shutdown()
 
 
+def test_cancel_during_dock_check_clears_flags_so_reassignment_works():
+    rclpy.init()
+    node = TaskManagerNode()
+    try:
+        node.error_pub = Mock()
+        node.nav_clients['robot11'] = Mock()
+        node.nav_clients['robot11'].wait_for_server.return_value = True
+        _assign(node)
+        task = node.tasks['robot11']
+
+        from robot_status.msg import TaskCommand
+        cmd = TaskCommand()
+        cmd.command, cmd.robot_id, cmd.task_id = 'CANCEL', 'robot11', task.task_id
+        node.command_callback(cmd)
+
+        assert task.awaiting_dock_check is False
+        assert task.undock_requested is False
+        assert task.dock_check_started_at is None
+
+        # 취소 후 10초가 지나도 타임아웃 에러가 발행되면 안 된다 (플래그가 이미 지워졌으므로).
+        task.dock_check_started_at = None  # 이미 None이지만 명시적으로 확인
+        node.retry_navigation_goals()
+        node.error_pub.publish.assert_not_called()
+
+        # 재배정도 정상적으로 받아들여져야 한다 (DOCKED 상태라 ROBOT_ALREADY_HAS_TASK가 아니어야 함).
+        _assign(node)
+        node.error_pub.publish.assert_not_called()
+        assert node.tasks['robot11'].state == 'ASSIGNED'
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
 def test_robot_status_subscription_uses_best_effort_qos():
     rclpy.init()
     node = TaskManagerNode()
