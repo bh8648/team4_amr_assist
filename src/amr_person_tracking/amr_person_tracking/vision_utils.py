@@ -146,20 +146,45 @@ def estimate_foot_pixel(kp_xy, kp_conf, bbox_xyxy, kp_conf_threshold):
             and float(kp_conf[idx]) >= kp_conf_threshold
         )
 
+    candidates = foot_pixel_candidates(kp_xy, kp_conf, bbox_xyxy, kp_conf_threshold)
+    return candidates[0]
+
+
+def foot_pixel_candidates(kp_xy, kp_conf, bbox_xyxy, kp_conf_threshold):
+    """지면 접지점 후보 픽셀들을 우선순위 순으로 돌려준다. [(u, v, grade), ...] (최소 1개).
+
+    [왜 두 발목을 평균내지 않는가]
+    예전에는 좌우 발목이 모두 보이면 두 픽셀을 평균해 하나의 접지점으로 썼다. 그런데 걸을 때
+    다리가 벌어지면 그 중점은 **두 다리 사이 허공**이라, 거기서 depth를 재면 뒤쪽 바닥/벽이
+    찍힌다. 실측(my_new_bag5, 두 발목 모두 검출된 77건; 발목 간격 중앙값 77px, 90%분위 219px)
+    에서 중점 샘플의 22.1%가 몸통 깊이와 0.4m 이상 어긋났고(=배경을 찍음), 한쪽 발목만 쓰면
+    2.6~5.2%, 두 발목 중 몸통 깊이에 가까운 쪽을 고르면 0%였다.
+    그래서 여기서는 **평균 대신 각 발목을 개별 후보로** 내보내고, 어느 쪽을 쓸지는 depth를
+    실제로 재볼 수 있는 호출부(oakd_detector_node)가 고르게 한다.
+
+    호출부가 depth 없이 하나만 필요하면 estimate_foot_pixel()이 첫 후보를 준다.
+    """
+    x1, y1, x2, y2 = bbox_xyxy
+
+    def valid(idx):
+        return (
+            kp_xy is not None
+            and kp_conf is not None
+            and idx < len(kp_conf)
+            and float(kp_conf[idx]) >= kp_conf_threshold
+        )
+
     ankles = [i for i in (KP_LEFT_ANKLE, KP_RIGHT_ANKLE) if valid(i)]
     if ankles:
-        u = sum(float(kp_xy[i][0]) for i in ankles) / len(ankles)
-        v = sum(float(kp_xy[i][1]) for i in ankles) / len(ankles)
-        return u, v, 'toe_direct'
+        return [(float(kp_xy[i][0]), float(kp_xy[i][1]), 'toe_direct') for i in ankles]
 
     knees = [i for i in (KP_LEFT_KNEE, KP_RIGHT_KNEE) if valid(i)]
     if knees:
         # 무릎은 보이는데 발끝이 안 보이는 상황 - 좌우 위치는 무릎을 믿고
-        # 지면 접지 높이는 bbox 하단으로 대신한다.
-        u = sum(float(kp_xy[i][0]) for i in knees) / len(knees)
-        return u, float(y2), 'knee_corrected'
+        # 지면 접지 높이는 bbox 하단으로 대신한다. 무릎도 좌우를 각각 후보로 둔다.
+        return [(float(kp_xy[i][0]), float(y2), 'knee_corrected') for i in knees]
 
-    return (float(x1) + float(x2)) / 2.0, float(y2), 'angle_only'
+    return [((float(x1) + float(x2)) / 2.0, float(y2), 'angle_only')]
 
 
 def truncation_ratio(bbox_xyxy, top_margin_px):

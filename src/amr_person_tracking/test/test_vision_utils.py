@@ -9,7 +9,67 @@ vision_utils.py의 발끝 depth 검증(estimate_person_depth) 검증.
 
 import numpy as np
 
-from amr_person_tracking.vision_utils import estimate_person_depth
+from amr_person_tracking.vision_utils import (
+    KP_LEFT_ANKLE,
+    KP_LEFT_KNEE,
+    KP_RIGHT_ANKLE,
+    KP_RIGHT_KNEE,
+    estimate_foot_pixel,
+    estimate_person_depth,
+    foot_pixel_candidates,
+)
+
+BBOX = (100.0, 50.0, 200.0, 400.0)
+
+
+def _kp(entries):
+    """(17,2) 좌표 / (17,) 신뢰도를 만든다. entries: {인덱스: (u, v, conf)}"""
+    xy = np.zeros((17, 2), dtype=np.float32)
+    conf = np.zeros(17, dtype=np.float32)
+    for idx, (u, v, c) in entries.items():
+        xy[idx] = (u, v)
+        conf[idx] = c
+    return xy, conf
+
+
+def test_two_ankles_give_two_separate_candidates_not_an_average():
+    """핵심 회귀 방지: 두 발목을 평균내면 그 중점이 다리 사이 허공이라 배경 depth가 찍힌다
+    (실측 22.1%). 반드시 각 발목을 개별 후보로 내보내야 한다."""
+    xy, conf = _kp({KP_LEFT_ANKLE: (120.0, 380.0, 0.9),
+                    KP_RIGHT_ANKLE: (180.0, 390.0, 0.9)})
+    cands = foot_pixel_candidates(xy, conf, BBOX, 0.5)
+
+    assert len(cands) == 2, '두 발목이 보이면 후보도 두 개여야 한다'
+    assert {(c[0], c[1]) for c in cands} == {(120.0, 380.0), (180.0, 390.0)}
+    assert all(c[2] == 'toe_direct' for c in cands)
+    # 평균(150, 385)이 후보로 들어가면 안 된다 - 그게 예전 버그다.
+    assert (150.0, 385.0) not in {(c[0], c[1]) for c in cands}
+
+
+def test_single_visible_ankle_gives_one_candidate():
+    xy, conf = _kp({KP_LEFT_ANKLE: (120.0, 380.0, 0.9),
+                    KP_RIGHT_ANKLE: (180.0, 390.0, 0.1)})  # 오른발목 신뢰도 미달
+    cands = foot_pixel_candidates(xy, conf, BBOX, 0.5)
+    assert cands == [(120.0, 380.0, 'toe_direct')]
+
+
+def test_falls_back_to_knees_then_bbox_bottom():
+    xy, conf = _kp({KP_LEFT_KNEE: (130.0, 300.0, 0.9), KP_RIGHT_KNEE: (170.0, 305.0, 0.9)})
+    cands = foot_pixel_candidates(xy, conf, BBOX, 0.5)
+    assert [c[2] for c in cands] == ['knee_corrected', 'knee_corrected']
+    # 무릎은 좌우 위치만 믿고 접지 높이는 bbox 하단(y2)을 쓴다.
+    assert all(c[1] == BBOX[3] for c in cands)
+
+    cands = foot_pixel_candidates(None, None, BBOX, 0.5)
+    assert cands == [(150.0, 400.0, 'angle_only')], 'keypoint가 없으면 bbox 하단 중앙'
+
+
+def test_estimate_foot_pixel_returns_first_candidate():
+    """기존 호출부 호환 - 하나만 필요하면 첫 후보를 준다."""
+    xy, conf = _kp({KP_LEFT_ANKLE: (120.0, 380.0, 0.9),
+                    KP_RIGHT_ANKLE: (180.0, 390.0, 0.9)})
+    assert estimate_foot_pixel(xy, conf, BBOX, 0.5) == \
+        foot_pixel_candidates(xy, conf, BBOX, 0.5)[0]
 
 SCALE = 0.001  # mm -> m
 

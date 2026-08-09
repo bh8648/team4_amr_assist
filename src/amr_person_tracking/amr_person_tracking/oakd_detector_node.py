@@ -83,8 +83,8 @@ from amr_person_tracking.vision_utils import (
     angular_diff,
     backproject_pixel,
     decode_compressed_depth,
-    estimate_foot_pixel,
     estimate_person_depth,
+    foot_pixel_candidates,
     sample_depth_patch,
     truncation_ratio,
     yaw_from_quaternion,
@@ -456,21 +456,44 @@ class OakdDetectorNode(Node):
             kp_xy = kp_xy_all[i] if kp_xy_all is not None and i < len(kp_xy_all) else None
             kp_conf = kp_conf_all[i] if kp_conf_all is not None and i < len(kp_conf_all) else None
 
-            u, v, grade = estimate_foot_pixel(kp_xy, kp_conf, bbox, self.kp_conf_threshold)
+            # [접지점 후보 중 depth로 고르기] 좌우 발목을 평균내면 그 중점이 두 다리 사이
+            # 허공이라 뒤쪽 바닥/벽 거리가 찍힌다(실측 22.1%). 그래서 각 발목을 후보로 받아
+            # 몸통 깊이에 가장 가까운 후보를 채택한다 - 실측상 배경 오샘플이 0%가 된다.
+            # 몸통 깊이를 못 구하면(측정 실패 등) 첫 후보를 그대로 쓴다.
+            candidates = foot_pixel_candidates(kp_xy, kp_conf, bbox, self.kp_conf_threshold)
+            person_z = estimate_person_depth(
+                depth_img, bbox, self.depth_scale, self.depth_person_percentile)
 
-            z = sample_depth_patch(depth_img, u, v, self.depth_patch_size, self.depth_scale)
-            if z is None or z <= 0.0:
+            sampled = []
+            for cu, cv, cgrade in candidates:
+                cz = sample_depth_patch(
+                    depth_img, cu, cv, self.depth_patch_size, self.depth_scale)
+                if cz is not None and cz > 0.0:
+                    sampled.append((cu, cv, cz, cgrade))
+            if not sampled:
                 self._stat_depth_invalid += 1
                 continue
+
+            # 방향(u, v)은 후보들의 **중점**을 쓴다. 사람의 좌우 중심이라 안정적이다.
+            # 거리(z)는 **각 발목에서 실제로 잰 값의 평균**을 쓴다.
+            # 예전에는 중점 픽셀에서 depth까지 같이 읽었는데, 걸을 때 그 지점은 두 다리 사이
+            # 허공이라 뒤쪽 벽/바닥이 찍혔다(실측 22.1%). 반대로 발목 하나만 골라 쓰면 앞발/뒷발이
+            # 프레임마다 번갈아 선택돼 보폭만큼 진동한다. 방향은 중점, 거리는 발목 - 이 조합이
+            # 실측에서 가장 좋았다(0.5m 초과 점프: 중점 12회 / 발목 택1 6회 / 이 방식 2회).
+            u = sum(s[0] for s in sampled) / len(sampled)
+            v = sum(s[1] for s in sampled) / len(sampled)
+            z = sum(s[2] for s in sampled) / len(sampled)
+            grade = sampled[0][3]
 
             # [발끝 depth 검증] 발끝 픽셀 주변이 사람이 아니라 뒤쪽 벽/바닥을 찍는 일이 잦다
             # (실측: my_new_bag5에서 발끝 depth로 배경 거리 2.51m가 반복 등장). 그러면 역투영
             # 에서 거리 오차가 그대로 위치 오차가 돼 추종 좌표가 1m 넘게 순간이동한다.
             # bbox 안쪽에서 구한 '사람 표면 깊이'와 크게 어긋나면 그 값으로 대체한다
             # (실측: 원시 측정 0.5m 초과 점프 12회 -> 4회).
+            # 위에서 후보를 골랐는데도 몸통 깊이와 크게 어긋나면(두 발목이 다 가려진 경우 등)
+            # 최후 안전망으로 몸통 깊이를 쓴다. 후보 선택이 잘 되면 거의 발동하지 않아야 한다
+            # (depth_substituted 진단값으로 확인).
             if self.depth_consistency_tolerance > 0.0:
-                person_z = estimate_person_depth(
-                    depth_img, bbox, self.depth_scale, self.depth_person_percentile)
                 if person_z is not None and abs(z - person_z) > self.depth_consistency_tolerance:
                     z = person_z
                     self._stat_depth_substituted += 1

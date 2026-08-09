@@ -58,8 +58,8 @@ def main():
     from nav_msgs.msg import Odometry
     from ultralytics import YOLO
     from amr_person_tracking.vision_utils import (
-        backproject_pixel, decode_compressed_depth, estimate_foot_pixel,
-        estimate_person_depth, sample_depth_patch)
+        KP_LEFT_ANKLE, KP_RIGHT_ANKLE, backproject_pixel, decode_compressed_depth,
+        estimate_person_depth, foot_pixel_candidates, sample_depth_patch)
 
     db = sorted(Path(args.bag).glob('*.db3'))
     if not db:
@@ -85,10 +85,19 @@ def main():
 
     model = YOLO(args.pose_model)
     model.predictor = None
-    variants = {'현재 파이프라인(발끝 depth 검증 포함)': {}, '검증 없이 발끝 depth 그대로': {}}
+    # 세 방식을 같은 프레임에서 나란히 비교한다.
+    #  (구) 두 발목 픽셀을 평균 -> 다리 사이 허공을 찍는 문제의 원인
+    #  (구+대체) 위 결과가 몸통 깊이와 어긋나면 몸통 깊이로 대체 (잦은 fallback)
+    #  (현재) 각 발목을 후보로 두고 몸통 깊이에 가까운 쪽 채택 (fallback 거의 불필요)
+    #  (현재 노드) 후보 선택 + 그래도 어긋나면 몸통깊이 대체(최후 안전망) - 실제 파이프라인
+    variants = {'(구) 두 발목 중점': {},
+                '(구) 중점 + 몸통깊이 대체': {},
+                '발목 후보 중 선택만': {},
+                '(현재 노드) 후보 선택 + 안전망': {}}
     jumps = {k: [] for k in variants}
     grades = {}
     substituted = 0
+    safety_net = 0
     total = 0
 
     for ts, data in rgb:
@@ -115,20 +124,51 @@ def main():
         for i in range(len(boxes)):
             bbox = boxes.xyxy[i].cpu().numpy()
             tid = int(boxes.id[i])
-            u, v, grade = estimate_foot_pixel(
-                kx[i] if kx is not None else None, kc[i] if kc is not None else None, bbox, 0.5)
-            grades[grade] = grades.get(grade, 0) + 1
-            z_raw = sample_depth_patch(depth_img, u, v, 5, 0.001)
-            if z_raw is None or z_raw <= 0:
+            kpx = kx[i] if kx is not None else None
+            kpc = kc[i] if kc is not None else None
+            cands = foot_pixel_candidates(kpx, kpc, bbox, 0.5)
+            person_z = estimate_person_depth(depth_img, bbox, 0.001)
+
+            # (구) 두 발목 평균 - 예전 estimate_foot_pixel의 동작을 그대로 재현
+            if (kpx is not None and kpc is not None
+                    and kpc[KP_LEFT_ANKLE] >= 0.5 and kpc[KP_RIGHT_ANKLE] >= 0.5):
+                mu = (float(kpx[KP_LEFT_ANKLE][0]) + float(kpx[KP_RIGHT_ANKLE][0])) / 2
+                mv = (float(kpx[KP_LEFT_ANKLE][1]) + float(kpx[KP_RIGHT_ANKLE][1])) / 2
+            else:
+                mu, mv = cands[0][0], cands[0][1]
+            z_mid = sample_depth_patch(depth_img, mu, mv, 5, 0.001)
+
+            # (현재) 후보 중 몸통 깊이에 가장 가까운 것
+            best = None
+            for cu, cv, cgrade in cands:
+                cz = sample_depth_patch(depth_img, cu, cv, 5, 0.001)
+                if cz is None or cz <= 0:
+                    continue
+                score = abs(cz - person_z) if person_z is not None else 0.0
+                if best is None or score < best[0]:
+                    best = (score, cu, cv, cz, cgrade)
+            if z_mid is None or z_mid <= 0 or best is None:
                 continue
             total += 1
-            person_z = estimate_person_depth(depth_img, bbox, 0.001)
-            z_fixed = z_raw
-            if person_z is not None and abs(z_raw - person_z) > 0.4:
-                z_fixed = person_z
+            grades[best[4]] = grades.get(best[4], 0) + 1
+
+            z_mid_sub = z_mid
+            if person_z is not None and abs(z_mid - person_z) > 0.4:
+                z_mid_sub = person_z
                 substituted += 1
-            for key, z in (('현재 파이프라인(발끝 depth 검증 포함)', z_fixed),
-                           ('검증 없이 발끝 depth 그대로', z_raw)):
+
+            # 실제 노드 동작: 후보 선택 후에도 몸통 깊이와 0.4m 넘게 어긋나면 대체
+            z_best_sub = best[3]
+            if person_z is not None and abs(best[3] - person_z) > 0.4:
+                z_best_sub = person_z
+                safety_net += 1
+
+            for key, (uu, vv, z) in (('(구) 두 발목 중점', (mu, mv, z_mid)),
+                                     ('(구) 중점 + 몸통깊이 대체', (mu, mv, z_mid_sub)),
+                                     ('발목 후보 중 선택만', (best[1], best[2], best[3])),
+                                     ('(현재 노드) 후보 선택 + 안전망',
+                                      (best[1], best[2], z_best_sub))):
+                u, v = uu, vv
                 pt = backproject_pixel(u, v, z, fx, fy, cx, cy)
                 prev = variants[key].get(tid)
                 if prev is not None:
@@ -139,9 +179,12 @@ def main():
                             math.dist((pt[0], pt[1], pt[2]), (x0, y0, z0)))
                 variants[key][tid] = (t, pt[0], pt[1], pt[2])
 
-    print(f'\n발끝 픽셀 등급 분포: {grades}')
+    print(f'\n채택된 접지점 등급 분포: {grades}')
     if total:
-        print(f'발끝 depth를 사람 깊이로 대체: {substituted}/{total} ({substituted / total * 100:.1f}%)')
+        print(f'(구) 중점 방식에서 몸통 깊이 대체가 필요했던 비율: '
+              f'{substituted}/{total} ({substituted / total * 100:.1f}%)')
+        print(f'(현재) 후보 선택 후에도 안전망이 필요했던 비율: '
+              f'{safety_net}/{total} ({safety_net / total * 100:.1f}%)')
     for key in variants:
         arr = np.array(jumps[key])
         if arr.size == 0:

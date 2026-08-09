@@ -132,6 +132,10 @@ class ReidTrackingNode(Node):
         # 최적 임계는 0.473이지만, 잘못된 병합(다른 사람을 같은 사람으로 이어붙임)이 잘못된
         # 분리보다 훨씬 위험하므로 보수적으로 높인다.
         self.declare_parameter('revival_similarity', 0.6)
+        # 한 번 정해진 추종 대상이 사라져도 다른 사람으로 갈아타지 않는다(갤러리에서 돌아오길
+        # 기다린다). 기다리는 동안 target_person_pose는 발행되지 않는다 - 엉뚱한 사람을
+        # 따라가게 하는 것보다 안전하다. dormant_ttl이 상한 역할을 한다.
+        self.declare_parameter('sticky_follow', True)
         # 위치 게이트를 통과했더라도 외형이 이보다 안 닮았으면 매칭을 거부하고 새 트랙으로
         # 돌린다. 0 이하면 거부를 끈다(기본값=끔).
         # [실측 결과 - 기본값을 끈 이유] my_new_bag4에서 0.3으로 켜 봤더니 오히려 나빠졌다:
@@ -184,6 +188,7 @@ class ReidTrackingNode(Node):
         self.embedding_alpha = self.get_parameter('embedding_alpha').value
         self.dormant_ttl = self.get_parameter('dormant_ttl').value
         self.revival_similarity = self.get_parameter('revival_similarity').value
+        self.sticky_follow = self.get_parameter('sticky_follow').value
         reject = self.get_parameter('appearance_reject_similarity').value
         self.appearance_reject_similarity = reject if reject > 0.0 else None
 
@@ -465,9 +470,23 @@ class ReidTrackingNode(Node):
                 self.dormant_followed_id = None
 
     def _maybe_select_followed_track(self):
-        """추종 대상 선정 정책. 실제 대상 지정(제스처 등)은 이 패키지 범위 밖이라, 여기서는
-        일관성을 위해 "가장 먼저 잡힌(가장 오래된) 트랙을 계속 따라간다"는 단순한 기본값만 둔다."""
+        """추종 대상 선정 정책. 실제 대상 지정(제스처/호출좌표 등)은 아직 이 패키지 범위 밖이라
+        초기 획득은 "가장 먼저 잡힌(가장 오래된) 트랙"이라는 단순한 기본값을 쓴다.
+
+        [sticky_follow] 한 번 정해진 대상은 사라져도 다른 사람으로 갈아타지 않는다.
+        예전에는 추종 트랙이 track_timeout(3초)으로 지워지면 곧바로 그 시점에 살아있는 아무
+        사람(가장 오래된 트랙)을 골랐다. 그래서 추종 대상이 실제로 다른 사람에게 건너뛰는 게
+        실측됐고(my_new_bag5에서 1.11m/0.71m/1.02m 점프), 애써 만든 외형 갤러리 복원도
+        기다리는 사이에 다른 사람이 대상이 돼버려 무용지물이었다.
+        이제는 갤러리에서 돌아오길 기다리는 신원이 있으면 아무도 고르지 않는다. 그동안
+        followed_track_id는 None이라 target_person_pose가 발행되지 않는데, 이는 이 노드가
+        "대상 없음"을 침묵으로 표현하는 기존 관례와 같고, 엉뚱한 사람 좌표를 내보내 로봇이
+        따라가게 하는 것보다 안전하다. 무한정 기다리지 않도록 dormant_ttl이 지나 갤러리에서
+        만료되면(_prune_tracks) dormant_followed_id가 풀려 아래 재선정이 다시 동작한다.
+        """
         if self.followed_track_id is not None and self.followed_track_id in self.tracks:
+            return
+        if self.sticky_follow and self.dormant_followed_id is not None:
             return
         if not self.tracks:
             self.followed_track_id = None
