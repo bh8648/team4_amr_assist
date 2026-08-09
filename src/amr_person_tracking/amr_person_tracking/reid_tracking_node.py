@@ -185,15 +185,17 @@ class ReidTrackingNode(Node):
         # 예측 위치 대비 라이다 검출 후보를 인정할 최대 거리(m)
         self.declare_parameter('lidar_gating_position_threshold', 0.6)
         # 같은 라이다 트랙 ID가 이만큼 연속으로 최고 후보면 락온 확정
-        # 라이다 락온 확정에 필요한 연속 후보 프레임 수. 10Hz 기준 7프레임 = 0.7초인데,
-        # 의자/책상 다리를 정적 배경으로 확정하는 데는 3초가 걸린다
-        # (leg_detector_bridge_node의 background_confirm_duration_sec). 그 사이 공백에서
-        # 정적 오검출이 먼저 락온될 수 있으므로, 배경 학습이 끝날 때까지 락온 자체를 미룬다.
+        # 라이다 락온 확정에 필요한 연속 후보 프레임 수.
+        #
+        # [배경 학습과의 경주에 대해] 10Hz 기준 7프레임 = 0.7초라, 의자/책상 다리를 정적
+        # 배경으로 확정하는 데 걸리는 3초(leg_detector_bridge_node의
+        # background_confirm_duration_sec)보다 짧다. 한때 전역 워밍업 타이머로 락온을
+        # 미뤄봤지만 두 가지로 틀렸다: (1) 실제 플로우에서는 웹캠 호출좌표로 이동하는 동안
+        # 배경 필터가 이미 학습을 끝내는데 그 시간이 반영되지 않아 정작 필요한 첫 락온만
+        # 늦췄고, (2) 세션 중 새 장소로 이동해 처음 보는 정적 물체를 만나는 - 원래 막으려던 -
+        # 상황에는 타이머가 이미 만료돼 아무 보호도 못 했다. 학습 진행도는 후보 위치마다
+        # 다르므로 전역 타이머로 근사할 수 없다.
         self.declare_parameter('lidar_lock_confirm_frames', 7)
-        # 노드 기동 후 이 시간이 지나기 전에는 라이다 락온을 확정하지 않는다. 배경 필터가
-        # 정적 물체를 학습할 시간을 벌어주는 안전장치다. background_confirm_duration_sec보다
-        # 넉넉히 크게 잡는다. 0 이하면 끈다(옛 동작).
-        self.declare_parameter('lidar_lock_warmup_sec', 4.0)
         # 락온 중 웹캠/OAK-D 위치와 이 이상 벌어지면 ID 스왑 의심
         self.declare_parameter('lidar_lock_swap_threshold', 0.3)
         # 스왑 의심이 이만큼 연속돼야 실제로 락온 해제 (순간적인 튐으로 오해제되지 않도록)
@@ -222,8 +224,6 @@ class ReidTrackingNode(Node):
         self.id_rescue_max_extrapolation = self.get_parameter('id_rescue_max_extrapolation').value
         self.lidar_gating_position_threshold = self.get_parameter('lidar_gating_position_threshold').value
         self.lidar_lock_confirm_frames = self.get_parameter('lidar_lock_confirm_frames').value
-        self.lidar_lock_warmup_sec = self.get_parameter('lidar_lock_warmup_sec').value
-        self._first_leg_stamp = None
         self.lidar_lock_swap_threshold = self.get_parameter('lidar_lock_swap_threshold').value
         self.lidar_swap_confirm_frames = self.get_parameter('lidar_swap_confirm_frames').value
         self.leg_lock_grace_period = self.get_parameter('leg_lock_grace_period').value
@@ -694,18 +694,6 @@ class ReidTrackingNode(Node):
         self.lock_candidate_streak[best_rid] = self.lock_candidate_streak.get(best_rid, 0) + 1
         if self.lock_candidate_streak[best_rid] < self.lidar_lock_confirm_frames:
             return
-
-        # 배경 필터가 아직 정적 물체를 학습하는 중이면 락온을 미룬다. 스트릭은 계속 쌓이므로
-        # 워밍업이 끝나는 즉시 확정된다 - 진짜 사람이면 그때도 여전히 최고 후보다.
-        if self.lidar_lock_warmup_sec > 0.0:
-            if self._first_leg_stamp is None:
-                self._first_leg_stamp = stamp
-            if stamp - self._first_leg_stamp < self.lidar_lock_warmup_sec:
-                self.get_logger().info(
-                    '라이다 락온 보류: 배경 학습 워밍업 '
-                    f'{stamp - self._first_leg_stamp:.1f}/{self.lidar_lock_warmup_sec:.1f}s',
-                    throttle_duration_sec=1.0)
-                return
 
         # [4. 락온 확정]
         self.locked_leg_id = best_rid
