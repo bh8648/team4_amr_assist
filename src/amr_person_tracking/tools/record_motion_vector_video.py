@@ -39,7 +39,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 import tf2_ros
-from sensor_msgs.msg import PointCloud2
+from sensor_msgs.msg import CompressedImage, PointCloud2
 from sensor_msgs_py import point_cloud2
 from vision_msgs.msg import Detection3DArray
 
@@ -59,12 +59,16 @@ class MotionVectorRenderer(Node):
         self.speeds = []          # 화살표로 그린 속도 표본(진단용)
         self.kalman_states = {}   # track id -> ConstantVelocityKalman2D (노드와 동일 재현)
         self.robot_xy = None      # map_frame에서의 로봇 위치 (TF)
+        self.latest_camera = None  # 비전 파이프라인 디버그 이미지 (좌측 패널)
         self.tf_buffer = tf2_ros.Buffer()
         self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
         self.create_subscription(
             Detection3DArray, args.tracked_topic, self.on_tracks, 10)
         self.create_subscription(
             PointCloud2, args.predicted_topic, self.on_predicted, qos_profile_sensor_data)
+        if args.camera_topic:
+            self.create_subscription(
+                CompressedImage, args.camera_topic, self.on_camera, qos_profile_sensor_data)
         self.create_timer(1.0 / args.fps, self.render)
 
     def _lookup_robot(self):
@@ -103,6 +107,13 @@ class MotionVectorRenderer(Node):
         for tid in [t for t, k in self.kalman_states.items()
                     if stamp - k.last_stamp > 3.0]:
             del self.kalman_states[tid]
+
+    def on_camera(self, msg):
+        # cv_bridge를 쓰지 않는다 - 이 환경의 cv_bridge는 NumPy 1.x로 빌드돼 있어
+        # NumPy 2에서 _ARRAY_API not found로 죽는다(tools/record_debug_video.py도 같은 이유).
+        frame = cv2.imdecode(np.frombuffer(msg.data, np.uint8), cv2.IMREAD_COLOR)
+        if frame is not None:
+            self.latest_camera = frame
 
     def on_predicted(self, msg):
         self.n_pred_msgs += 1
@@ -159,17 +170,44 @@ class MotionVectorRenderer(Node):
                 cv2.putText(img, f'{speed:.2f} m/s', (mid[0] + 8, mid[1]),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (80, 255, 80), 1, cv2.LINE_AA)
 
-        legend = [('ROBOT (TF %s<-%s, 링=1m 간격 실거리)' % (self.args.map_frame,
-                                                          self.args.base_frame),
-                   (0, 200, 255)),
-                  ('추종/트랙 위치', (255, 0, 255)),
-                  ('이동 벡터 (predict_horizon 뒤 예측)', (80, 255, 80)),
-                  ('예측 가상 포인트(costmap 마킹용)', (120, 120, 255))]
+        legend = [('로봇', (0, 200, 255)),
+                  ('트랙 위치', (255, 0, 255)),
+                  ('이동 벡터', (80, 255, 80)),
+                  ('예측 가상 포인트', (120, 120, 255))]
         for i, (text, color) in enumerate(legend):
             cv2.putText(img, text, (10, 22 + i * 20), cv2.FONT_HERSHEY_SIMPLEX, 0.45,
                         color, 1, cv2.LINE_AA)
 
-        self.frames.append(img)
+        self.frames.append(self._compose(img))
+
+    def _compose(self, top_down):
+        """좌: 비전 파이프라인이 본 화면, 우: map 평면 이동 벡터.
+
+        같은 순간을 두 관점으로 나란히 놓아야 "화면 속 저 사람"과 "map 위 저 화살표"가
+        같은 대상인지 눈으로 대조할 수 있다. 카메라 토픽을 주지 않으면 우측 뷰만 낸다.
+        """
+        if not self.args.camera_topic:
+            return top_down
+        n = self.args.size
+        if self.latest_camera is None:
+            cam = np.full((n, n, 3), 18, dtype=np.uint8)
+            cv2.putText(cam, 'no camera frame', (20, n // 2), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.8, (90, 90, 90), 2, cv2.LINE_AA)
+        else:
+            h, w = self.latest_camera.shape[:2]
+            scale = n / w
+            resized = cv2.resize(self.latest_camera, (n, max(1, int(h * scale))))
+            cam = np.full((n, n, 3), 18, dtype=np.uint8)
+            y0 = max(0, (n - resized.shape[0]) // 2)
+            cam[y0:y0 + resized.shape[0]] = resized[:n - y0]
+        # 패널 이름은 우측 상단에 둔다 - 좌측 상단은 map 뷰 범례, 좌측 하단은 카메라
+        # 오버레이(TARGET NOT VISIBLE 등)가 이미 쓰고 있어 겹친다.
+        for panel, text in ((cam, '비전 카메라'), (top_down, 'map 평면')):
+            (tw, _th), _b = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
+            cv2.putText(panel, text, (panel.shape[1] - tw - 12, 24),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 1, cv2.LINE_AA)
+        divider = np.full((n, 2, 3), 70, dtype=np.uint8)
+        return np.hstack([cam, divider, top_down])
 
 
 def _write_video(frames, out_path, fps):
@@ -201,6 +239,9 @@ def main():
     ap.add_argument('--range-m', type=float, default=5.0, help='표시할 최대 거리(m)')
     ap.add_argument('--predict-horizon', type=float, default=1.0,
                     help='화살표 길이 = 속도 x 이 시간. 노드의 predict_horizon과 맞추면 좋다')
+    ap.add_argument('--camera-topic', default='',
+                    help='함께 보여줄 비전 디버그 이미지 토픽(CompressedImage). '
+                         '비우면 map 평면만 녹화')
     ap.add_argument('--map-frame', default='map', help='트랙 좌표계. 이 bag 재생 시엔 odom')
     ap.add_argument('--base-frame', default='base_link')
     ap.add_argument('--kf-process-noise', type=float, default=1.0)

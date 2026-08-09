@@ -28,6 +28,8 @@ reid_tracking_node의 자체 트랙 상태는 지수평활로 단순화했지만
 [출력]
   - <namespace>/vision/predicted_obstacle_points (sensor_msgs/PointCloud2)  [방식 A]
   - rcl_interfaces/SetParameters 서비스 호출 (각 로봇 local_costmap 노드 대상) [방식 B]
+  - <namespace>/vision/motion_vector_markers (visualization_msgs/MarkerArray) [rviz2 시각화]
+    publish_markers 파라미터로 켠다. 회피 동작에는 관여하지 않는다.
 """
 
 import rclpy
@@ -36,14 +38,22 @@ from rclpy.node import Node
 
 from rcl_interfaces.msg import Parameter, ParameterType, ParameterValue
 from rcl_interfaces.srv import SetParameters
+from geometry_msgs.msg import Point
 from sensor_msgs.msg import PointCloud2
 from sensor_msgs_py import point_cloud2
 from vision_msgs.msg import Detection3DArray
+from visualization_msgs.msg import Marker, MarkerArray
 
 import tf2_ros
 
 from amr_person_tracking.predictive_utils import ConstantVelocityKalman2D, approach_speed, ring_points
 from amr_person_tracking.tracking_utils import extract_person_position, stamp_to_sec
+
+
+def _point(x, y, z):
+    p = Point()
+    p.x, p.y, p.z = float(x), float(y), float(z)
+    return p
 
 
 class PredictiveAvoidanceNode(Node):
@@ -61,6 +71,10 @@ class PredictiveAvoidanceNode(Node):
         # 장애물 탐색을 담당하는 팀원 소유이므로, 이 모드를 쓰기 전에 등록 여부를 협의해야 한다.
         # (이 노드가 만드는 건 장애물 탐지 결과가 아니라 트래킹 결과로부터 예측한 가상 포인트다.)
         self.declare_parameter('avoidance_mode', 'pointcloud')
+        # rviz2에서 이동 벡터를 눈으로 확인하기 위한 마커. 기본은 꺼둔다 - 회피 동작과
+        # 무관한 부가 발행이라 실주행에서 대역폭만 쓴다.
+        self.declare_parameter('publish_markers', False)
+        self.declare_parameter('markers_topic', '/robot5/vision/motion_vector_markers')
 
         self.declare_parameter('map_frame', 'map')
         self.declare_parameter('base_frame', 'base_link')
@@ -127,11 +141,16 @@ class PredictiveAvoidanceNode(Node):
         self.approach_speed_min = self.get_parameter('approach_speed_min').value
 
         self.avoidance_mode = self.get_parameter('avoidance_mode').value
+        self.publish_markers = self.get_parameter('publish_markers').value
 
         self.tracked_sub = self.create_subscription(
             Detection3DArray, tracked_topic, self.tracked_detections_callback, 10)
 
         self.predicted_points_pub = self.create_publisher(PointCloud2, predicted_points_topic, 10)
+        self.markers_pub = None
+        if self.publish_markers:
+            self.markers_pub = self.create_publisher(
+                MarkerArray, self.get_parameter('markers_topic').value, 10)
         self.costmap_param_client = self.create_client(SetParameters, costmap_param_service)
 
         self.tf_buffer = tf2_ros.Buffer(cache_time=Duration(seconds=5.0))
@@ -155,6 +174,8 @@ class PredictiveAvoidanceNode(Node):
             self.publish_predicted_points(msg.header)
         if self.avoidance_mode in ('costmap_params', 'both'):
             self.adjust_costmap_inflation(stamp)
+        if self.markers_pub is not None:
+            self.publish_motion_vector_markers(msg.header)
 
     def update_kalman(self, detection, stamp):
         pos = extract_person_position(detection)
@@ -191,6 +212,61 @@ class PredictiveAvoidanceNode(Node):
 
         cloud = point_cloud2.create_cloud_xyz32(header, points)
         self.predicted_points_pub.publish(cloud)
+
+    # ------------------------------------------------------------------ rviz2 시각화
+
+    def publish_motion_vector_markers(self, header):
+        """트랙별 속도 추정을 rviz2 MarkerArray로 발행한다(트랙당 화살표 1 + 라벨 1).
+
+        마커 lifetime을 track_timeout으로 줘서 트랙이 사라지면 저절로 지워지게 한다 -
+        DELETEALL을 매 프레임 보내면 rviz2에서 깜빡인다.
+        """
+        markers = MarkerArray()
+        lifetime = Duration(seconds=self.track_timeout).to_msg()
+        for slot, (tid, kf) in enumerate(sorted(self.kalman_states.items())):
+            x, y = kf.position()
+            vx, vy = kf.velocity()
+            speed = kf.speed()
+            # 화살표 끝 = 실제로 회피에 쓰는 예측 위치. 가상 포인트 링과 같은 지점이라
+            # rviz2에서 둘이 겹치는지로 교차검증이 된다.
+            px, py = kf.predict_future(self.predict_horizon)
+
+            arrow = Marker()
+            arrow.header.frame_id = self.map_frame
+            arrow.header.stamp = header.stamp
+            arrow.ns = 'motion_vector'
+            arrow.id = slot
+            arrow.type = Marker.ARROW
+            arrow.action = Marker.ADD
+            arrow.scale.x = 0.05   # 자루 지름
+            arrow.scale.y = 0.12   # 머리 지름
+            arrow.scale.z = 0.15   # 머리 길이
+            # 예측에 반영되는 속도(초록) / 문턱 미만이라 무시되는 속도(회색)를 구분한다.
+            moving = speed >= self.min_track_speed_for_prediction
+            arrow.color.r = 0.3 if moving else 0.6
+            arrow.color.g = 1.0 if moving else 0.6
+            arrow.color.b = 0.3 if moving else 0.6
+            arrow.color.a = 0.9
+            arrow.points = [_point(x, y, self.point_z), _point(px, py, self.point_z)]
+            arrow.lifetime = lifetime
+            markers.markers.append(arrow)
+
+            label = Marker()
+            label.header = arrow.header
+            label.ns = 'motion_vector_label'
+            label.id = slot
+            label.type = Marker.TEXT_VIEW_FACING
+            label.action = Marker.ADD
+            label.pose.position = _point(x, y, self.point_z + 0.3)
+            label.pose.orientation.w = 1.0
+            label.scale.z = 0.2
+            label.color.r = label.color.g = label.color.b = 1.0
+            label.color.a = 0.9
+            label.text = f'{tid} {speed:.2f} m/s'
+            label.lifetime = lifetime
+            markers.markers.append(label)
+
+        self.markers_pub.publish(markers)
 
     # ------------------------------------------------------------------ 방식 B: costmap inflation
 

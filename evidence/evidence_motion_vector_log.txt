@@ -1,6 +1,10 @@
 이동 벡터(속도 추정) 검증 - my_new_bag5
 =========================================
-증거영상: evidence_motion_vector_bag5.mp4 (h264, 700x700, 53.5s, 10fps)
+증거영상: evidence_motion_vector_bag5.mp4 (h264, 1402x700, 53.7s, 10fps)
+          좌=비전 카메라(oakd_detector 디버그 오버레이) / 우=map 평면 이동 벡터.
+          같은 순간을 두 관점으로 나란히 놓아 대조할 수 있다. 예: 카메라의
+          'id:4 ... map(-1.13,0.53)' 표기와 우측 패널의 트랙 위치가 일치한다.
+rviz2:    rviz/motion_vector.rviz (predictive_avoidance_node -p publish_markers:=true)
 도구:     src/amr_person_tracking/tools/record_motion_vector_video.py
 실행조건: ROS_DISCOVERY_SERVER="" ROS_LOCALHOST_ONLY=1 ROS_DOMAIN_ID=77
           bag play --clock --rate 1.0, map_frame=odom(이 bag엔 map 프레임 없음),
@@ -34,7 +38,7 @@ launch 파일에도 들어가 있으나, 이번 세션 전까지 **한 번도 �
 (evidence/ 에 관련 로그 0건).
 
 이번 실행으로 확인한 것:
-  - tracked_detections 286건 -> predicted_obstacle_points 286건 발행. 에러 없음.
+  - tracked_detections 287건 -> predicted_obstacle_points 287건 발행. 에러 없음.
   - 가상 포인트 링이 각 트랙의 predict_horizon 뒤 예측 위치에 정확히 찍힌다
     (영상에서 초록 화살표 끝과 링 중심이 일치 - 서로 독립적으로 계산된 값이라 교차검증이 된다).
 
@@ -46,11 +50,11 @@ launch 파일에도 들어가 있으나, 이번 세션 전까지 **한 번도 �
 
 3. 속도 추정 품질
 ------------------
-영상에 표시된 화살표 크기 표본 n=586:
+영상에 표시된 화살표 크기 표본 n=591:
 
-    중앙값 0.24 | 90%분위 0.78 | 최대 1.28 m/s | 보행 상한(2.0m/s) 초과 0%
+    중앙값 0.23 | 90%분위 0.78 | 최대 1.26 m/s | 보행 상한(2.0m/s) 초과 0%
 
-최대 1.28m/s는 빠른 걸음 수준으로 물리적으로 타당하며, 비현실적인 값이 하나도 없다.
+최대 1.26m/s는 빠른 걸음 수준으로 물리적으로 타당하며, 비현실적인 값이 하나도 없다.
 비교군으로 같은 트랙에 단순 유한차분을 적용하면:
 
     중앙값 0.00 | 90%분위 1.29 | 최대 60.94 m/s | 보행 상한 초과 7%
@@ -59,8 +63,35 @@ launch 파일에도 들어가 있으나, 이번 세션 전까지 **한 번도 �
 (reid의 Track.vx는 클램프가 있어 60m/s가 그대로 나가진 않지만, 원 신호가 이만큼 거칠다.)
 
 
-4. 시각화 도구에서 고친 것 (측정 결과 해석에 영향이 있었음)
+4. rviz2에서 보기
+------------------
+predictive_avoidance_node에 publish_markers 파라미터를 추가했다(기본 false - 회피 동작과
+무관한 부가 발행이라 실주행에서 대역폭만 쓴다). 켜면 트랙마다 화살표 1개 + 속도 라벨 1개를
+<ns>/vision/motion_vector_markers (MarkerArray)로 낸다.
+
+  - 화살표 끝 = predict_future(predict_horizon) 결과. 가상 포인트 링과 같은 지점이라
+    rviz2에서 둘이 겹치는지로 교차검증이 된다.
+  - 초록 = 예측에 반영되는 속도, 회색 = min_track_speed_for_prediction 미만이라 무시되는 속도.
+  - lifetime을 track_timeout으로 줘서 트랙이 사라지면 저절로 지워진다
+    (DELETEALL을 매 프레임 보내면 rviz2에서 깜빡인다).
+
+실행:
+  ros2 run amr_person_tracking predictive_avoidance_node --ros-args \
+    -p map_frame:=odom -p publish_markers:=true \
+    --remap /tf:=/robot5/tf --remap /tf_static:=/robot5/tf_static
+  rviz2 -d $(ros2 pkg prefix amr_person_tracking)/share/amr_person_tracking/rviz/motion_vector.rviz
+
+검증: ros2 topic hz 기준 평균 4.9~5.4Hz 발행(트랙 소스와 동일 주기). 화살표 시작/끝 좌표와
+텍스트('1 1.06 m/s')가 채워지는 것을 echo로 확인했다.
+
+
+5. 시각화 도구에서 고친 것 (측정 결과 해석에 영향이 있었음)
 ------------------------------------------------------------
+  - 범례에서 괄호 설명을 걷어내고 이름만 남겼다(로봇 / 트랙 위치 / 이동 벡터 /
+    예측 가상 포인트). 패널 이름은 우측 상단에 둔다 - 좌측 상단은 범례, 좌측 하단은
+    카메라 오버레이(TARGET NOT VISIBLE 등)가 이미 쓰고 있어 겹쳤다.
+  - cv_bridge를 쓰지 않는다. 이 환경의 cv_bridge는 NumPy 1.x로 빌드돼 있어 NumPy 2에서
+    _ARRAY_API not found로 죽는다(tools/record_debug_video.py도 같은 이유로 cv2.imdecode 사용).
   - 처음엔 "트랙에서 가장 가까운 예측 링 중심"으로 화살표를 그렸다. 사람이 둘 이상이면
     링과 트랙이 잘못 짝지어져 최대 4.09m/s, 22%가 2m/s 초과로 보였다. 전부 시각화
     artifact였고 노드 결함이 아니다. 지금은 도구가 노드와 **같은 클래스·같은 기본
@@ -70,7 +101,7 @@ launch 파일에도 들어가 있으나, 이번 세션 전까지 **한 번도 �
     링이 사람-로봇 실이격거리를 나타내게 했다.
 
 
-5. 남은 관찰
+6. 남은 관찰
 -------------
 이 실행에서는 bag 초반 ~20초 구간에 트랙이 잡히지 않았다(영상 앞부분이 비어 있다).
 직전 디버그 실행에서는 bag t=1.4s부터 트랙 1이 잡혔으므로 실행 간 편차로 보이며,
