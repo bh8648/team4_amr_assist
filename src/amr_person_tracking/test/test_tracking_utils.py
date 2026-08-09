@@ -162,3 +162,61 @@ def test_update_normal_forward_progress_unaffected():
     assert track.x == pytest.approx(1.0)
     assert track.last_stamp == 11.0
     assert track.vx == pytest.approx(1.0)
+
+
+def _kalman_track(track_id, x, y, stamp, measurement_noise=0.0025):
+    from amr_person_tracking.predictive_utils import ConstantVelocityKalman2D
+    kf = ConstantVelocityKalman2D(x, y, stamp, process_noise=1.0,
+                                  measurement_noise=measurement_noise)
+    return Track(track_id, x, y, stamp, 'oakd', kalman=kf)
+
+
+def test_kalman_track_does_not_snap_to_noisy_measurement():
+    """핵심: 예전엔 position_alpha=1.0이라 관측값에 그대로 스냅해 검출 스파이크가 곧 출력이었다.
+    칼만필터를 붙이면 한 프레임짜리 이상치가 그대로 반영되지 않아야 한다."""
+    track = _kalman_track(1, 0.0, 0.0, 10.0)
+    # 정상 관측 몇 번으로 상태를 안정시킨다.
+    for k in range(1, 5):
+        track.update(0.0, 0.0, 10.0 + k * 0.1, 'oakd')
+    # 1.5m 떨어진 이상치 한 방
+    track.update(1.5, 0.0, 10.5, 'oakd')
+
+    assert track.x < 1.0, f'이상치에 그대로 끌려가면 안 된다 (x={track.x})'
+
+    plain = Track(2, 0.0, 0.0, 10.0, 'oakd')  # 칼만 없음 = 기존 스냅 동작
+    for k in range(1, 5):
+        plain.update(0.0, 0.0, 10.0 + k * 0.1, 'oakd')
+    plain.update(1.5, 0.0, 10.5, 'oakd')
+    assert plain.x == pytest.approx(1.5), '대조군: 필터가 없으면 관측값으로 그대로 스냅한다'
+
+
+def test_mahalanobis_is_none_without_kalman():
+    plain = Track(1, 0.0, 0.0, 10.0, 'oakd')
+    assert plain.mahalanobis(0.1, 0.0, 10.1) is None
+
+
+def test_mahalanobis_grows_with_distance():
+    track = _kalman_track(1, 0.0, 0.0, 10.0)
+    near = track.mahalanobis(0.05, 0.0, 10.1)
+    far = track.mahalanobis(3.0, 0.0, 10.1)
+    assert near is not None and far is not None
+    assert far > near, '멀수록 마할라노비스 거리가 커야 한다'
+
+
+def test_mahalanobis_gate_rejects_far_detection_in_assign():
+    track = _kalman_track(1, 0.0, 0.0, 10.0)
+    tracks = {1: track}
+    # 게이트를 아주 좁게(0.5) 주면 멀리 있는 관측은 배정되지 않아야 한다.
+    assert assign_tracks(tracks, [(5.0, 5.0)], 10.1, 2.0, 0.3,
+                         mahalanobis_gate=0.5) == [None]
+    # 같은 자리 관측은 통과한다.
+    assert assign_tracks(tracks, [(0.0, 0.0)], 10.1, 2.0, 0.3,
+                         mahalanobis_gate=3.035) == [1]
+
+
+def test_mahalanobis_gate_falls_back_to_euclidean_without_kalman():
+    """칼만필터가 없는 트랙은 마할라노비스를 못 구하므로 기존 유클리드 게이트로 폴백한다."""
+    plain = Track(1, 0.0, 0.0, 10.0, 'oakd')
+    tracks = {1: plain}
+    assert assign_tracks(tracks, [(0.05, 0.0)], 10.1, 2.0, 0.3, mahalanobis_gate=3.035) == [1]
+    assert assign_tracks(tracks, [(50.0, 0.0)], 10.1, 2.0, 0.3, mahalanobis_gate=3.035) == [None]

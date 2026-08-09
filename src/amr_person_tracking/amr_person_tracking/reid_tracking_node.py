@@ -75,12 +75,14 @@ from vision_msgs.msg import Detection3D, Detection3DArray, ObjectHypothesis, Obj
 from geometry_msgs.msg import PoseStamped
 from sensor_msgs.msg import Image
 
+from amr_person_tracking.predictive_utils import ConstantVelocityKalman2D
 from amr_person_tracking.tracking_utils import (
     Track,
     assign_tracks,
     cosine_similarity,
     distance,
     extract_person_position,
+    extract_person_variance,
     stamp_to_sec,
     velocity_similarity,
 )
@@ -136,6 +138,32 @@ class ReidTrackingNode(Node):
         # 기다린다). 기다리는 동안 target_person_pose는 발행되지 않는다 - 엉뚱한 사람을
         # 따라가게 하는 것보다 안전하다. dormant_ttl이 상한 역할을 한다.
         self.declare_parameter('sticky_follow', True)
+        # 트랙 위치/속도를 등속도 칼만필터로 추정한다(끄면 기존 지수평활).
+        # [실측 결과 - 기본값을 끈 이유] my_new_bag5에서 어떤 설정도 기준선을 명확히 이기지
+        # 못했다. 점프는 줄지만 **추종 좌표 발행 커버리지가 함께 떨어지는 맞교환**이었다:
+        #   설정                        커버리지  최대점프  0.5m초과
+        #   칼만 없음(기준선)              55%     0.80m     6건
+        #   KF R=0.04                    55%     1.13m     6건
+        #   KF q=0.2 / R하한 0.09         44%     0.67m     4건
+        #   KF q=0.2 + R하한 0.09         23%     0.54m     1건
+        #   위 + 마할라노비스 게이트        44%     0.79m     3건
+        # 커버리지가 떨어지는 건 필터 예측이 검출과 어긋나 게이팅이 실패 -> 트랙이 새로 생기고
+        # (동시 트랙 3->4) -> 추종 대상을 잃어 sticky가 기다리기 때문으로 보인다. 추종 로봇에는
+        # "좌표가 자주 없는 것"이 "가끔 튀는 것"보다 나쁠 수 있어 기본값은 꺼둔다.
+        # 켜서 쓰려면 q=0.2 / kalman_min_variance=0.09 조합이 실측상 균형이 가장 나았다.
+        self.declare_parameter('use_kalman', False)
+        self.declare_parameter('kalman_process_noise', 0.2)
+        # 검출기가 covariance를 안 줄 때 쓰는 기본 관측 분산(m^2). 0.05m 오차 상당.
+        self.declare_parameter('kalman_default_variance', 0.0025)
+        # 관측 분산의 하한(m^2). 검출기가 신고하는 covariance는 접지점 산출 '등급'만 반영해
+        # 실제 오차를 크게 과소평가한다 - 실측에서 가장 큰 점프들이 전부 최고 신뢰 등급
+        # (toe_direct, sigma=0.05m)에서 났고, 실제 프레임간 오차는 중앙값 0.15m 수준이었다.
+        # 이 값을 그대로 R로 쓰면 필터가 관측을 과신해(K≈1) 평활이 사실상 사라진다.
+        # 실측 오차 수준으로 바닥을 깔아준다(0.04 = sigma 0.2m).
+        self.declare_parameter('kalman_min_variance', 0.09)
+        # 마할라노비스 게이트(2자유도). sqrt(5.991)=2.448이 95%, sqrt(9.21)=3.035가 99%.
+        # 0 이하면 기존 유클리드 고정반경 게이트를 쓴다.
+        self.declare_parameter('mahalanobis_gate', 3.035)
         # 위치 게이트를 통과했더라도 외형이 이보다 안 닮았으면 매칭을 거부하고 새 트랙으로
         # 돌린다. 0 이하면 거부를 끈다(기본값=끔).
         # [실측 결과 - 기본값을 끈 이유] my_new_bag4에서 0.3으로 켜 봤더니 오히려 나빠졌다:
@@ -189,6 +217,12 @@ class ReidTrackingNode(Node):
         self.dormant_ttl = self.get_parameter('dormant_ttl').value
         self.revival_similarity = self.get_parameter('revival_similarity').value
         self.sticky_follow = self.get_parameter('sticky_follow').value
+        self.use_kalman = self.get_parameter('use_kalman').value
+        self.kalman_process_noise = self.get_parameter('kalman_process_noise').value
+        self.kalman_default_variance = self.get_parameter('kalman_default_variance').value
+        self.kalman_min_variance = self.get_parameter('kalman_min_variance').value
+        gate = self.get_parameter('mahalanobis_gate').value
+        self.mahalanobis_gate = gate if (gate > 0.0 and self.use_kalman) else None
         reject = self.get_parameter('appearance_reject_similarity').value
         self.appearance_reject_similarity = reject if reject > 0.0 else None
 
@@ -297,6 +331,20 @@ class ReidTrackingNode(Node):
     def webcam_detections_callback(self, msg: Detection3DArray):
         self.update_tracks(msg, source='webcam')
 
+    def _new_track(self, track_id, x, y, stamp, source, variance):
+        """트랙 생성. use_kalman이면 등속도 칼만필터를 붙여 준다.
+
+        관측 노이즈 초기값은 이 검출이 신고한 분산을 쓴다 - 첫 관측부터 신뢰도를 반영해야
+        초기 공분산이 현실적이고, 그래야 마할라노비스 게이팅이 처음부터 제대로 작동한다.
+        """
+        kalman = None
+        if self.use_kalman:
+            kalman = ConstantVelocityKalman2D(
+                x, y, stamp,
+                process_noise=self.kalman_process_noise,
+                measurement_noise=variance if variance else self.kalman_default_variance)
+        return Track(track_id, x, y, stamp, source, kalman=kalman)
+
     def update_tracks(self, msg: Detection3DArray, source: str):
         entries = []
         for det in msg.detections:
@@ -307,20 +355,26 @@ class ReidTrackingNode(Node):
             # 발행 쪽(oakd_detector_node/leg_detector_bridge_node) 관례상 det.header는 항상
             # 배열 header와 동일하게 채워져 있다.
             stamp = stamp_to_sec(det.header.stamp)
-            entries.append((x, y, stamp, det.id))
+            # 검출기가 신고한 위치 분산. 없으면 기본값을 써서 칼만필터가 항상 R을 갖게 한다.
+            var = extract_person_variance(det)
+            if var is None:
+                var = self.kalman_default_variance
+            entries.append((x, y, stamp, det.id, max(var, self.kalman_min_variance)))
 
         # 한 메시지 안 서로 다른 검출이 같은 트랙을 중복으로 차지하지 않도록, 이번 콜백에
         # 들어온 검출 전체를 놓고 한 번에 배타적으로 배정한다. 게이팅은 배열 header의 공통
         # 시점(batch_stamp) 기준으로 모든 기존 트랙을 일관되게 예측해 비교한다.
         batch_stamp = stamp_to_sec(msg.header.stamp)
-        positions = [(x, y) for x, y, _, _ in entries]
+        positions = [(x, y) for x, y, _, _, _ in entries]
+        variances = [v for _, _, _, _, v in entries]
         # 이 배열과 같은 stamp로 온 외형 임베딩(인덱스가 검출 순서와 일치). 웹캠 등 임베딩을
         # 주지 않는 출처면 전부 None이라 아래 로직이 전부 위치 기반으로 degrade한다.
         embeddings = self._take_embeddings(batch_stamp, len(entries))
         track_ids = assign_tracks(
             self.tracks, positions, batch_stamp, self.gating_max_speed, self.gating_min_gate,
             embeddings=embeddings, appearance_weight=self.appearance_weight,
-            appearance_reject=self.appearance_reject_similarity)
+            appearance_reject=self.appearance_reject_similarity,
+            mahalanobis_gate=self.mahalanobis_gate, measurement_noises=variances)
 
         # [상류 트래커 id 구제] 상류 id(예: oakd_detector_node의 YOLO track(persist=True) id)가
         # 예전에 이 내부 트랙에 매핑된 적이 있고 그 트랙이 아직 살아있으면, 위치 게이팅 결과가
@@ -335,7 +389,7 @@ class ReidTrackingNode(Node):
         # 순간이동이 사라진다(실측: 최대 점프 1.28m/6.4m/s -> 0.63m/3.15m/s). 상류 id가
         # 재사용돼 다른 사람에게 잘못 붙는 경우를 막기 위해 절대 거리 상한은 그대로 둔다.
         claimed = {tid for tid in track_ids if tid is not None}
-        for i, (x, y, stamp, det_id) in enumerate(entries):
+        for i, (x, y, stamp, det_id, _var) in enumerate(entries):
             if not det_id:
                 continue
             hint_id = self.source_id_to_track.get((source, det_id))
@@ -350,7 +404,7 @@ class ReidTrackingNode(Node):
                 track_ids[i] = hint_id
                 claimed.add(hint_id)
 
-        for idx, ((x, y, stamp, det_id), track_id) in enumerate(zip(entries, track_ids)):
+        for idx, ((x, y, stamp, det_id, var), track_id) in enumerate(zip(entries, track_ids)):
             embedding = embeddings[idx] if idx < len(embeddings) else None
             if track_id is None:
                 # [dormant gallery] 새 신원을 발급하기 직전에, 최근에 사라진 신원 중 외형이
@@ -362,7 +416,7 @@ class ReidTrackingNode(Node):
                     claimed.add(track_id)
                     # 공백 동안의 낡은 속도로 외삽하면 안 되므로 위치는 새 관측으로 리셋하고
                     # 속도는 0에서 다시 추정하게 한다.
-                    track = Track(track_id, x, y, stamp, source)
+                    track = self._new_track(track_id, x, y, stamp, source, var)
                     track.embedding = self.dormant_gallery[track_id][0]
                     self.tracks[track_id] = track
                     del self.dormant_gallery[track_id]
@@ -378,7 +432,8 @@ class ReidTrackingNode(Node):
                 else:
                     track_id = self._next_track_id
                     self._next_track_id += 1
-                    self.tracks[track_id] = Track(track_id, x, y, stamp, source)
+                    self.tracks[track_id] = self._new_track(
+                        track_id, x, y, stamp, source, var)
             elif track_id == self.followed_track_id and self.locked_leg_id is not None:
                 # 락온 중에는 문서 5단계("재매칭 없이 락온된 라이다 트랙을 그대로 추종")대로
                 # 웹캠/OAK-D가 트랙의 위치·속도를 직접 덮어쓰지 않는다. 두 출처가 서로 다른
@@ -392,7 +447,8 @@ class ReidTrackingNode(Node):
                 position_alpha = (
                     self.source_switch_blend_alpha if track.last_source != source else 1.0)
                 track.update(x, y, stamp, source, velocity_alpha=self.velocity_alpha,
-                             position_alpha=position_alpha, max_speed=self.gating_max_speed)
+                             position_alpha=position_alpha, max_speed=self.gating_max_speed,
+                             measurement_noise=var)
 
             if track_id in self.tracks:
                 self.tracks[track_id].update_embedding(embedding, alpha=self.embedding_alpha)

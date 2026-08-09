@@ -30,7 +30,7 @@ _UNREACHABLE_COST = 1e6
 class Track:
     """트랙 하나의 상태. 위치/속도는 map 좌표계(m) 기준."""
 
-    def __init__(self, track_id, x, y, stamp, source):
+    def __init__(self, track_id, x, y, stamp, source, kalman=None):
         self.id = track_id
         self.x = x
         self.y = y
@@ -39,6 +39,13 @@ class Track:
         self.last_stamp = stamp
         self.last_source = source
         self.created_stamp = stamp
+        # 등속도 칼만필터(predictive_utils.ConstantVelocityKalman2D). 주어지면 위치/속도를
+        # 이걸로 추정하고, 없으면 기존 지수평활 경로를 그대로 쓴다.
+        # [왜 필요한가] 예전에는 position_alpha가 평소 1.0이라 트랙 위치를 관측값에 그대로
+        # 스냅했다. 그래서 검출 노이즈가 1:1로 추종 좌표 점프가 됐다(실측: 원시 측정 0.5m 초과
+        # 12회 = 최종 출력 0.5m 초과 12회로 정확히 일치). 칼만필터는 관측 불확실도(R)를 감안해
+        # 섞으므로 스파이크가 그대로 출력되지 않는다.
+        self.kalman = kalman
         # 외형(ReID) 임베딩. 임베딩을 주는 출처가 없으면 계속 None으로 남고, 그 경우
         # 매칭은 기존과 동일하게 위치 기반으로만 동작한다.
         self.embedding = None
@@ -67,13 +74,35 @@ class Track:
         (예: 라이다 락온 후보를 여러 프레임 모으는 동안) 오래된 속도로 무한정 미래를 예측하면
         아주 살짝의 속도 오차도 시간이 지날수록 걷잡을 수 없이 커진다.
         """
+        if self.kalman is not None and max_dt is None:
+            return self.kalman.predicted_position(stamp)
         dt = stamp - self.last_stamp
         if max_dt is not None:
             dt = max(-max_dt, min(dt, max_dt))
+        if self.kalman is not None:
+            # max_dt로 외삽을 제한해야 하는 호출부(라이다 후보 게이팅)는 칼만 상태에서
+            # 속도만 가져와 직접 제한 외삽한다 - 오래된 속도로 무한정 미래를 예측하지 않기 위해.
+            kx, ky = self.kalman.position()
+            kvx, kvy = self.kalman.velocity()
+            return kx + kvx * dt, ky + kvy * dt
         return self.x + self.vx * dt, self.y + self.vy * dt
 
-    def update(self, x, y, stamp, source, velocity_alpha=0.5, position_alpha=1.0, max_speed=None):
+    def mahalanobis(self, x, y, stamp, measurement_noise=None):
+        """관측까지의 마할라노비스 거리. 칼만필터가 없으면 None(호출부가 유클리드로 폴백)."""
+        if self.kalman is None:
+            return None
+        return self.kalman.mahalanobis(x, y, stamp, measurement_noise)
+
+    def update(self, x, y, stamp, source, velocity_alpha=0.5, position_alpha=1.0, max_speed=None,
+               measurement_noise=None):
         """새 관측으로 트랙을 갱신한다.
+
+        칼만필터가 붙어 있으면 그쪽으로 갱신하고 x/y/vx/vy를 필터 추정치로 동기화한다.
+        이때 velocity_alpha/position_alpha/max_speed는 무시된다 - 지수평활 시절의 노브라
+        필터가 관측 불확실도(measurement_noise)로 같은 역할을 더 원칙적으로 수행한다.
+
+        measurement_noise: 이 관측의 분산(m^2). 검출기가 covariance로 신고한 값을 그대로
+            넣으면 프레임별 신뢰도가 추정에 반영된다.
 
         velocity_alpha: 속도 추정의 지수평활 계수 (1.0=관측만 신뢰, 0=이전 속도 유지)
         position_alpha: 위치 갱신 블렌딩 계수 (1.0=관측 위치로 바로 스냅, <1.0이면 이전 위치와
@@ -90,6 +119,15 @@ class Track:
         dt = stamp - self.last_stamp
         if dt < -_STALE_EPS:
             return False
+
+        if self.kalman is not None:
+            self.kalman.update(x, y, stamp, measurement_noise=measurement_noise)
+            self.x, self.y = self.kalman.position()
+            self.vx, self.vy = self.kalman.velocity()
+            self.last_stamp = max(self.last_stamp, stamp)
+            self.last_source = source
+            return True
+
         dt = max(dt, 0.0)
         if dt > 1e-6:
             vx_meas = (x - self.x) / dt
@@ -155,7 +193,8 @@ def match_track(tracks, x, y, stamp, gating_max_speed, min_gate, exclude_ids=Non
 
 
 def assign_tracks(tracks, detections, stamp, gating_max_speed, min_gate,
-                  embeddings=None, appearance_weight=0.0, appearance_reject=None):
+                  embeddings=None, appearance_weight=0.0, appearance_reject=None,
+                  mahalanobis_gate=None, measurement_noises=None):
     """한 콜백에 들어온 여러 검출을 기존 트랙에 배타적(1:1)으로, 전체 비용 합이 최소가 되도록
     배정한다(Hungarian/linear_sum_assignment, scipy.optimize).
 
@@ -176,6 +215,13 @@ def assign_tracks(tracks, detections, stamp, gating_max_speed, min_gate,
         "게이트를 통과한 후보들 중 어느 것을 고를지"에만 개입한다 - DeepSORT가 motion
         gating 위에 appearance cost를 얹는 것과 같은 구조다. 둘 중 한쪽이라도 임베딩이
         없으면 그 쌍은 외형 항 없이 거리만으로 비교돼 기존 동작으로 degrade한다.
+
+    mahalanobis_gate: 주어지면(예: 2자유도 카이제곱 95% = 5.991의 제곱근 ≈ 2.448) 유클리드
+        고정반경 대신 **불확실도로 정규화한 거리**로 게이팅한다. 오래 못 본 트랙은 공분산이
+        커져 자연히 관대해지고 방금 갱신된 트랙은 엄격해진다(DeepSORT 방식). 칼만필터가
+        없는 트랙은 계산이 불가능하므로 기존 유클리드 게이트로 폴백한다.
+    measurement_noises: detections와 같은 길이의 관측 분산(m^2) 리스트. 검출기가 신고한
+        covariance를 그대로 넘기면 프레임별 신뢰도가 게이팅에 반영된다.
     """
     n = len(detections)
     results = [None] * n
@@ -186,12 +232,20 @@ def assign_tracks(tracks, detections, stamp, gating_max_speed, min_gate,
     cost = [[_UNREACHABLE_COST] * len(track_ids) for _ in range(n)]
     for i, (x, y) in enumerate(detections):
         det_emb = embeddings[i] if embeddings is not None and i < len(embeddings) else None
+        r_i = (measurement_noises[i]
+               if measurement_noises is not None and i < len(measurement_noises) else None)
         for j, tid in enumerate(track_ids):
             tr = tracks[tid]
             px, py = tr.predict(stamp)
             d = distance(px, py, x, y)
-            gate = gate_radius(stamp - tr.last_stamp, gating_max_speed, min_gate)
-            if d > gate:
+            if mahalanobis_gate is not None:
+                md = tr.mahalanobis(x, y, stamp, r_i)
+                if md is not None:
+                    if md > mahalanobis_gate:
+                        continue
+                elif d > gate_radius(stamp - tr.last_stamp, gating_max_speed, min_gate):
+                    continue  # 칼만필터가 없는 트랙은 유클리드로 폴백
+            elif d > gate_radius(stamp - tr.last_stamp, gating_max_speed, min_gate):
                 continue
             sim = cosine_similarity(det_emb, tr.embedding)
             if sim is not None:
@@ -223,6 +277,21 @@ def extract_person_position(detection):
         if result.hypothesis.class_id == 'person':
             p = result.pose.pose.position
             return p.x, p.y, p.z
+    return None
+
+
+def extract_person_variance(detection):
+    """'person' 가설의 위치 분산(m^2)을 뽑는다. 안 채워져 있으면 None.
+
+    oakd_detector_node는 접지점 산출 등급(GRADE_SIGMA)과 RGB-Depth 동기 시간차로 계산한
+    분산을 covariance[0]에 넣어 발행한다 - "검출기가 자기 불확실도를 스스로 신고한다"는
+    설계였는데 하류에서 아무도 안 읽고 있었다. 칼만필터의 관측 노이즈 R로 쓰면 프레임별
+    신뢰도가 추정과 게이팅에 그대로 반영된다.
+    """
+    for result in detection.results:
+        if result.hypothesis.class_id == 'person':
+            var = float(result.pose.covariance[0])
+            return var if var > 0.0 else None
     return None
 
 

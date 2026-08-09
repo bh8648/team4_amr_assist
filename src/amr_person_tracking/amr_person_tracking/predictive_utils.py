@@ -54,13 +54,65 @@ class ConstantVelocityKalman2D:
         self.P = F @ self.P @ F.T + Q
         self.last_stamp = stamp
 
-    def update(self, x, y, stamp):
-        """새 관측치로 predict-then-correct를 수행한다. stamp가 과거면(순서 뒤바뀐 메시지) 무시."""
+    def _predicted(self, stamp):
+        """상태를 **바꾸지 않고** stamp 시점의 (state, P)를 돌려준다.
+
+        게이팅 판정은 "이 관측을 받아들일지" 정하기 전에 하므로 필터 상태를 진행시키면 안 된다
+        (받아들이지 않을 관측 때문에 공분산이 커지면 다음 판정까지 흔들린다).
+        """
+        dt = stamp - self.last_stamp
+        if dt <= 0:
+            return self.state.copy(), self.P.copy()
+        F = np.array([
+            [1.0, 0.0, dt, 0.0],
+            [0.0, 1.0, 0.0, dt],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ])
+        q = self.process_noise
+        Q = q * np.array([
+            [dt ** 4 / 4, 0.0, dt ** 3 / 2, 0.0],
+            [0.0, dt ** 4 / 4, 0.0, dt ** 3 / 2],
+            [dt ** 3 / 2, 0.0, dt ** 2, 0.0],
+            [0.0, dt ** 3 / 2, 0.0, dt ** 2],
+        ])
+        return F @ self.state, F @ self.P @ F.T + Q
+
+    def predicted_position(self, stamp):
+        """필터 상태를 바꾸지 않고 stamp 시점의 예측 위치."""
+        state, _P = self._predicted(stamp)
+        return float(state[0]), float(state[1])
+
+    def mahalanobis(self, x, y, stamp, measurement_noise=None):
+        """관측 (x, y)의 마할라노비스 거리. 게이팅용이라 필터 상태를 바꾸지 않는다.
+
+        유클리드 고정반경 게이트와 달리 **불확실도로 정규화**한 거리라, 오래 못 본 트랙(공분산이
+        큼)에는 자연히 관대해지고 방금 갱신된 트랙에는 엄격해진다. 2자유도 카이제곱이므로
+        임계 5.991이 95%, 9.210이 99% 신뢰구간에 해당한다(DeepSORT가 쓰는 방식).
+        """
+        state, P = self._predicted(stamp)
+        H = np.array([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]])
+        r = self.measurement_noise if measurement_noise is None else measurement_noise
+        S = H @ P @ H.T + np.diag([r, r])
+        residual = np.array([x, y]) - H @ state
+        try:
+            return float(math.sqrt(residual @ np.linalg.inv(S) @ residual))
+        except np.linalg.LinAlgError:
+            return float('inf')
+
+    def update(self, x, y, stamp, measurement_noise=None):
+        """새 관측치로 predict-then-correct를 수행한다. stamp가 과거면(순서 뒤바뀐 메시지) 무시.
+
+        measurement_noise를 주면 그 관측에 한해 R을 덮어쓴다 - 검출기가 자기 불확실도를
+        covariance로 신고하므로(oakd_detector_node의 GRADE_SIGMA + 동기 시간차), 프레임마다
+        다른 신뢰도를 그대로 반영할 수 있다.
+        """
         if stamp < self.last_stamp:
             return
         self._predict(stamp)
         H = np.array([[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0]])
-        R = np.diag([self.measurement_noise, self.measurement_noise])
+        r = self.measurement_noise if measurement_noise is None else measurement_noise
+        R = np.diag([r, r])
         z = np.array([x, y])
         residual = z - H @ self.state
         S = H @ self.P @ H.T + R
