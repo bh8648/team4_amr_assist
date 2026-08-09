@@ -237,15 +237,28 @@ def assign_tracks(tracks, detections, stamp, gating_max_speed, min_gate,
         for j, tid in enumerate(track_ids):
             tr = tracks[tid]
             px, py = tr.predict(stamp)
+            # 게이팅 거리는 예측 위치와 **마지막 관측 위치 중 가까운 쪽**을 쓴다.
+            #
+            # 예측만 쓰면, 속도 추정이 틀렸을 때 예측이 매칭을 돕는 대신 방해한다. 실기
+            # (evidence/live_run_0809_1658.log)에서 생성 0.4초짜리 추종 트랙이 이렇게 죽었다:
+            #   생성 track 2 ... 최근접 track 1 저장 0.27m / 예측 0.35m (v=0.87m/s)
+            # 사람은 사실상 제자리인데(실이동 0.27m) 발끝 depth 지터에 지수평활을 먹인 속도가
+            # 0.87m/s로 잡혀 예측을 게이트(0.3m) 밖으로 밀어냈다. 검출은 그 프레임에 하나뿐이라
+            # 경쟁도 없었는데 새 트랙이 생기고, 추종 트랙은 0.30초 만에 굶어 죽었다.
+            #
+            # 둘 중 가까운 쪽을 쓰면 예측은 recall을 높이는 쪽으로만 작용한다. 게이트 반경
+            # 자체는 그대로라 서로 다른 사람을 섞을 위험은 늘지 않는다(반경 밖은 여전히 거부).
+            # 비용에는 예측 거리를 그대로 써서, 통과한 후보들 사이의 우선순위는 바꾸지 않는다.
             d = distance(px, py, x, y)
+            gate_d = min(d, distance(tr.x, tr.y, x, y))
             if mahalanobis_gate is not None:
                 md = tr.mahalanobis(x, y, stamp, r_i)
                 if md is not None:
                     if md > mahalanobis_gate:
                         continue
-                elif d > gate_radius(stamp - tr.last_stamp, gating_max_speed, min_gate):
+                elif gate_d > gate_radius(stamp - tr.last_stamp, gating_max_speed, min_gate):
                     continue  # 칼만필터가 없는 트랙은 유클리드로 폴백
-            elif d > gate_radius(stamp - tr.last_stamp, gating_max_speed, min_gate):
+            elif gate_d > gate_radius(stamp - tr.last_stamp, gating_max_speed, min_gate):
                 continue
             sim = cosine_similarity(det_emb, tr.embedding)
             if sim is not None:

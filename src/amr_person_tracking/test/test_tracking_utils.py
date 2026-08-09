@@ -220,3 +220,29 @@ def test_mahalanobis_gate_falls_back_to_euclidean_without_kalman():
     tracks = {1: plain}
     assert assign_tracks(tracks, [(0.05, 0.0)], 10.1, 2.0, 0.3, mahalanobis_gate=3.035) == [1]
     assert assign_tracks(tracks, [(50.0, 0.0)], 10.1, 2.0, 0.3, mahalanobis_gate=3.035) == [None]
+
+
+def test_gating_uses_nearer_of_predicted_and_stored():
+    """속도 추정이 틀려 예측이 게이트 밖으로 나가도, 마지막 관측 위치가 가까우면 매칭돼야 한다.
+
+    실기(evidence/live_run_0809_1658.log) 재현: 사람은 사실상 제자리(실이동 0.27m)인데
+    발끝 depth 지터로 붙은 속도 0.87m/s가 예측을 0.35m 밖으로 밀어내 게이트(0.3m)를
+    넘겼다. 검출이 하나뿐이라 경쟁도 없었는데 새 트랙이 생기고 추종 트랙이 굶어 죽었다.
+    """
+    tr = Track(1, 0.0, 0.0, 100.0, source='oakd')
+    tr.vx, tr.vy = 0.0, 2.0          # 위쪽으로 크게 튀는 가짜 속도
+    tracks = {1: tr}
+
+    # 저장 위치에서 0.27m, 예측 위치(dt=0.1 -> y=+0.2)에서는 0.47m 떨어진 검출
+    det = [(0.0, -0.27)]
+    assigned = assign_tracks(tracks, det, 100.1, gating_max_speed=2.0, min_gate=0.3)
+    assert assigned == [1], '저장 위치가 게이트 안이면 매칭돼야 한다'
+
+
+def test_gating_still_rejects_beyond_radius():
+    """둘 중 가까운 쪽을 쓰더라도 게이트 반경 밖은 여전히 거부해야 한다(타인 흡수 방지)."""
+    tr = Track(1, 0.0, 0.0, 100.0, source='oakd')
+    tracks = {1: tr}
+    assigned = assign_tracks(tracks, [(3.0, 0.0)], 100.1,
+                             gating_max_speed=2.0, min_gate=0.3)
+    assert assigned == [None]

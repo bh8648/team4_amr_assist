@@ -1,0 +1,60 @@
+[INFO] [launch]: All log files can be found below /home/rokey/.ros/log/2026-08-09-16-58-14-862457-mu-05-17335
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [oakd_detector_node-1]: process started with pid [17338]
+[INFO] [debug_viewer_node-2]: process started with pid [17340]
+[INFO] [leg_detector_bridge_node-3]: process started with pid [17342]
+[INFO] [reid_tracking_node-4]: process started with pid [17344]
+[INFO] [predictive_avoidance_node-5]: process started with pid [17346]
+[debug_viewer_node-2] QFontDatabase: Cannot find font directory /home/rokey/.local/lib/python3.10/site-packages/cv2/qt/fonts.
+[debug_viewer_node-2] Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
+[debug_viewer_node-2] QFontDatabase: Cannot find font directory /home/rokey/.local/lib/python3.10/site-packages/cv2/qt/fonts.
+[debug_viewer_node-2] Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
+[debug_viewer_node-2] QFontDatabase: Cannot find font directory /home/rokey/.local/lib/python3.10/site-packages/cv2/qt/fonts.
+[debug_viewer_node-2] Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
+[debug_viewer_node-2] QFontDatabase: Cannot find font directory /home/rokey/.local/lib/python3.10/site-packages/cv2/qt/fonts.
+[debug_viewer_node-2] Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
+[debug_viewer_node-2] QFontDatabase: Cannot find font directory /home/rokey/.local/lib/python3.10/site-packages/cv2/qt/fonts.
+[debug_viewer_node-2] Note that Qt no longer ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for example) or switch to fontconfig.
+[reid_tracking_node-4] [INFO] [1786262295.413789041] [reid_tracking_node]: reid_tracking_node 시작 | oakd=/robot5/vision/detections_3d webcam=/vision/webcam/detections_3d leg=/robot5/vision/leg_detections_3d -> /robot5/vision/tracked_detections_3d, /robot5/target_person_pose
+[debug_viewer_node-2] [INFO] [1786262295.424966884] [oakd_detector_debug_viewer]: debug_viewer_node 시작 | /robot5/vision/oakd_detector/debug/compressed -> 창 "oakd_detector debug"
+[leg_detector_bridge_node-3] [INFO] [1786262295.492729745] [leg_detector_bridge_node]: leg_detector_bridge_node 시작 (자체 LaserScan 다리검출) | /robot5/scan -> /robot5/vision/leg_detections_3d
+[predictive_avoidance_node-5] [INFO] [1786262295.493059093] [predictive_avoidance_node]: predictive_avoidance_node 시작 | /robot5/vision/tracked_detections_3d -> /robot5/vision/predicted_obstacle_points / /robot5/local_costmap/local_costmap/set_parameters (mode=pointcloud)
+[oakd_detector_node-1] /home/rokey/.local/lib/python3.10/site-packages/matplotlib/projections/__init__.py:63: UserWarning: Unable to import Axes3D. This may be due to multiple versions of Matplotlib being installed (e.g. as a system package and as a pip package). As a result, the 3D projection is not available.
+[oakd_detector_node-1]   warnings.warn("Unable to import Axes3D. This may be due to multiple versions of "
+[oakd_detector_node-1] [INFO] [1786262296.345136999] [oakd_detector_node]: YOLO-pose 모델 로드: yolo11n-pose.pt
+[oakd_detector_node-1] [INFO] [1786262296.390933050] [oakd_detector_node]: oakd_detector_node 시작 | ns=robot5 rgb=/robot5/oakd/rgb/image_raw/compressed depth=/robot5/oakd/stereo/image_raw/compressedDepth -> /robot5/vision/detections_3d (slop=0.05s, process_every_n=1)
+[oakd_detector_node-1] [WARN] [1786262297.391971517] [oakd_detector_node]: 이미지 입력 3.0s 이상 없음
+[oakd_detector_node-1] [WARN] [1786262308.391676384] [oakd_detector_node]: 이미지 입력 3.0s 이상 없음
+[leg_detector_bridge_node-3] [WARN] [1786262327.213263265] [leg_detector_bridge_node]: odom 변환 실패: Lookup would require extrapolation into the future.  Requested time 1786262326.859939 but the latest data is at time 1786262326.727904, when looking up transform from frame [rplidar_link] to frame [odom]
+[reid_tracking_node-4] [INFO] [1786262327.583050130] [reid_tracking_node]: [lifecycle] 생성 track 1 @(-0.96,0.39) 출처=oakd 상류id=''(기존매핑 0건) / 기존 트랙 없음 / 갤러리 빔 / 배치검출 1개(기존트랙배정 0건)
+[oakd_detector_node-1] [INFO] [1786262327.583166401] [oakd_detector_node]: [follow] 미표시: 추종 좌표 미수신(reid가 아직 대상을 못 정했거나 토픽 미연결)
+[oakd_detector_node-1] [INFO] [1786262327.874552449] [oakd_detector_node]: 근접 안전모드 진입 (최근접 0.74m)
+[oakd_detector_node-1] [INFO] [1786262327.999023397] [oakd_detector_node]: 근접 안전모드 해제 (최근접 0.96m)
+[reid_tracking_node-4] [INFO] [1786262328.002475050] [reid_tracking_node]: [lifecycle] 생성 track 2 @(-1.07,0.23) 출처=oakd 상류id=''(기존매핑 0건) / 최근접 track 1 저장 0.27m / 예측 0.35m (v=0.87m/s) / 갤러리 빔 / 배치검출 1개(기존트랙배정 0건)
+[leg_detector_bridge_node-3] [WARN] [1786262329.235153223] [leg_detector_bridge_node]: odom 변환 실패: Lookup would require extrapolation into the future.  Requested time 1786262327.376354 but the latest data is at time 1786262326.776473, when looking up transform from frame [rplidar_link] to frame [odom]
+[oakd_detector_node-1] [INFO] [1786262329.677145003] [oakd_detector_node]: [follow] 미표시: 가장 가까운 검출이 추종 좌표에서 1.31m (> 0.80m) | 추종좌표 (-0.82,0.30)
+[reid_tracking_node-4] [INFO] [1786262330.387466360] [reid_tracking_node]: [reid] 임베딩 수신 0 / 검출과 매칭 0 / 짝없음 29 | 갤러리 0개 | 신원복원 누적 0회
+[reid_tracking_node-4] [INFO] [1786262330.957125930] [reid_tracking_node]: [lifecycle] 소멸 track 1 @(-0.82,0.30) 마지막갱신 3.10s 전 / 수명 0.30s / 추종중=True / 출처=oakd
+[leg_detector_bridge_node-3] [WARN] [1786262331.258767373] [leg_detector_bridge_node]: odom 변환 실패: Lookup would require extrapolation into the future.  Requested time 1786262329.328737 but the latest data is at time 1786262326.823676, when looking up transform from frame [rplidar_link] to frame [odom]
+[oakd_detector_node-1] [INFO] [1786262331.826731308] [oakd_detector_node]: [follow] 미표시: 가장 가까운 검출이 추종 좌표에서 1.26m (> 0.80m) | 추종좌표 (-0.82,0.30)
+[leg_detector_bridge_node-3] [WARN] [1786262333.284739945] [leg_detector_bridge_node]: odom 변환 실패: Lookup would require extrapolation into the future.  Requested time 1786262331.785654 but the latest data is at time 1786262329.127790, when looking up transform from frame [rplidar_link] to frame [odom]
+[oakd_detector_node-1] [INFO] [1786262333.864555097] [oakd_detector_node]: [follow] 미표시: 추종 좌표가 낡음 3.00s (> 1.00s)
+[reid_tracking_node-4] [INFO] [1786262335.151808096] [reid_tracking_node]: [lifecycle] 생성 track 3 @(-3.12,-1.13) 출처=oakd 상류id=''(기존매핑 0건) / 최근접 track 2 저장 1.20m / 예측 1.38m (v=0.56m/s) / 갤러리 최근접 1 2.71m / 배치검출 1개(기존트랙배정 0건)
+[leg_detector_bridge_node-3] [WARN] [1786262335.307331349] [leg_detector_bridge_node]: odom 변환 실패: Lookup would require extrapolation into the future.  Requested time 1786262333.344891 but the latest data is at time 1786262330.775713, when looking up transform from frame [rplidar_link] to frame [odom]
+[reid_tracking_node-4] [INFO] [1786262335.387527143] [reid_tracking_node]: [reid] 임베딩 수신 0 / 검출과 매칭 0 / 짝없음 73 | 갤러리 1개 | 신원복원 누적 0회
+[oakd_detector_node-1] [INFO] [1786262337.157376043] [oakd_detector_node]: [follow] 미표시: 추종 좌표가 낡음 6.30s (> 1.00s)
+[leg_detector_bridge_node-3] [WARN] [1786262337.331594230] [leg_detector_bridge_node]: odom 변환 실패: Lookup would require extrapolation into the future.  Requested time 1786262335.814522 but the latest data is at time 1786262333.176813, when looking up transform from frame [rplidar_link] to frame [odom]
+[reid_tracking_node-4] [INFO] [1786262337.770965672] [reid_tracking_node]: [lifecycle] 소멸 track 2 @(-1.96,-0.80) 마지막갱신 3.10s 전 / 수명 6.70s / 추종중=False / 출처=oakd
+[reid_tracking_node-4] [INFO] [1786262338.364467207] [reid_tracking_node]: 외형 재식별로 신원 복원: track 2
+[oakd_detector_node-1] [INFO] [1786262339.177871005] [oakd_detector_node]: [follow] 미표시: 추종 좌표가 낡음 8.30s (> 1.00s)
+[leg_detector_bridge_node-3] [WARN] [1786262339.355945295] [leg_detector_bridge_node]: odom 변환 실패: Lookup would require extrapolation into the future.  Requested time 1786262337.496842 but the latest data is at time 1786262334.823719, when looking up transform from frame [rplidar_link] to frame [odom]
+[reid_tracking_node-4] [INFO] [1786262340.387306077] [reid_tracking_node]: [reid] 임베딩 수신 0 / 검출과 매칭 0 / 짝없음 104 | 갤러리 1개 | 신원복원 누적 1회
+[oakd_detector_node-1] [INFO] [1786262341.180023759] [oakd_detector_node]: [follow] 미표시: 추종 좌표가 낡음 10.30s (> 1.00s)
+[reid_tracking_node-4] [INFO] [1786262341.368895386] [reid_tracking_node]: [lifecycle] 소멸 track 3 @(-1.88,-0.19) 마지막갱신 3.10s 전 / 수명 3.10s / 추종중=False / 출처=oakd
+[leg_detector_bridge_node-3] [WARN] [1786262341.379189243] [leg_detector_bridge_node]: odom 변환 실패: Lookup would require extrapolation into the future.  Requested time 1786262339.056397 but the latest data is at time 1786262336.424552, when looking up transform from frame [rplidar_link] to frame [odom]
+[oakd_detector_node-1] [INFO] [1786262342.174250753] [oakd_detector_node]: 근접 안전모드 진입 (최근접 0.66m)
+[leg_detector_bridge_node-3] [WARN] [1786262343.403462944] [leg_detector_bridge_node]: odom 변환 실패: Lookup would require extrapolation into the future.  Requested time 1786262341.918086 but the latest data is at time 1786262339.287964, when looking up transform from frame [rplidar_link] to frame [odom]
+[oakd_detector_node-1] [WARN] [1786262343.871840195] [oakd_detector_node]: 근접 경보 해제: 검출이 1.0s 이상 없음
+[reid_tracking_node-4] [INFO] [1786262345.387325427] [reid_tracking_node]: [reid] 임베딩 수신 0 / 검출과 매칭 0 / 짝없음 124 | 갤러리 2개 | 신원복원 누적 1회
+[leg_detector_bridge_node-3] [WARN] [1786262345.427040603] [leg_detector_bridge_node]: odom 변환 실패: Lookup would require extrapolation into the future.  Requested time 1786262343.478274 but the latest data is at time 1786262340.871986, when looking up transform from frame [rplidar_link] to frame [odom]
+[reid_tracking_node-4] [INFO] [1786262345.858134449] [reid_tracking_node]: [lifecycle] 소멸 track 2 @(-0.84,-0.26) 마지막갱신 3.10s 전 / 수명 4.40s / 추종중=False / 출처=oakd
