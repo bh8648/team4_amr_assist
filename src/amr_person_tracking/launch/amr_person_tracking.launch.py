@@ -67,6 +67,8 @@ def generate_launch_description():
         DeclareLaunchArgument('max_detection_distance', default_value='5.0'),
         # 화면에 사람이 있는데 FOLLOWING이 안 칠해질 때 그 이유를 로그로 남긴다.
         DeclareLaunchArgument('log_follow_overlay_misses', default_value='false'),
+        # map 좌표가 이 거리 안에서 겹치는 검출은 한 사람으로 보고 하나만 남긴다. 0이면 끈다.
+        DeclareLaunchArgument('duplicate_merge_distance', default_value='0.25'),
         # 전역 좌표계. 각 노드가 tf2 조회/출력 frame_id에 사용한다. AMCL/nav2가 없는 로스백
         # 재생 테스트에서는 map 프레임이 존재하지 않으므로 odom으로 넘겨야 tf lookup이 성공한다.
         DeclareLaunchArgument('map_frame', default_value='map'),
@@ -151,6 +153,7 @@ def generate_launch_description():
             'publish_debug_image': LaunchConfiguration('publish_debug_image'),
             'max_detection_distance': LaunchConfiguration('max_detection_distance'),
             'log_follow_overlay_misses': LaunchConfiguration('log_follow_overlay_misses'),
+            'duplicate_merge_distance': LaunchConfiguration('duplicate_merge_distance'),
             'reid_embeddings_topic': embeddings_topic,
             'follow_target_topic': target_pose_topic,
             'map_frame': LaunchConfiguration('map_frame'),

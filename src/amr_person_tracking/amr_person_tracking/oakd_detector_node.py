@@ -117,6 +117,7 @@ class OakdDetectorNode(Node):
         self.tf_allow_latest_fallback = self.get_parameter('tf_allow_latest_fallback').value
         self.conf_threshold = self.get_parameter('conf_threshold').value
         self.max_detection_distance = self.get_parameter('max_detection_distance').value
+        self.duplicate_merge_distance = self.get_parameter('duplicate_merge_distance').value
         self.tracker_conf_threshold = self.get_parameter('tracker_conf_threshold').value
         self.kp_conf_threshold = self.get_parameter('kp_conf_threshold').value
         self.depth_scale = self.get_parameter('depth_scale').value
@@ -159,6 +160,7 @@ class OakdDetectorNode(Node):
         # 무력화되는 조건이라(det.id가 빈 문자열로 나감) 트랙 churn의 직접 원인 후보다.
         self._stat_no_track_id = 0
         self._stat_too_far = 0
+        self._stat_duplicates = 0
         self._stat_detections = 0
         self._stat_depth_invalid = 0
         self._stat_depth_substituted = 0
@@ -323,6 +325,9 @@ class OakdDetectorNode(Node):
         # 쓰이지 않는다 - 원거리 획득은 웹캠 호출좌표 담당이고, 라이다도
         # scan_range_limit=5.0으로 같은 상한을 쓴다.
         self.declare_parameter('max_detection_distance', 5.0)
+        # map 좌표가 이 거리 안에서 겹치는 검출은 한 사람으로 보고 신뢰도 높은 쪽만 남긴다.
+        # gating_min_gate(0.3m)보다 작게 잡아, 게이팅이 구분할 수 있는 거리는 건드리지 않는다.
+        self.declare_parameter('duplicate_merge_distance', 0.25)
         # 트래커에 넣을 때만 쓰는 낮은 임계. YOLO의 .track()에 conf_threshold를 그대로 주면
         # 저신뢰 검출이 트래커에 도달하기도 전에 잘려, TrackTrack/ByteTrack 계열의 2단계
         # 연결(track_low_thresh=0.25로 저신뢰 검출을 기존 트랙에 이어붙여 끊김을 막는 장치)이
@@ -455,6 +460,7 @@ class OakdDetectorNode(Node):
         """
         detections = []
         overlay_items = []
+        confs = []          # detections와 같은 순서. 중복 병합 시 어느 쪽을 남길지 고른다.
         nearest = None
 
         boxes = getattr(result, 'boxes', None)
@@ -557,8 +563,37 @@ class OakdDetectorNode(Node):
             detections.append(self._make_detection3d(pt_map, box_conf, grade, trunc, track_id, rgb_msg.header))
             overlay_items.append(
                 (u, v, grade, distance, track_id, pt_map.point.x, pt_map.point.y, bbox))
+            confs.append(box_conf)
 
+        detections, overlay_items = self._merge_duplicates(detections, overlay_items, confs)
         return detections, nearest, overlay_items
+
+    def _merge_duplicates(self, detections, overlay_items, confs):
+        """map 좌표가 거의 겹치는 검출을 하나로 줄인다(신뢰도 높은 쪽을 남김).
+
+        한 사람이 한 프레임에 두 번 검출되면(겹치는 bbox) 하류 reid_tracking_node의 배타적
+        배정 때문에 **반드시** 하나는 새 트랙이 된다 - 위치 게이팅을 아무리 손봐도 막을 수
+        없다. 실기(evidence/live_run_0809_1706.log)에서 같은 시각에 2cm 떨어진 트랙 6/7이
+        생겼고 7은 수명 0.00s로 즉사했다. 그런 검출쌍은 같은 사람으로 보는 게 맞다.
+
+        임계는 게이팅 반경(gating_min_gate 0.3m)보다 작게 잡아, 게이팅이 정상적으로 구분할
+        수 있는 거리(서로 다른 사람)는 병합하지 않는다.
+        """
+        if self.duplicate_merge_distance <= 0.0 or len(detections) < 2:
+            return detections, overlay_items
+        order = sorted(range(len(detections)), key=lambda i: confs[i], reverse=True)
+        kept = []
+        for i in order:
+            xi, yi = overlay_items[i][5], overlay_items[i][6]
+            if any(math.hypot(xi - overlay_items[k][5], yi - overlay_items[k][6])
+                   <= self.duplicate_merge_distance for k in kept):
+                self._stat_duplicates += 1
+                continue
+            kept.append(i)
+        if len(kept) == len(detections):
+            return detections, overlay_items
+        kept.sort()   # 원래 검출 순서를 유지한다(임베딩 인덱스 규약과 맞춰야 한다)
+        return [detections[i] for i in kept], [overlay_items[i] for i in kept]
 
     def _make_detection3d(self, pt_map, box_conf, grade, trunc, track_id, header):
         det = Detection3D()
@@ -940,6 +975,7 @@ class OakdDetectorNode(Node):
             KeyValue(key='truncated_count', value=str(self._stat_truncated)),
             KeyValue(key='frames_without_track_id', value=str(self._stat_no_track_id)),
             KeyValue(key='dropped_too_far', value=str(self._stat_too_far)),
+            KeyValue(key='merged_duplicates', value=str(self._stat_duplicates)),
             KeyValue(key='proximity_alert', value=str(self.proximity_active).lower()),
             KeyValue(key='ir_check', value=self._stat_ir_check),
             KeyValue(key='ir_value', value=str(self._stat_ir_value)),
@@ -966,6 +1002,7 @@ class OakdDetectorNode(Node):
         # 무력화되는 조건이라(det.id가 빈 문자열로 나감) 트랙 churn의 직접 원인 후보다.
         self._stat_no_track_id = 0
         self._stat_too_far = 0
+        self._stat_duplicates = 0
         self._stat_detections = 0
         self._stat_depth_invalid = 0
         self._stat_depth_substituted = 0
