@@ -46,12 +46,12 @@ def decode_jpeg(msg):
 # 양쪽 발목 keypoint 인덱스. 발목 = "발이 바닥에 닿는 지점"이라서
 # 우리가 실제로 map (x, y)로 변환하고 싶은 값은 이거임
 # (엉덩이나 코 같은 걸 쓰면 지면 기준 homography를 적용해도 바닥에서 붕 뜬 위치가 나옴)
-LEFT_ANKLE_IDX = 15
-RIGHT_ANKLE_IDX = 16
+LEFT_ANKLE_IDX = 15  # COCO keypoint 순서상 왼쪽 발목 인덱스
+RIGHT_ANKLE_IDX = 16  # COCO keypoint 순서상 오른쪽 발목 인덱스
 
 # 양쪽 손목 keypoint 인덱스 - wrist_gesture_node에 넘길 손 ROI를 자를 중심점
-LEFT_WRIST_IDX = 9
-RIGHT_WRIST_IDX = 10
+LEFT_WRIST_IDX = 9  # COCO keypoint 순서상 왼쪽 손목 인덱스
+RIGHT_WRIST_IDX = 10  # COCO keypoint 순서상 오른쪽 손목 인덱스
 
 
 
@@ -226,21 +226,21 @@ def crop_person_bbox(frame, box_xyxy, padding_ratio=0.15, top_ratio=1.0):
     Returns:
         크롭된 프레임(BGR numpy array).
     """
-    x1, y1, x2, y2 = box_xyxy
-    w = x2 - x1
-    h = y2 - y1
+    x1, y1, x2, y2 = box_xyxy  # 원본 bounding box 좌표
+    w = x2 - x1  # 박스 너비
+    h = y2 - y1  # 박스 높이
     if top_ratio < 1.0:
-        y2 = y1 + h * top_ratio
-        h = y2 - y1
-    pad_x = w * padding_ratio
-    pad_y = h * padding_ratio
+        y2 = y1 + h * top_ratio  # 위에서부터 top_ratio 비율만큼만 남기고 아래쪽을 잘라냄
+        h = y2 - y1  # 잘라낸 만큼 높이 갱신
+    pad_x = w * padding_ratio  # 좌우 여유 픽셀 수
+    pad_y = h * padding_ratio  # 상하 여유 픽셀 수
 
-    frame_h, frame_w = frame.shape[:2]
+    frame_h, frame_w = frame.shape[:2]  # 프레임 전체 크기 (클램프 기준)
     cx1 = max(0, int(x1 - pad_x))   # 상하좌우 경계가 프레임 밖으로 나가면 클램프해서 잘라냄
     cy1 = max(0, int(y1 - pad_y))
     cx2 = min(frame_w, int(x2 + pad_x))
     cy2 = min(frame_h, int(y2 + pad_y))
-    return frame[cy1:cy2, cx1:cx2]
+    return frame[cy1:cy2, cx1:cx2]  # 최종 크롭 결과
 
 
 def crop_square_roi(frame, center_u, center_v, half_size):
@@ -255,12 +255,12 @@ def crop_square_roi(frame, center_u, center_v, half_size):
         크롭된 프레임. 중심점이 프레임 밖이면 빈 배열(크기 0)을 반환할 수 있음 -
         호출하는 쪽에서 크기를 확인해야 함.
     """
-    h, w = frame.shape[:2]
-    u1 = max(0, int(center_u - half_size))
-    u2 = min(w, int(center_u + half_size))
-    v1 = max(0, int(center_v - half_size))
-    v2 = min(h, int(center_v + half_size))
-    return frame[v1:v2, u1:u2]
+    h, w = frame.shape[:2]  # 프레임 전체 크기 (클램프 기준)
+    u1 = max(0, int(center_u - half_size))  # 왼쪽 경계 (프레임 밖이면 0으로 클램프)
+    u2 = min(w, int(center_u + half_size))  # 오른쪽 경계 (프레임 밖이면 w로 클램프)
+    v1 = max(0, int(center_v - half_size))  # 위쪽 경계
+    v2 = min(h, int(center_v + half_size))  # 아래쪽 경계
+    return frame[v1:v2, u1:u2]  # 최종 크롭 결과 (경계 근처면 정사각형이 아닐 수 있음)
 
 
 def select_person(boxes, locked_track_id):
@@ -284,7 +284,7 @@ def select_person(boxes, locked_track_id):
         검출이 아예 없으면 (None, None) 반환.
     """
     if boxes is None or len(boxes) == 0:
-        return None, None
+        return None, None  # 검출이 아예 없음
 
     # 이미 락온된 대상이 있으면, 지금 카메라에 더 가까운 다른 사람이 나타났어도
     # 같은 사람(트래커 id 기준)을 계속 따라가는 걸 우선함 - 이렇게 안 하면
@@ -293,7 +293,7 @@ def select_person(boxes, locked_track_id):
         for i in range(len(boxes)):
             box = boxes[i]
             if box.id is not None and int(box.id[0]) == locked_track_id:
-                return i, locked_track_id
+                return i, locked_track_id  # 락온했던 id를 이번 프레임에서도 찾음 - 그대로 유지
 
     # 아직 락온 안 됐거나 (또는 락온했던 id가 이번 프레임에 사라졌으면):
     # bounding box 면적이 가장 큰 검출을 "가장 가까워 보이는 사람"으로 간주해서 선택
@@ -301,15 +301,15 @@ def select_person(boxes, locked_track_id):
     best_index = None
     best_area = -1.0
     for i in range(len(boxes)):
-        x1, y1, x2, y2 = boxes[i].xyxy[0].tolist()
-        area = max(0.0, x2 - x1) * max(0.0, y2 - y1)
+        x1, y1, x2, y2 = boxes[i].xyxy[0].tolist()  # i번째 검출의 픽셀 bbox
+        area = max(0.0, x2 - x1) * max(0.0, y2 - y1)  # 박스 면적
         if area > best_area:
-            best_area = area
+            best_area = area  # 지금까지 중 가장 큰 면적 갱신
             best_index = i
 
     if best_index is None:
-        return None, None
+        return None, None  # (이론상 도달 안 함 - 위에서 이미 빈 boxes는 걸러짐)
 
     chosen_box = boxes[best_index]
-    chosen_id = int(chosen_box.id[0]) if chosen_box.id is not None else None
+    chosen_id = int(chosen_box.id[0]) if chosen_box.id is not None else None  # 트래커 id (없으면 None)
     return best_index, chosen_id

@@ -14,13 +14,13 @@
 #      실제 (x, y)를 얻음 (vision_utils.apply_homography).
 #   5. 그 결과를 geometry_msgs/PointStamped로 "person/position"에 publish함.
 
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
-from sensor_msgs.msg import CompressedImage
-from geometry_msgs.msg import PointStamped
-from std_msgs.msg import Empty
-from ultralytics import YOLO
+import rclpy  # ROS2 파이썬 클라이언트 라이브러리
+from rclpy.node import Node  # 노드 베이스 클래스
+from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy  # 토픽 QoS 설정용
+from sensor_msgs.msg import CompressedImage  # 카메라/디버그/ROI 이미지 메시지 타입
+from geometry_msgs.msg import PointStamped  # map 프레임 좌표 메시지 타입
+from std_msgs.msg import Empty  # 호출 트리거 메시지 타입
+from ultralytics import YOLO  # YOLO-pose 모델 로딩/추론
 
 # 로컬 헬퍼 함수들 - 실제 계산/로직은 vision_utils.py 참고
 from person_locator.vision_utils import (
@@ -39,7 +39,7 @@ from person_locator.vision_utils import (
 class PoseLocatorNode(Node):
 
     def __init__(self):
-        super().__init__('pose_locator_node')
+        super().__init__('pose_locator_node')  # ROS2 노드 이름 등록
 
         # --- 파라미터, 전부 launch 파일이나 --ros-args -p로 override 가능 ---
         # 경로 없이 파일명만 주면 Ultralytics가 처음 실행할 때 자기 weights
@@ -101,13 +101,13 @@ class PoseLocatorNode(Node):
         self.declare_parameter('hardhat_roi_topic', 'person/hardhat_roi/compressed')
         self.declare_parameter('hardhat_roi_jpeg_quality', 80)
 
-        model_path = self.get_parameter('model_path').value
+        model_path = self.get_parameter('model_path').value  # YOLO-pose 가중치 경로
         self.conf_threshold = self.get_parameter('conf_threshold').value
         self.ankle_conf_threshold = self.get_parameter('ankle_conf_threshold').value
         self.tracker_cfg = self.get_parameter('tracker').value
         homography_yaml_path = self.get_parameter('homography_yaml_path').value
-        image_topic = self.get_parameter('image_topic').value
-        target_topic = self.get_parameter('target_topic').value
+        image_topic = self.get_parameter('image_topic').value  # 구독할 카메라 토픽
+        target_topic = self.get_parameter('target_topic').value  # map 좌표 publish 토픽
         self.publish_overlay = self.get_parameter('publish_overlay').value
         overlay_topic = self.get_parameter('overlay_topic').value
         self.overlay_jpeg_quality = self.get_parameter('overlay_jpeg_quality').value
@@ -115,22 +115,22 @@ class PoseLocatorNode(Node):
         self.wrist_conf_threshold = self.get_parameter('wrist_conf_threshold').value
         self.wrist_roi_half_size = self.get_parameter('wrist_roi_half_size').value
         self.publish_wrist_roi = self.get_parameter('publish_wrist_roi').value
-        wrist_roi_topic = self.get_parameter('wrist_roi_topic').value
+        wrist_roi_topic = self.get_parameter('wrist_roi_topic').value  # 손목 ROI publish 토픽
         self.wrist_roi_jpeg_quality = self.get_parameter('wrist_roi_jpeg_quality').value
-        call_trigger_topic = self.get_parameter('call_trigger_topic').value
-        call_position_topic = self.get_parameter('call_position_topic').value
+        call_trigger_topic = self.get_parameter('call_trigger_topic').value  # 호출 트리거 구독 토픽
+        call_position_topic = self.get_parameter('call_position_topic').value  # 호출 좌표 publish 토픽
 
         self.hardhat_roi_padding_ratio = self.get_parameter('hardhat_roi_padding_ratio').value
         self.hardhat_roi_top_ratio = self.get_parameter('hardhat_roi_top_ratio').value
         self.publish_hardhat_roi = self.get_parameter('publish_hardhat_roi').value
-        hardhat_roi_topic = self.get_parameter('hardhat_roi_topic').value
+        hardhat_roi_topic = self.get_parameter('hardhat_roi_topic').value  # 하이바 ROI publish 토픽
         self.hardhat_roi_jpeg_quality = self.get_parameter('hardhat_roi_jpeg_quality').value
 
         # homography 행렬은 시작할 때 미리 로드함 - 파일이 없거나 형식이
         # 이상하면 나중에 조용히 이상한 좌표를 publish하는 대신
         # 시작 시점에 바로 실패하게 함
         try:
-            self.homography = load_homography_yaml(homography_yaml_path)
+            self.homography = load_homography_yaml(homography_yaml_path)  # 3x3 homography 행렬 로드
         except (OSError, KeyError, ValueError) as exc:
             raise RuntimeError(
                 f'{homography_yaml_path}에서 homography를 불러오지 못함: {exc}. '
@@ -138,22 +138,22 @@ class PoseLocatorNode(Node):
             ) from exc
 
         self.get_logger().info(f'YOLO-pose 모델 로딩 중: {model_path}')
-        self.model = YOLO(model_path)
+        self.model = YOLO(model_path)  # YOLO-pose 모델 로드
 
         # QoS: 작고, reliable하고, 최신 것만 남기는 큐. 뭔가 잠깐 밀려도
         # 오래된 프레임/포인트가 쌓이길 원하는 게 아니라 항상 가장 최신
         # 것만 원함 - rc_car_chase의 webcam_locator_node와 동일한 설정
-        qos = QoSProfile(depth=1)
-        qos.reliability = ReliabilityPolicy.RELIABLE
-        qos.history = HistoryPolicy.KEEP_LAST
+        qos = QoSProfile(depth=1)  # 큐 길이 1 (최신 값만 유지)
+        qos.reliability = ReliabilityPolicy.RELIABLE  # 유실 없이 전달 보장
+        qos.history = HistoryPolicy.KEEP_LAST  # 오래된 메시지는 버림
 
         self.image_sub = self.create_subscription(
-            CompressedImage, image_topic, self.image_callback, qos
+            CompressedImage, image_topic, self.image_callback, qos  # 카메라 프레임 수신 콜백 등록
         )
-        self.target_pub = self.create_publisher(PointStamped, target_topic, qos)
+        self.target_pub = self.create_publisher(PointStamped, target_topic, qos)  # map 좌표 퍼블리셔
         self.overlay_pub = (
             self.create_publisher(CompressedImage, overlay_topic, 1)
-            if self.publish_overlay else None
+            if self.publish_overlay else None  # 옵션 꺼져 있으면 퍼블리셔 자체를 안 만듦
         )
         self.wrist_roi_pub = (
             self.create_publisher(CompressedImage, wrist_roi_topic, 1)
@@ -164,14 +164,14 @@ class PoseLocatorNode(Node):
             if self.publish_hardhat_roi else None
         )
         self.call_position_pub = self.create_publisher(
-            PointStamped, call_position_topic, qos
+            PointStamped, call_position_topic, qos  # 호출 좌표 퍼블리셔
         )
         # std_msgs/Empty: 트리거는 "지금 이 순간"이라는 사실 자체가 페이로드라서
         # 별도 데이터가 필요 없음 - wrist_gesture_node가 제스처를 확정하는
         # 순간에만 한 번 publish함
         # 이전 트리거 씹히는거 예방 Depth=10, Empty는 빈 데이터기 때문에 부담 적음
         self.call_trigger_sub = self.create_subscription(
-            Empty, call_trigger_topic, self.call_trigger_callback, 10
+            Empty, call_trigger_topic, self.call_trigger_callback, 10  # 호출 트리거 수신 콜백 등록
         )
 
         # 지금 "락온"해서 따라가고 있는 사람의 트래커 id
@@ -198,7 +198,7 @@ class PoseLocatorNode(Node):
         # OpenCV BGR numpy 프레임으로 압축 해제
         frame = decode_jpeg(msg)
 
-        self.frame_count += 1
+        self.frame_count += 1  # 처리한 프레임 수 누적 (로그 주기 판단용)
         if self.frame_count % 30 == 1:
             # 매 프레임마다 로그를 찍으면 너무 시끄러우니, 노드가 살아있고
             # 실제로 프레임을 받고 있는지 확인할 수 있게 주기적으로만 로그
@@ -210,13 +210,13 @@ class PoseLocatorNode(Node):
         # verbose=False는 Ultralytics가 매 프레임마다 콘솔에 찍는 로그를 끔
         results = self.model.track(
             frame,
-            persist=True,
-            conf=self.conf_threshold,
-            tracker=self.tracker_cfg,
-            verbose=False,
+            persist=True,  # 프레임 간 트래킹 상태 유지 (같은 사람은 같은 id 유지)
+            conf=self.conf_threshold,  # 이 신뢰도 미만 검출은 버림
+            tracker=self.tracker_cfg,  # bytetrack 등 트래커 설정 파일
+            verbose=False,  # Ultralytics 콘솔 로그 끔
         )
-        result = results[0] # 감지된 객체의 Bbox
-        boxes = result.boxes
+        result = results[0]  # 감지된 객체의 Bbox
+        boxes = result.boxes  # 이번 프레임의 모든 검출 박스
 
         # 이번 프레임에 어떤 사람을 따라갈지 결정
         index, track_id = select_person(boxes, self.locked_track_id)
@@ -229,14 +229,14 @@ class PoseLocatorNode(Node):
             # 이 검출의 keypoint를 꺼냄. result.keypoints.xy는
             # (검출 개수, 17, 2) 형태고, result.keypoints.conf는
             # (검출 개수, 17) 형태인데 모델 설정에 따라 None일 수도 있음
-            keypoints_xy = result.keypoints.xy[index].cpu().numpy()
+            keypoints_xy = result.keypoints.xy[index].cpu().numpy()  # 이 사람의 17개 keypoint 픽셀 좌표
             keypoints_conf = (
                 # NumPy 및 일반 파이썬 라이브러리는 GPU 메모리에 직접 접근 불가능하므로 cpu 사용
                 result.keypoints.conf[index].cpu().numpy()
                 if result.keypoints.conf is not None
                 else None
             )
-            box_xyxy = boxes.xyxy[index].tolist()
+            box_xyxy = boxes.xyxy[index].tolist()  # 이 사람의 bounding box 좌표
 
             # 발목 keypoint(또는 bbox fallback)를 이미지 좌표계의
             # "서 있는 픽셀" (u, v) 하나로 변환
@@ -249,12 +249,12 @@ class PoseLocatorNode(Node):
             x, y = apply_homography(u, v, self.homography)
 
             # 결과를 map 프레임 기준 PointStamped로 publish
-            point_msg = PointStamped()
-            point_msg.header.stamp = self.get_clock().now().to_msg()
-            point_msg.header.frame_id = 'map'
+            point_msg = PointStamped()  # 퍼블리시할 메시지 객체 생성
+            point_msg.header.stamp = self.get_clock().now().to_msg()  # 현재 시각 스탬프
+            point_msg.header.frame_id = 'map'  # 좌표계 명시
             point_msg.point.x = x
             point_msg.point.y = y
-            point_msg.point.z = 0.0
+            point_msg.point.z = 0.0  # 2D 지면 위치라 z는 항상 0
             self.target_pub.publish(point_msg)
 
             # call_trigger_callback이 나중에(비동기로) 이 값을 그대로
@@ -267,21 +267,21 @@ class PoseLocatorNode(Node):
                     self.locked_wrist_side,
                 )
                 if wrist_pixel is not None:
-                    wu, wv, side = wrist_pixel
-                    self.locked_wrist_side = side
-                    roi = crop_square_roi(frame, wu, wv, self.wrist_roi_half_size)
+                    wu, wv, side = wrist_pixel  # 이번에 고른 손목 픽셀과 그 쪽(left/right)
+                    self.locked_wrist_side = side  # 다음 프레임에도 같은 쪽을 우선하도록 저장
+                    roi = crop_square_roi(frame, wu, wv, self.wrist_roi_half_size)  # 손목 중심 정사각형 크롭
                     # 손목이 프레임 가장자리 바로 바깥이면 크롭 결과가
                     # 비어있을 수 있음(crop_square_roi 참고) - 그러면 그냥 건너뜀
                     if roi.size > 0:
-                        roi_msg = encode_jpeg(roi, quality=self.wrist_roi_jpeg_quality)
+                        roi_msg = encode_jpeg(roi, quality=self.wrist_roi_jpeg_quality)  # ROI를 JPEG로 압축
                         self.wrist_roi_pub.publish(roi_msg)
 
             if self.publish_hardhat_roi:
                 hardhat_roi = crop_person_bbox(
                     frame, box_xyxy, self.hardhat_roi_padding_ratio, self.hardhat_roi_top_ratio
-                )
+                )  # 사람 bbox 전체(+패딩)를 하이바 판별용으로 크롭
                 if hardhat_roi.size > 0:
-                    hardhat_roi_msg = encode_jpeg(hardhat_roi, quality=self.hardhat_roi_jpeg_quality)
+                    hardhat_roi_msg = encode_jpeg(hardhat_roi, quality=self.hardhat_roi_jpeg_quality)  # JPEG 압축
                     self.hardhat_roi_pub.publish(hardhat_roi_msg)
         else:
             # 이번 프레임에 아무도 검출 안 됨 - 다음에 검출되는 사람이
@@ -299,8 +299,8 @@ class PoseLocatorNode(Node):
             # result.plot()이 박스+스켈레톤 keypoint를 프레임 복사본에
             # 그려줌 - `ros2 run rqt_image_view rqt_image_view`로 검출/트래킹이
             # 잘 되는지 눈으로 확인할 때 유용함
-            overlay = result.plot()
-            overlay_msg = encode_jpeg(overlay, quality=self.overlay_jpeg_quality)
+            overlay = result.plot()  # 박스+스켈레톤이 그려진 디버그용 프레임 생성
+            overlay_msg = encode_jpeg(overlay, quality=self.overlay_jpeg_quality)  # JPEG로 압축
             self.overlay_pub.publish(overlay_msg)
 
     def call_trigger_callback(self, _msg):
@@ -315,27 +315,27 @@ class PoseLocatorNode(Node):
             )
             return
 
-        x, y = self.last_person_point
-        point_msg = PointStamped()
-        point_msg.header.stamp = self.get_clock().now().to_msg()
-        point_msg.header.frame_id = 'map'
+        x, y = self.last_person_point  # 마지막으로 계산해둔 map 좌표를 그대로 사용
+        point_msg = PointStamped()  # 퍼블리시할 메시지 객체 생성
+        point_msg.header.stamp = self.get_clock().now().to_msg()  # 트리거 발생 시각으로 스탬프
+        point_msg.header.frame_id = 'map'  # 좌표계 명시
         point_msg.point.x = x
         point_msg.point.y = y
-        point_msg.point.z = 0.0
-        self.call_position_pub.publish(point_msg)
+        point_msg.point.z = 0.0  # 2D 지면 위치라 z는 항상 0
+        self.call_position_pub.publish(point_msg)  # AMR이 구독하는 호출 좌표 토픽으로 publish
         self.get_logger().info(f'call_trigger 수신 -> call_position ({x:.2f}, {y:.2f}) publish')
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = PoseLocatorNode()
+    rclpy.init(args=args)  # rclpy 컨텍스트 초기화
+    node = PoseLocatorNode()  # 노드 생성 (여기서 모델/homography 로드)
     try:
-        rclpy.spin(node)
+        rclpy.spin(node)  # 콜백을 계속 처리하며 대기
     except KeyboardInterrupt:
-        pass
+        pass  # Ctrl+C는 정상 종료 경로로 처리
     finally:
-        node.destroy_node()
-        rclpy.shutdown()
+        node.destroy_node()  # 노드 리소스 정리
+        rclpy.shutdown()  # rclpy 컨텍스트 종료
 
 
 if __name__ == '__main__':

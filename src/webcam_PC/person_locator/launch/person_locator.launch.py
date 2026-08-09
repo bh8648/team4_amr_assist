@@ -7,13 +7,13 @@
 # 별도 머신(이 개발 PC)에 남아있고, `ros2 run person_locator camera_publisher`로
 # 독립적으로 실행함.
 
-import os
+import os  # 경로 조합용
 
-from ament_index_python.packages import get_package_share_directory
-from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
-from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
+from ament_index_python.packages import get_package_share_directory  # 설치된 share 디렉터리 경로 조회
+from launch import LaunchDescription  # 최상위 launch 설명 컨테이너
+from launch.actions import DeclareLaunchArgument  # CLI에서 override 가능한 launch argument 선언
+from launch.substitutions import LaunchConfiguration  # 선언한 argument 값을 참조하는 substitution
+from launch_ros.actions import Node  # ROS2 노드 실행 액션
 
 # `colcon build`가 models/*.pt를 share/person_locator/models로 복사해두므로
 # (setup.py의 data_files 참고), 여기서 그 설치된 경로를 기본값으로 잡는다.
@@ -44,18 +44,18 @@ def generate_launch_description():
     )
 
     pose_locator = Node(
-        package='person_locator',
-        executable='pose_locator_node',
-        name='pose_locator_node',
-        output='screen',
+        package='person_locator',  # 실행할 패키지
+        executable='pose_locator_node',  # setup.py entry_point로 등록된 실행 파일명
+        name='pose_locator_node',  # ROS2 노드 이름
+        output='screen',  # 로그를 터미널에 바로 출력
         parameters=[{
-            'model_path': LaunchConfiguration('model_path'),
+            'model_path': LaunchConfiguration('model_path'),  # 위에서 선언한 argument를 노드 파라미터로 전달
             'homography_yaml_path': LaunchConfiguration('homography_yaml_path'),
         }],
     )
 
     return LaunchDescription([
-        model_path_arg,
+        model_path_arg,  # launch argument 등록
         homography_yaml_arg,
-        pose_locator,
+        pose_locator,  # 실제 실행할 노드
     ])

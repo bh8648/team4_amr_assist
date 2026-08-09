@@ -18,7 +18,7 @@ from rclpy.node import Node               # 모든 ROS2 노드의 베이스 클�
 from sensor_msgs.msg import CompressedImage  # JPEG 압축 이미지 메시지 타입
 import cv2                                # OpenCV: 카메라 캡처
 
-from person_locator.vision_utils import encode_jpeg
+from person_locator.vision_utils import encode_jpeg  # JPEG 인코딩 유틸
 
 
 class CameraPublisher(Node):
@@ -95,15 +95,15 @@ class CameraPublisher(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = CameraPublisher()
+    rclpy.init(args=args)  # rclpy 컨텍스트 초기화
+    node = CameraPublisher()  # 노드 생성 (여기서 카메라를 염)
     try:
-        rclpy.spin(node)
+        rclpy.spin(node)  # 타이머 콜백을 계속 처리하며 대기
     except KeyboardInterrupt:
-        pass
+        pass  # Ctrl+C는 정상 종료 경로로 처리
     finally:
-        node.destroy_node()
-        rclpy.shutdown()
+        node.destroy_node()  # 카메라 release 등 리소스 정리
+        rclpy.shutdown()  # rclpy 컨텍스트 종료
 
 
 if __name__ == '__main__':

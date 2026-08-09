@@ -22,15 +22,15 @@
 # 호출해서 그 자리에서 세움. Nav2쪽 goal_checker 허용 오차를 건드리지
 # 않고 이 노드 하나로 테스트할 수 있게 하려고 일부러 이렇게 함.
 
-import rclpy
-from geometry_msgs.msg import PoseStamped, PointStamped
-from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
+import rclpy  # ROS2 파이썬 클라이언트 라이브러리
+from geometry_msgs.msg import PoseStamped, PointStamped  # Nav2 목표/수신 좌표 메시지 타입
+from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult  # Nav2 액션을 감싼 편의 클래스
 
 
 class CallPositionNavTest(BasicNavigator):
 
     def __init__(self):
-        super().__init__(node_name='call_position_nav_test')
+        super().__init__(node_name='call_position_nav_test')  # BasicNavigator 초기화 + 노드 이름 등록
 
         self.declare_parameter('call_position_topic', 'person/call_position')
         # "0.7m까지 오는" 요구사항 - 남은 거리가 이 값 이하가 되면 그 자리에서 정지
@@ -44,10 +44,10 @@ class CallPositionNavTest(BasicNavigator):
         # 내부적으로 이 노드를 다시 spin하기 때문에, 만약 콜백 안에서 바로
         # 주행을 시작해버리면 "spin이 콜백을 실행하는 중에 그 콜백이 다시
         # spin을 호출"하는 중첩 spin이 돼서 꼬일 수 있음 - 그래서 이렇게 분리함
-        self.pending_point = None
+        self.pending_point = None  # 콜백에서 받아둔 최신 좌표 (메인 루프가 소비)
 
         self.create_subscription(
-            PointStamped, call_position_topic, self._on_call_position, 10
+            PointStamped, call_position_topic, self._on_call_position, 10  # 호출 좌표 수신 콜백 등록
         )
 
         self.get_logger().info(
@@ -56,34 +56,34 @@ class CallPositionNavTest(BasicNavigator):
         )
 
     def _on_call_position(self, msg):
-        self.pending_point = msg
+        self.pending_point = msg  # 최신 좌표만 저장 - 실제 주행은 메인 루프가 담당
 
     def navigate_to_point(self, point_msg):
-        goal = PoseStamped()
-        goal.header.frame_id = point_msg.header.frame_id or 'map'
-        goal.header.stamp = self.get_clock().now().to_msg()
-        goal.pose.position.x = point_msg.point.x
-        goal.pose.position.y = point_msg.point.y
-        goal.pose.position.z = 0.0
+        goal = PoseStamped()  # Nav2 액션에 넘길 목표 pose
+        goal.header.frame_id = point_msg.header.frame_id or 'map'  # 프레임이 비어 있으면 map으로 fallback
+        goal.header.stamp = self.get_clock().now().to_msg()  # 목표 전송 시각
+        goal.pose.position.x = point_msg.point.x  # 수신한 x 좌표 그대로 사용
+        goal.pose.position.y = point_msg.point.y  # 수신한 y 좌표 그대로 사용
+        goal.pose.position.z = 0.0  # 2D 평면 주행이므로 z는 0
         goal.pose.orientation.w = 1.0  # 방향은 이 테스트에서 신경 안 씀
 
         self.get_logger().info(
             f'call_position 수신 ({goal.pose.position.x:.2f}, '
             f'{goal.pose.position.y:.2f}) -> Nav2 목표 전송'
         )
-        self.goToPose(goal)
+        self.goToPose(goal)  # Nav2 NavigateToPose 액션 목표 전송
 
-        while not self.isTaskComplete():
-            feedback = self.getFeedback()
+        while not self.isTaskComplete():  # 목표에 도달/취소될 때까지 반복 폴링
+            feedback = self.getFeedback()  # 진행 중인 액션의 실시간 feedback
             if feedback is not None and feedback.distance_remaining <= self.stop_distance_m:
                 self.get_logger().info(
                     f'남은 거리 {feedback.distance_remaining:.2f}m '
                     f'(<= {self.stop_distance_m}m) -> 여기서 정지'
                 )
-                self.cancelTask()
+                self.cancelTask()  # stop_distance_m 이내로 들어오면 즉시 취소해서 정지
                 break
 
-        result = self.getResult()
+        result = self.getResult()  # 최종 액션 결과 조회
         if result == TaskResult.CANCELED:
             self.get_logger().info('의도한 대로 목표 근처에서 정지함 (CANCELED)')
         elif result == TaskResult.SUCCEEDED:
@@ -93,22 +93,22 @@ class CallPositionNavTest(BasicNavigator):
 
 
 def main(args=None):
-    rclpy.init(args=args)
-    node = CallPositionNavTest()
-    node.waitUntilNav2Active()
+    rclpy.init(args=args)  # rclpy 컨텍스트 초기화
+    node = CallPositionNavTest()  # 노드 생성
+    node.waitUntilNav2Active()  # Nav2 스택이 활성화될 때까지 대기
 
     try:
         while rclpy.ok():
-            rclpy.spin_once(node, timeout_sec=0.1)
+            rclpy.spin_once(node, timeout_sec=0.1)  # 짧게 spin해서 콜백(좌표 수신)만 처리
             if node.pending_point is not None:
-                point_msg = node.pending_point
-                node.pending_point = None
-                node.navigate_to_point(point_msg)
+                point_msg = node.pending_point  # 대기 중인 좌표 꺼내기
+                node.pending_point = None  # 소비했으니 비움
+                node.navigate_to_point(point_msg)  # 실제 주행 시작 (완료까지 블로킹)
     except KeyboardInterrupt:
-        pass
+        pass  # Ctrl+C는 정상 종료 경로로 처리
     finally:
-        node.destroy_node()
-        rclpy.shutdown()
+        node.destroy_node()  # 노드 리소스 정리
+        rclpy.shutdown()  # rclpy 컨텍스트 종료
 
 
 if __name__ == '__main__':

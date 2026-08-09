@@ -4,7 +4,10 @@
 
 ```mermaid
 flowchart LR
-    Vision[Vision PC\n작업자 호출 좌표] -->|PointStamped\n/person/call_position| Allocation[amr_allocation_node\nrobot_assignment_node]
+    subgraph VisionPC[Vision PC]
+        Gesture[wrist_gesture_node\n손 제스처 확정] -->|Empty\nperson/call_trigger| Vision[pose_locator_node\n마지막 위치 저장]
+    end
+    Vision -->|PointStamped\n/person/call_position| Allocation[amr_allocation_node\nrobot_assignment_node]
     Robots[robot5 · robot11] -->|RobotStatus\n/robot_status| Allocation
     Allocation -->|RobotAssignment\n/robot_assignment| Task[task_manager_node]
     Allocation -->|RobotAssignment\n/robot_assignment| DB[db_manager_node]
@@ -36,7 +39,8 @@ flowchart LR
 
 | 송신 노드 | 데이터 | ROS 이름 | 수신 노드 | 용도 |
 |---|---|---|---|---|
-| Vision | `PointStamped` | `/person/call_position` | Allocation | 작업자 호출 좌표 전달 |
+| wrist_gesture_node | `Empty` | `/person/call_trigger` | pose_locator_node (Vision PC 내부) | 손 제스처 확정 순간을 트리거해 마지막 위치를 발행하게 함 |
+| pose_locator_node | `PointStamped` | `/person/call_position` | Allocation | 제스처 확정 시점에 저장해둔 작업자 호출 좌표 전달 |
 | robot5, robot11 | `RobotStatus` | `/robot_status` | Allocation, DB, Deadlock | 위치·방향·배터리·작업 ID 전달 |
 | Allocation | `RobotAssignment` | `/robot_assignment` | Task, DB | 배정 성공 여부·로봇 ID·목표 좌표 전달 |
 | Allocation, Task, Robot | `RobotError` | `/robot_error` | Task, DB | 오류 상태 전환 및 DB 기록 |
