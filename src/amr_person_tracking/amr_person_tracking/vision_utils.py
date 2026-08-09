@@ -81,6 +81,38 @@ def sample_depth_patch(depth_img, u, v, patch_size, depth_scale):
     return float(np.median(valid)) * depth_scale
 
 
+def estimate_person_depth(depth_img, bbox_xyxy, depth_scale, percentile=20.0,
+                          min_valid_pixels=20, z_min=0.3, z_max=6.0):
+    """bbox 안쪽에서 '사람 표면'을 대표하는 깊이(m)를 로버스트하게 추정한다. 실패 시 None.
+
+    사람은 자기 bbox 안에서 배경보다 항상 **더 가깝다**는 성질을 이용해 낮은 분위수를 쓴다
+    (평균/중앙값은 배경이 넓게 잡히면 배경 쪽으로 끌려간다). 실루엣 경계에서 사람과 배경이
+    섞이는 걸 줄이려고 좌우 20%를 잘라낸 안쪽만 본다.
+
+    용도는 발끝 depth 검증이다 - 발끝 픽셀 주변이 통째로 배경을 찍는 경우가 실측으로 확인됐고
+    (my_new_bag5: 발끝 depth로 배경 거리 2.51m가 반복 등장), 그때 이 값으로 대체하면 원시
+    측정 점프가 0.5m 초과 12회 -> 4회로 줄었다.
+    """
+    if depth_img is None:
+        return None
+    h, w = depth_img.shape[:2]
+    x1, y1, x2, y2 = (int(round(c)) for c in bbox_xyxy)
+    x1, y1 = max(0, x1), max(0, y1)
+    x2, y2 = min(w, x2), min(h, y2)
+    if x2 <= x1 or y2 <= y1:
+        return None
+    margin = int((x2 - x1) * 0.2)
+    x1, x2 = x1 + margin, x2 - margin
+    if x2 <= x1:
+        return None
+    region = depth_img[y1:y2, x1:x2].astype(np.float32)
+    valid = region[region > 0] * depth_scale
+    valid = valid[(valid > z_min) & (valid < z_max)]
+    if valid.size < min_valid_pixels:
+        return None
+    return float(np.percentile(valid, percentile))
+
+
 def backproject_pixel(u, v, z, fx, fy, cx, cy):
     """핀홀 역투영: 픽셀 (u, v) + depth z(m) -> 카메라 optical frame 3D 좌표(m).
 

@@ -1,0 +1,66 @@
+발끝 depth 검증 도입 - 근본원인 규명과 실측 (2026-08-09, my_new_bag5)
+
+■ 근본원인: ID 문제가 아니라 '측정' 문제였다
+
+외형 임베딩/Hungarian/갤러리를 다 넣어도 점프가 하나도 안 줄어 원인을 다시 팠다.
+
+1) 라이다는 무관하다
+   지금까지의 A/B는 oakd_detector_node + reid_tracking_node만 띄웠고
+   leg_detector_bridge_node는 한 번도 실행되지 않았다. 관측된 점프는 전부 OAK-D 경로.
+
+2) ID 로직 이전의 '원시 측정값'이 이미 튄다 (tools/measure_detection_jitter.py)
+   같은 YOLO track_id의 연속 프레임 사이 3D 좌표 변화:
+     중앙값 0.194m / 90% 0.658m / 최대 1.486m(7.48m/s) / 0.5m 초과 12회
+   같은 실행의 target_person_pose 0.5m 초과 점프도 정확히 12회.
+   => 추적기가 측정 노이즈를 그대로 통과시키고 있을 뿐, 엉뚱한 사람에게 붙는 게 아니다.
+      (Track.update의 position_alpha가 평소 1.0이라 위치를 측정값에 그대로 스냅한다)
+
+3) 튀는 성분은 거리(depth)다
+   변화를 분해하면 depth 방향 0.4m 초과 15프레임 vs 가로(픽셀) 5프레임.
+   큰 점프에서 depth가 2.51->1.04, 2.15->1.16처럼 배경 거리 2.51m가 반복 등장했고,
+   프레임별 depth 중앙값(대체로 배경)이 1.43~2.51m 범위였다.
+   => 발끝 픽셀 주변이 사람 신발이 아니라 뒤쪽 벽/바닥을 찍는 순간 거리가 배경값으로 튄다.
+      스테레오가 저텍스처 바닥/실루엣 경계에서 약한 전형적 실패.
+   덧붙여, 큰 점프가 전부 최고 신뢰 등급(toe_direct)에서 났다 - 즉 기존 grade/covariance는
+   실제 오차를 반영하지 못하고 있었다.
+
+■ 조치: vision_utils.estimate_person_depth
+   bbox 안쪽(좌우 20% 잘라냄)의 낮은 분위수(20%)로 '사람 표면 깊이'를 구하고, 발끝 depth가
+   이와 0.4m 넘게 어긋나면 사람 깊이로 대체한다(사람은 자기 bbox 안에서 배경보다 항상 가깝다).
+   대체 시 grade를 toe_direct -> knee_corrected로 낮춰 covariance에 불확실도가 반영되게 했다.
+   근거 방식: RGB-D 사람추적에서 단일 픽셀이 아니라 사람 영역 통계를 쓰는 표준 접근
+   (Munaro & Menegatti, Fast RGB-D people tracking for service robots, Auton. Robots 2014).
+   파라미터: depth_consistency_tolerance(기본 0.4, 0이면 끔), depth_person_percentile(20).
+   진단 키 depth_substituted를 /diagnostics에 추가 - 이 값이 크면 IPM 도입을 검토할 근거.
+
+■ 실측 (my_new_bag5, 격리 도메인, 재생 rate 1.0 고정)
+
+  원시 측정 단계 (tools/measure_detection_jitter.py)
+    검증 없이  : 중앙값 0.194m / 90% 0.658m / 최대 1.486m / 0.5m 초과 12회
+    검증 적용  : 중앙값 0.173m / 90% 0.429m / 최대 1.130m / 0.5m 초과  4회
+    (검출 63건 중 14건 22.2%에서 발끝 depth가 배경이라 판단돼 대체됨)
+
+  최종 출력 target_person_pose
+    구성                     기록   최대점프   0.5m초과   점프율
+    camera만 (기준선)         148    3.05m      12건     8.1%
+    +외형 ReID               148    3.05m      12건     8.1%   <- 변화 없음
+    +라이다                  252    4.13m      10건     4.0%   <- 빈도는 줄지만 최대는 악화
+    +depth 검증              147    1.22m       7건     4.8%   <- 최대 점프 60% 감소
+    +depth 검증 +라이다       270    1.32m       9건     3.3%   <- 점프율 최저
+
+  해석: depth 검증이 "물리적으로 불가능한 큰 점프"를 실제로 줄인 첫 변경이다(3.05->1.22m).
+  라이다 단독은 점프 빈도를 낮추지만 최대 점프는 오히려 커졌는데(4.13m), 카메라/라이다
+  전환 순간 두 출처가 미터 단위로 어긋난 채 위치를 스냅하기 때문이다. depth를 고친 뒤에는
+  라이다를 켜도 최대 점프가 1.32m로 안정된다.
+
+■ 남은 것 (다음 단계)
+  추적기에 필터가 없다는 문제는 그대로다(position_alpha=1.0 스냅). 칼만필터 + 마할라노비스
+  게이팅으로 측정 노이즈를 전제한 갱신을 하면 남은 점프와 출처 전환 불연속을 더 줄일 수 있다
+  (DeepSORT의 표준 구성, 3D 쪽은 AB3DMOT). 패키지에 ConstantVelocityKalman2D가 이미 있다.
+
+■ 파일
+  evidence_depthfix_bag5_before.mp4       기준선(카메라만, depth 검증 없음)
+  evidence_depthfix_bag5_after.mp4        depth 검증 적용
+  evidence_depthfix_bag5_after_lidar.mp4  depth 검증 + 라이다
+  evidence_depthfix_bag5_*_pose.txt       각 실행의 target_person_pose 원본
+      (tools/capture_target_pose.py --analyze 로 재분석 가능)

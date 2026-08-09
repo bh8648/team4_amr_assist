@@ -84,6 +84,7 @@ from amr_person_tracking.vision_utils import (
     backproject_pixel,
     decode_compressed_depth,
     estimate_foot_pixel,
+    estimate_person_depth,
     sample_depth_patch,
     truncation_ratio,
     yaw_from_quaternion,
@@ -117,6 +118,8 @@ class OakdDetectorNode(Node):
         self.kp_conf_threshold = self.get_parameter('kp_conf_threshold').value
         self.depth_scale = self.get_parameter('depth_scale').value
         self.depth_patch_size = self.get_parameter('depth_patch_size').value
+        self.depth_consistency_tolerance = self.get_parameter('depth_consistency_tolerance').value
+        self.depth_person_percentile = self.get_parameter('depth_person_percentile').value
         self.process_every_n = max(1, int(self.get_parameter('process_every_n').value))
         self.min_z_safety_threshold = self.get_parameter('min_z_safety_threshold').value
         self.proximity_release_margin = self.get_parameter('proximity_release_margin').value
@@ -147,6 +150,7 @@ class OakdDetectorNode(Node):
         self._stat_frames = 0
         self._stat_detections = 0
         self._stat_depth_invalid = 0
+        self._stat_depth_substituted = 0
         self._stat_tf_failures = 0
         self._stat_truncated = 0
         self._stat_grades = {g: 0 for g in GRADE_SIGMA}
@@ -311,6 +315,10 @@ class OakdDetectorNode(Node):
         self.declare_parameter('kp_conf_threshold', 0.5)
         self.declare_parameter('depth_scale', 0.001)
         self.declare_parameter('depth_patch_size', 5)
+        # 발끝 depth가 bbox 안 '사람 표면 깊이'와 이보다 더 어긋나면 사람 깊이로 대체한다.
+        # 0 이하면 검증을 끈다. 실측 근거는 estimate_person_depth 독스트링 참고.
+        self.declare_parameter('depth_consistency_tolerance', 0.4)
+        self.declare_parameter('depth_person_percentile', 20.0)
         self.declare_parameter('truncation_margin_px', 4)
 
         self.declare_parameter('tf_timeout', 0.2)
@@ -449,6 +457,22 @@ class OakdDetectorNode(Node):
             if z is None or z <= 0.0:
                 self._stat_depth_invalid += 1
                 continue
+
+            # [발끝 depth 검증] 발끝 픽셀 주변이 사람이 아니라 뒤쪽 벽/바닥을 찍는 일이 잦다
+            # (실측: my_new_bag5에서 발끝 depth로 배경 거리 2.51m가 반복 등장). 그러면 역투영
+            # 에서 거리 오차가 그대로 위치 오차가 돼 추종 좌표가 1m 넘게 순간이동한다.
+            # bbox 안쪽에서 구한 '사람 표면 깊이'와 크게 어긋나면 그 값으로 대체한다
+            # (실측: 원시 측정 0.5m 초과 점프 12회 -> 4회).
+            if self.depth_consistency_tolerance > 0.0:
+                person_z = estimate_person_depth(
+                    depth_img, bbox, self.depth_scale, self.depth_person_percentile)
+                if person_z is not None and abs(z - person_z) > self.depth_consistency_tolerance:
+                    z = person_z
+                    self._stat_depth_substituted += 1
+                    # 발끝을 직접 못 재고 몸통 깊이로 대체한 것이므로 신뢰 등급을 낮춘다.
+                    # (이 등급이 covariance로 나가 하류가 불확실도를 알 수 있어야 한다)
+                    if grade == 'toe_direct':
+                        grade = 'knee_corrected'
 
             fx, fy, cx, cy = self.camera_k
             x_cam, y_cam, z_cam = backproject_pixel(u, v, z, fx, fy, cx, cy)
@@ -781,6 +805,9 @@ class OakdDetectorNode(Node):
                      value='n/a' if self._stat_nearest is None else f'{self._stat_nearest:.2f}'),
             KeyValue(key='rgb_depth_dt_ms', value=f'{self.last_rgb_depth_dt * 1000:.1f}'),
             KeyValue(key='depth_invalid', value=str(self._stat_depth_invalid)),
+            # 발끝 depth가 배경을 찍어 사람 깊이로 대체된 횟수. 이 값이 크면 스테레오가
+            # 바닥/실루엣 경계에서 약하다는 뜻이라 지면평면(IPM) 도입을 검토할 근거가 된다.
+            KeyValue(key='depth_substituted', value=str(self._stat_depth_substituted)),
             KeyValue(key='tf_failures', value=str(self._stat_tf_failures)),
             KeyValue(key='truncated_count', value=str(self._stat_truncated)),
             KeyValue(key='proximity_alert', value=str(self.proximity_active).lower()),
@@ -807,6 +834,7 @@ class OakdDetectorNode(Node):
         self._stat_frames = 0
         self._stat_detections = 0
         self._stat_depth_invalid = 0
+        self._stat_depth_substituted = 0
         self._stat_tf_failures = 0
         self._stat_truncated = 0
         self._stat_grades = {g: 0 for g in GRADE_SIGMA}

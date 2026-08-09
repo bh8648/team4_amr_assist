@@ -61,6 +61,11 @@ def _record(out_path, target_topic, tracked_topic):
         # 이 예외가 올라온다. 이걸 안 잡으면 아래 파일 쓰기가 건너뛰어져 캡처가 통째로
         # 유실된다(실제로 겪음).
         pass
+    except Exception as exc:
+        # 컨텍스트가 내려가는 중이면 RCLError('failed to initialize wait set')가 날 수 있다.
+        # 여기서 죽으면 수집한 기록을 전부 잃으므로 저장은 계속 진행한다.
+        print(f'수집 중단({type(exc).__name__}: {exc}) - 지금까지 기록으로 저장합니다',
+              file=sys.stderr)
     with open(out_path, 'w') as f:
         for stamp, x, y, tracks in records:
             tstr = ' | '.join(f'{tid},{tx},{ty}' for tid, tx, ty in tracks)

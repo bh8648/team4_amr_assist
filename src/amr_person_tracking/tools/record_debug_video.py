@@ -91,6 +91,12 @@ def main():
         # rclpy가 SIGINT를 먼저 처리하면 KeyboardInterrupt 대신 이게 올라온다. 안 잡으면
         # 아래 영상 저장이 통째로 건너뛰어진다.
         pass
+    except Exception as exc:
+        # 컨텍스트가 내려가는 중에 spin이 돌면 RCLError('failed to initialize wait set')가
+        # 나기도 한다. 여기서 죽으면 그때까지 모은 프레임을 전부 잃으므로(실측으로 영상 하나를
+        # 통째로 날림) 수집만 멈추고 저장은 계속 진행한다.
+        print(f'수집 중단({type(exc).__name__}: {exc}) - 지금까지 프레임으로 저장합니다',
+              file=sys.stderr)
 
     if frames:
         h, w = frames[0].shape[:2]
