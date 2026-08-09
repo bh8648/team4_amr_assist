@@ -130,6 +130,7 @@ class OakdDetectorNode(Node):
         self.truncation_margin_px = self.get_parameter('truncation_margin_px').value
         self.publish_debug_image = self.get_parameter('publish_debug_image').value
         self.follow_target_max_age = self.get_parameter('follow_target_max_age').value
+        self.follow_target_match_distance = self.get_parameter('follow_target_match_distance').value
 
         # ---- 캐시 상태 (콜백이 갱신, 동기 콜백/타이머가 소비) ----
         self.camera_k = None          # (fx, fy, cx, cy)
@@ -346,6 +347,10 @@ class OakdDetectorNode(Node):
         # publish_debug_image가 꺼져 있으면 구독하지 않는다.
         self.declare_parameter('follow_target_topic', '/robot5/target_person_pose')
         self.declare_parameter('follow_target_max_age', 1.0)
+        # 추종 대상 좌표와 검출의 map 거리가 이보다 멀면 "그 검출은 추종 대상이 아니다"로 보고
+        # FOLLOWING 표시를 하지 않는다. 이 상한이 없으면 화면의 유일한 검출이 무조건 칠해져
+        # 오버레이가 착시를 준다.
+        self.declare_parameter('follow_target_match_distance', 0.8)
 
     # ------------------------------------------------------------------ 캐시 콜백
 
@@ -722,6 +727,13 @@ class OakdDetectorNode(Node):
                     d = math.hypot(map_x - fx, map_y - fy)
                     if best_d is None or d < best_d:
                         best_d, follow_idx = d, idx
+                # [중요] 거리 상한이 없으면 "가장 가까운 검출"이 무조건 뽑혀, 화면에 사람이
+                # 하나만 있으면 추종 대상과 몇 미터 떨어져 있든 항상 FOLLOWING으로 칠해진다.
+                # 그러면 오버레이가 "추종이 잘 되고 있다"는 착시를 주고 증거영상이 못 쓰게 된다
+                # (실제로 그렇게 잘못 표시된 영상을 만들었다). 매칭이 안 되면 아무것도 칠하지
+                # 않고 아래에서 'TARGET NOT VISIBLE'을 표시한다.
+                if best_d is None or best_d > self.follow_target_match_distance:
+                    follow_idx = None
 
         for i, (u, v, grade, distance, track_id, map_x, map_y, bbox) in enumerate(overlay_items):
             if i == follow_idx:
@@ -761,6 +773,12 @@ class OakdDetectorNode(Node):
             cv2.putText(
                 overlay, f'id:{track_id}', (int(u) + 8, int(v) - 18),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 140, 255), 2, cv2.LINE_AA)
+        if follow_idx is None:
+            # 추종 대상이 화면 안 어느 검출과도 매칭되지 않았다. 아무 표시가 없는 것과
+            # "표시할 대상이 없다"를 구분해줘야 영상만 보고 오판하지 않는다.
+            cv2.putText(
+                overlay, 'TARGET NOT VISIBLE', (10, overlay.shape[0] - 12),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
         cv2.putText(
             overlay, f'dt={self.last_rgb_depth_dt * 1000:.0f}ms', (10, 24),
             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2, cv2.LINE_AA)
