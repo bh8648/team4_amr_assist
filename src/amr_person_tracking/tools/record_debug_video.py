@@ -16,6 +16,8 @@ oakd_detector_node의 디버그 이미지 토픽을 mp4로 직접 녹화한다.
 """
 
 import argparse
+import shutil
+import subprocess
 import sys
 
 import cv2
@@ -24,6 +26,37 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import CompressedImage
+
+
+def _write_video(frames, out_path, fps, width, height):
+    """H.264(mp4)로 저장한다.
+
+    cv2.VideoWriter는 이 빌드에서 H.264 태그(avc1/H264/X264)를 열지 못하고 mpeg4(mp4v)로
+    떨어지는데, 그렇게 만든 파일은 브라우저·일부 뷰어에서 재생이 안 된다(실제로 증거영상이
+    "깨져서 확인 불가"로 반려됨). 그래서 원시 프레임을 ffmpeg에 파이프로 넘겨 libx264로
+    인코딩한다. ffmpeg이 없으면 최후수단으로 mp4v로 떨어지되 경고한다.
+    """
+    if shutil.which('ffmpeg'):
+        cmd = [
+            'ffmpeg', '-y', '-loglevel', 'error',
+            '-f', 'rawvideo', '-pix_fmt', 'bgr24',
+            '-s', f'{width}x{height}', '-r', str(fps), '-i', 'pipe:0',
+            '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-preset', 'veryfast',
+            out_path,
+        ]
+        proc = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+        for frame in frames:
+            proc.stdin.write(frame.tobytes())
+        proc.stdin.close()
+        proc.wait()
+        return
+
+    print('경고: ffmpeg이 없어 mp4v로 저장합니다 - 재생 안 되는 뷰어가 있을 수 있습니다',
+          file=sys.stderr)
+    writer = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+    for frame in frames:
+        writer.write(frame)
+    writer.release()
 
 
 def main():
@@ -61,10 +94,7 @@ def main():
 
     if frames:
         h, w = frames[0].shape[:2]
-        writer = cv2.VideoWriter(args.out, cv2.VideoWriter_fourcc(*'mp4v'), args.fps, (w, h))
-        for f in frames:
-            writer.write(f)
-        writer.release()
+        _write_video(frames, args.out, args.fps, w, h)
         print(f'{len(frames)}프레임 -> {args.out} ({w}x{h}, {args.fps}fps)', file=sys.stderr)
     else:
         print('수신한 프레임이 없습니다 - publish_debug_image가 켜져 있는지 확인하세요',

@@ -708,8 +708,13 @@ class OakdDetectorNode(Node):
                 cv2.rectangle(fill, (x1, y1), (x2, y2), (255, 0, 255), -1)
                 cv2.addWeighted(fill, 0.35, overlay, 0.65, 0, overlay)
                 cv2.rectangle(overlay, (x1, y1), (x2, y2), (255, 0, 255), 3)
+                # 라벨은 bbox '아래쪽 안'에 그린다. 위쪽은 (a) 초근접이라 bbox 상단이 화면
+                # 밖으로 잘리는 게 기본 상황이고(문서 [유효 거리]), (b) result.plot()의
+                # "person 0.81" 라벨과 좌상단 dt= 표시가 이미 자리를 차지해 겹쳐 읽기 힘들다.
+                # 반면 발끝 쪽은 이 카메라 기하상 가까울수록 잘 보여 라벨 자리로 안정적이다.
+                label_y = min(max(y2 - 12, 24), overlay.shape[0] - 6)
                 cv2.putText(
-                    overlay, 'FOLLOWING', (x1, max(0, y1 - 10)),
+                    overlay, 'FOLLOWING', (max(x1 + 6, 4), label_y),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 255), 2, cv2.LINE_AA)
             cv2.circle(overlay, (int(u), int(v)), 6, (0, 255, 255), -1)
             cv2.putText(
