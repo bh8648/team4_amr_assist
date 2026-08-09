@@ -95,3 +95,19 @@ def test_stale_leg_pruned_after_timeout():
     assert len(tracker._kalman) == 1
     tracker.update([(5.0, 5.0)], 3.0)  # 다른 위치 갱신이 와도 오래된 다리는 정리돼야 함
     assert len(tracker._kalman) == 1  # (0,0)은 정리되고 (5,5)만 남음
+
+
+def test_moving_positions_reports_only_moving_legs():
+    """정적 배경 확정을 되돌릴 근거로 쓰는 목록이라, 정지한 다리는 빠져야 한다."""
+    t = make_tracker()
+    # 한 다리는 제자리, 다른 다리는 초당 0.5m로 이동
+    for i in range(20):
+        stamp = i * 0.1
+        t.update([(0.0, 0.0), (2.0 + 0.05 * i, 0.0)], stamp)
+
+    moving = t.moving_positions(release_speed_threshold=0.05)
+    assert len(moving) == 1
+    assert moving[0][0] > 2.0          # 움직인 쪽만 보고된다
+
+    # 임계를 실제 속도보다 높이면 아무것도 안 나온다
+    assert t.moving_positions(release_speed_threshold=5.0) == []

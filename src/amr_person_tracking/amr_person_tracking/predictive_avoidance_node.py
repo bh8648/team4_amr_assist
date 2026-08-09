@@ -167,7 +167,12 @@ class PredictiveAvoidanceNode(Node):
     def tracked_detections_callback(self, msg: Detection3DArray):
         stamp = stamp_to_sec(msg.header.stamp)
         for detection in msg.detections:
-            self.update_kalman(detection, stamp)
+            # 검출마다 자기 관측 시각을 들고 온다(reid_tracking_node가 트랙의 last_stamp를
+            # 찍어 보낸다). 배열 헤더 시각을 일괄로 쓰면 이번 프레임에 갱신되지 않은 트랙까지
+            # 새 관측으로 취급돼 속도가 0으로 끌려간다. 시각이 비어 있는 상류(구버전 등)에는
+            # 배열 헤더로 폴백한다.
+            det_stamp = stamp_to_sec(detection.header.stamp) or stamp
+            self.update_kalman(detection, det_stamp)
         self._prune_stale(stamp)
 
         if self.avoidance_mode in ('pointcloud', 'both'):

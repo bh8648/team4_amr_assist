@@ -106,6 +106,11 @@ def generate_launch_description():
     proximity_alert_topic = PathJoinSubstitution(['/', namespace, 'vision/proximity_alert'])
     diagnostics_topic = PathJoinSubstitution(['/', namespace, 'diagnostics'])
     debug_image_topic = PathJoinSubstitution(['/', namespace, 'vision/oakd_detector/debug/compressed'])
+    # 노드 기본값이 /robot5/... 로 하드코딩돼 있어, 여기서 네임스페이스를 안 붙여주면
+    # namespace를 robot6로 바꿔도 이 두 토픽만 /robot5에 남는다. 단일 로봇에선 우연히
+    # 서로 연결되지만 다중 로봇에선 로봇 간 임베딩이 섞이고, 디버그 FOLLOWING 표시가
+    # 다른 로봇의 추종 대상을 그린다.
+    embeddings_topic = PathJoinSubstitution(['/', namespace, 'vision/detection_embeddings'])
     leg_marker_topic = PathJoinSubstitution(['/', namespace, 'vision/leg_detections/markers'])
     depth_view_topic = PathJoinSubstitution(['/', namespace, 'oakd/stereo/depth_view/compressed'])
 
@@ -136,6 +141,8 @@ def generate_launch_description():
             'diagnostics_topic': diagnostics_topic,
             'debug_image_topic': debug_image_topic,
             'publish_debug_image': LaunchConfiguration('publish_debug_image'),
+            'reid_embeddings_topic': embeddings_topic,
+            'follow_target_topic': target_pose_topic,
             'map_frame': LaunchConfiguration('map_frame'),
             'tf_allow_latest_fallback': LaunchConfiguration('tf_allow_latest_fallback'),
         }],
@@ -225,6 +232,7 @@ def generate_launch_description():
             'leg_detections_topic': leg_detections_topic,
             'tracked_detections_topic': tracked_topic,
             'target_pose_topic': target_pose_topic,
+            'reid_embeddings_topic': embeddings_topic,
             'map_frame': LaunchConfiguration('map_frame'),
         }],
     )
@@ -234,6 +242,10 @@ def generate_launch_description():
         executable='predictive_avoidance_node',
         name='predictive_avoidance_node',
         output='screen',
+        # costmap_params / both 모드는 로봇 위치를 tf로 조회한다. remap이 없으면 터틀봇4의
+        # /robot5/tf를 못 받아 조회가 전부 실패한다(기본 pointcloud 모드는 tf를 안 써서
+        # 증상이 안 보였다).
+        remappings=tf_remappings,
         parameters=[{
             'tracked_detections_topic': tracked_topic,
             'predicted_points_topic': predicted_points_topic,

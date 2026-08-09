@@ -235,6 +235,30 @@ class StaticBackgroundFilter:
         """이 위치를 정적 배경으로 (그 세션 동안) 영구 등록한다. 여러 번 불러도 안전하다."""
         self._static_cells.add(self._cell(x, y))
 
+    def release(self, x, y):
+        """이 위치 주변의 정적 배경 등록을 해제한다. 확정된 적이 없으면 아무 일도 안 한다.
+
+        "정적 = 영구"였던 이전 동작은 오래 서 있던 **사람**이 배경으로 확정되면 그 자리에서
+        영영 검출되지 않는다는 뜻이었다(세션 내 해제 경로가 없었다). 사람은 결국 다시 움직이므로,
+        움직임이 관측되면 되돌릴 수 있어야 한다. 반환값은 실제로 지운 셀 수.
+        """
+        removed = 0
+        for cell in self._cells_within(x, y):
+            self._static_cells.discard(cell)
+            removed += 1
+        return removed
+
+    def _cells_within(self, x, y):
+        """(x, y)의 exclusion_radius 안에 있는 등록 셀들."""
+        r2 = self.exclusion_radius ** 2
+        hit = []
+        for cx, cy in self._static_cells:
+            dx = cx * self.cell_size - x
+            dy = cy * self.cell_size - y
+            if dx * dx + dy * dy <= r2:
+                hit.append((cx, cy))
+        return hit
+
     @property
     def static_cell_count(self):
         return len(self._static_cells)

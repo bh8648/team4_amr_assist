@@ -21,7 +21,8 @@ leg_detector_bridge_node가 라이다 다리검출 결과를 같은 스키마로
 
 [웹캠/OAK-D 게이팅 + 출처 전환 블렌딩]
 update_tracks(oakd_detections_callback/webcam_detections_callback 공용)가 처리한다:
-  1. 검출 위치 -> 기존 트랙에 위치+속도 기반 게이팅으로 매칭 (tracking_utils.match_track)
+  1. 검출 위치 -> 기존 트랙에 위치+속도 게이팅으로 비용행렬을 만들고 헝가리안 전역 할당
+     (tracking_utils.assign_tracks). 게이팅이 실패해도 상류 트래커 id 힌트로 구제한다
   2. 매칭 실패 시 새 트랙 생성, 지속 트랙 ID 부여
   3. 매칭된 트랙의 직전 출처와 이번 출처가 다르면(webcam<->oakd 전환) 이번 한 프레임만
      position_alpha를 낮춰 위치를 블렌딩해 좌표 불연속을 완화
@@ -29,8 +30,10 @@ update_tracks(oakd_detections_callback/webcam_detections_callback 공용)가 처
      (아래 leg_detections_callback의 5단계 "추종 유지"와 충돌 - 두 출처가 매 프레임 번갈아
      쓰면 유한차분 속도 추정이 실제로 없는 왕복 운동으로 튄다). last_independent_update만
      기록해 6단계 백그라운드 검증에 쓴다
-  5. 다인원이 자주 겹치는 경우를 위한 appearance 임베딩(OSNet) 보조 매칭은 아직 구현하지 않음 -
-     match_track 호출 지점에 위치 게이팅만 있고, 여기에 임베딩 유사도를 더하는 확장 지점으로 남겨둔다
+  5. 다인원이 자주 겹치는 경우를 위한 appearance 임베딩 보조 매칭은 **구현돼 있고 기본만 꺼져
+     있다**(appearance_weight=0). oakd_detector_node가 reid_model_path로 임베딩을 발행할 때만
+     동작하며, 켜면 assign_tracks의 비용에 코사인 거리가 가중 합산된다. 기본을 끈 이유는
+     실측에서 점프가 오히려 늘었기 때문이다(evidence/evidence_reid_embedding_log.txt)
 
 [웹캠/OAK-D <-> 라이다 다리검출 신원 매칭]
 leg_detections_callback이 다음 순서로 처리한다 (추종 대상 트랙 하나에 대해서만 동작):
@@ -79,6 +82,7 @@ from amr_person_tracking.predictive_utils import ConstantVelocityKalman2D
 from amr_person_tracking.tracking_utils import (
     Track,
     assign_tracks,
+    sec_to_stamp,
     cosine_similarity,
     distance,
     extract_person_position,
@@ -181,7 +185,15 @@ class ReidTrackingNode(Node):
         # 예측 위치 대비 라이다 검출 후보를 인정할 최대 거리(m)
         self.declare_parameter('lidar_gating_position_threshold', 0.6)
         # 같은 라이다 트랙 ID가 이만큼 연속으로 최고 후보면 락온 확정
+        # 라이다 락온 확정에 필요한 연속 후보 프레임 수. 10Hz 기준 7프레임 = 0.7초인데,
+        # 의자/책상 다리를 정적 배경으로 확정하는 데는 3초가 걸린다
+        # (leg_detector_bridge_node의 background_confirm_duration_sec). 그 사이 공백에서
+        # 정적 오검출이 먼저 락온될 수 있으므로, 배경 학습이 끝날 때까지 락온 자체를 미룬다.
         self.declare_parameter('lidar_lock_confirm_frames', 7)
+        # 노드 기동 후 이 시간이 지나기 전에는 라이다 락온을 확정하지 않는다. 배경 필터가
+        # 정적 물체를 학습할 시간을 벌어주는 안전장치다. background_confirm_duration_sec보다
+        # 넉넉히 크게 잡는다. 0 이하면 끈다(옛 동작).
+        self.declare_parameter('lidar_lock_warmup_sec', 4.0)
         # 락온 중 웹캠/OAK-D 위치와 이 이상 벌어지면 ID 스왑 의심
         self.declare_parameter('lidar_lock_swap_threshold', 0.3)
         # 스왑 의심이 이만큼 연속돼야 실제로 락온 해제 (순간적인 튐으로 오해제되지 않도록)
@@ -210,6 +222,8 @@ class ReidTrackingNode(Node):
         self.id_rescue_max_extrapolation = self.get_parameter('id_rescue_max_extrapolation').value
         self.lidar_gating_position_threshold = self.get_parameter('lidar_gating_position_threshold').value
         self.lidar_lock_confirm_frames = self.get_parameter('lidar_lock_confirm_frames').value
+        self.lidar_lock_warmup_sec = self.get_parameter('lidar_lock_warmup_sec').value
+        self._first_leg_stamp = None
         self.lidar_lock_swap_threshold = self.get_parameter('lidar_lock_swap_threshold').value
         self.lidar_swap_confirm_frames = self.get_parameter('lidar_swap_confirm_frames').value
         self.leg_lock_grace_period = self.get_parameter('leg_lock_grace_period').value
@@ -681,6 +695,18 @@ class ReidTrackingNode(Node):
         if self.lock_candidate_streak[best_rid] < self.lidar_lock_confirm_frames:
             return
 
+        # 배경 필터가 아직 정적 물체를 학습하는 중이면 락온을 미룬다. 스트릭은 계속 쌓이므로
+        # 워밍업이 끝나는 즉시 확정된다 - 진짜 사람이면 그때도 여전히 최고 후보다.
+        if self.lidar_lock_warmup_sec > 0.0:
+            if self._first_leg_stamp is None:
+                self._first_leg_stamp = stamp
+            if stamp - self._first_leg_stamp < self.lidar_lock_warmup_sec:
+                self.get_logger().info(
+                    '라이다 락온 보류: 배경 학습 워밍업 '
+                    f'{stamp - self._first_leg_stamp:.1f}/{self.lidar_lock_warmup_sec:.1f}s',
+                    throttle_duration_sec=1.0)
+                return
+
         # [4. 락온 확정]
         self.locked_leg_id = best_rid
         self.swap_check_streak = 0
@@ -721,7 +747,12 @@ class ReidTrackingNode(Node):
 
     def _make_detection3d(self, track, header):
         det = Detection3D()
-        det.header.stamp = header.stamp
+        # 배열 헤더(=이번 카메라 프레임 시각)가 아니라 **그 트랙이 마지막으로 실제 관측된
+        # 시각**을 찍는다. 이번 프레임에 갱신되지 않은 트랙도 track_timeout 동안 계속
+        # 발행되는데, 최신 시각을 달아 보내면 하류(predictive_avoidance_node)가 이를 새
+        # 관측으로 오인해 "제자리에 멈춘 관측"을 반복 입력받고 속도 추정이 0으로 끌려간다.
+        # 실측(my_new_bag5): 발행 엔트리의 77.5%가 좌표 미갱신, 최장 40프레임 연속.
+        det.header.stamp = sec_to_stamp(track.last_stamp)
         det.header.frame_id = self.map_frame
 
         hyp = ObjectHypothesisWithPose()

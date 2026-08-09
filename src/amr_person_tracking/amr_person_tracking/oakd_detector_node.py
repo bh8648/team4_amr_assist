@@ -21,6 +21,8 @@ RGB(compressed) + Depth(compressedDepth) 시간동기 구독 (CameraInfo는 별�
 발끝은 오히려 근접할수록 잘 보인다. 또 스테레오 최소 측정거리 때문에 0.7m 아래는 depth가 없다.
 => OAK-D 유효구간은 대략 1.0~2.5m이고, 그보다 가까우면 라이다 다리검출이 주도해야 한다.
    이 노드는 그 열화를 covariance / foot_<grade> / view_truncated_top 세 신호로 스스로 신고한다.
+   (주의: view_truncated_top은 현재 **발행만 되고 소비하는 노드가 없다**. reid_tracking_node의
+    라이다 주도권 전환은 이 신호가 아니라 자체 락온 로직으로 판단한다.)
 
 [입력 토픽]
   - <namespace>/oakd/rgb/image_raw/compressed         (sensor_msgs/CompressedImage)
@@ -123,6 +125,7 @@ class OakdDetectorNode(Node):
         self.process_every_n = max(1, int(self.get_parameter('process_every_n').value))
         self.min_z_safety_threshold = self.get_parameter('min_z_safety_threshold').value
         self.proximity_release_margin = self.get_parameter('proximity_release_margin').value
+        self.proximity_lost_release_sec = self.get_parameter('proximity_lost_release_sec').value
         self.enable_ir_safety_check = self.get_parameter('enable_ir_safety_check').value
         self.ir_proximity_threshold = self.get_parameter('ir_proximity_threshold').value
         self.ir_max_age = self.get_parameter('ir_max_age').value
@@ -143,6 +146,7 @@ class OakdDetectorNode(Node):
         self.latest_follow_target = None  # (x, y, stamp_sec)
         self.robot_speed = 0.0
         self.proximity_active = False
+        self._proximity_lost_since = None
         self.frame_index = 0
         self.last_frame_time = None
         self.last_rgb_depth_dt = 0.0
@@ -330,6 +334,9 @@ class OakdDetectorNode(Node):
         # 스테레오 최소 측정거리가 약 0.7m라 그보다 낮게 잡으면 depth로는 도달할 수 없다.
         self.declare_parameter('min_z_safety_threshold', 0.8)
         self.declare_parameter('proximity_release_margin', 0.1)
+        # 근접 경보가 켜진 상태에서 검출이 사라졌을 때, 이 시간이 지나면 해제한다.
+        # 0 이하로 두면 해제하지 않는다(옛 동작 = 무기한 래치).
+        self.declare_parameter('proximity_lost_release_sec', 1.0)
         self.declare_parameter('proximity_alert_topic', '/robot5/vision/proximity_alert')
         self.declare_parameter('enable_ir_safety_check', True)
         self.declare_parameter('ir_intensity_topic', '/robot5/ir_intensity')
@@ -605,7 +612,27 @@ class OakdDetectorNode(Node):
         """거리 + IR 근접센서 교차확인으로 근접 안전모드 상태를 갱신하고, 변할 때만 발행한다."""
         if nearest is None:
             self._stat_ir_check = 'idle'
+            # 검출이 없다고 그냥 돌아가면, 켜져 있던 경보가 영영 해제되지 않는다 - 퍼블리셔가
+            # TRANSIENT_LOCAL 래치라 마지막 True가 계속 남고, 더 먼 사람을 다시 검출해야만
+            # 풀렸다. 사람이 초근접에서 프레임 밖으로 나가거나 depth가 무효가 되는 상황이라
+            # 실제로 도달 가능한 상태다. 다만 한두 프레임 유실로 깜빡이면 안 되므로
+            # proximity_lost_release_sec 동안 유지한 뒤 해제한다.
+            if not self.proximity_active or self.proximity_lost_release_sec <= 0.0:
+                return
+            now = self.get_clock().now().nanoseconds * 1e-9
+            if self._proximity_lost_since is None:
+                self._proximity_lost_since = now
+                return
+            if now - self._proximity_lost_since < self.proximity_lost_release_sec:
+                return
+            self.proximity_active = False
+            self._proximity_lost_since = None
+            self.proximity_pub.publish(Bool(data=False))
+            self.get_logger().warn(
+                f'근접 경보 해제: 검출이 {self.proximity_lost_release_sec:.1f}s 이상 없음')
             return
+
+        self._proximity_lost_since = None
 
         distance, bearing = nearest
         if self.proximity_active:

@@ -141,3 +141,33 @@ def test_static_background_filter_confirm_is_idempotent():
     f.confirm_static(0.2, 0.2)  # 같은 위치를 여러 번 확정해도 안전해야 한다
     assert f.static_cell_count == 1
     assert f.is_background(0.2, 0.2) is True
+
+
+def test_release_undoes_confirm_static():
+    """정적 배경 확정은 되돌릴 수 있어야 한다.
+
+    오래 서 있던 사람이 배경으로 확정되면, 다시 걷기 시작해도 영영 검출되지 않는 것이
+    이전 동작이었다(해제 경로가 아예 없었다). 안전상 가장 위험한 실패라 되돌릴 수 있어야 한다.
+    """
+    f = StaticBackgroundFilter(cell_size=0.05, exclusion_radius=0.10)
+    f.confirm_static(1.0, 1.0)
+    assert f.is_background(1.0, 1.0)
+
+    assert f.release(1.0, 1.0) > 0
+    assert not f.is_background(1.0, 1.0)
+
+
+def test_release_is_local_and_idempotent():
+    """해제는 exclusion_radius 안에만 적용되고, 없는 위치를 지워도 안전해야 한다."""
+    f = StaticBackgroundFilter(cell_size=0.05, exclusion_radius=0.10)
+    f.confirm_static(0.0, 0.0)
+    f.confirm_static(3.0, 3.0)
+
+    assert f.release(5.0, 5.0) == 0          # 아무것도 확정된 적 없는 자리
+    assert f.is_background(0.0, 0.0)          # 멀리 있는 등록은 그대로
+    assert f.is_background(3.0, 3.0)
+
+    f.release(0.0, 0.0)
+    assert not f.is_background(0.0, 0.0)
+    assert f.is_background(3.0, 3.0)          # 다른 자리는 살아 있어야 한다
+    assert f.release(0.0, 0.0) == 0           # 두 번 해제해도 안전

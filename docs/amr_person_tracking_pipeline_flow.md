@@ -13,6 +13,11 @@
 흐름에서 제외했다 — 그 기능들의 실측 근거와 켜는 법은 `evidence/`의 각 로그와 노드
 파라미터 주석에 남겨 뒀다.
 
+주의: launch 파일의 `publish_debug_image` **기본값은 아직 `true`**다(실증 단계라 눈으로
+확인하려고 그렇게 뒀다). 즉 launch로 띄우면 이 문서가 제외한 디버그 경로가 실제로는 켜진다.
+`debug_viewer_node`는 cv2 창을 띄우므로 headless 환경에서는 예외로 종료한다 — 그런 환경에서는
+`publish_debug_image:=false`로 넘길 것.
+
 ## 0. 전체 통신 지도 (한눈에 보기)
 
 ```
@@ -201,9 +206,13 @@
    - 기다리는 신원이 없고 현재 대상도 없으면 → 살아있는 트랙 중 가장 먼저 생긴 것을 선택
      (제스처/호출좌표 기반 명시적 지정은 아직 미구현이라 쓰는 자리표시자 정책)
 7. 전체 트랙 목록을 `<namespace>/vision/tracked_detections_3d`로, **추종 대상이 있을 때만**
-   그 좌표를 `<namespace>/target_person_pose`로 발행 → **둘 다 `predictive_avoidance_node`가
-   구독** (좌표를 실제 Nav2 목표로 소비하는
-   노드는 아직 이 저장소 범위 밖)
+   그 좌표를 `<namespace>/target_person_pose`로 발행.
+   `predictive_avoidance_node`가 구독하는 것은 **`tracked_detections_3d` 하나뿐**이다.
+   `target_person_pose`는 (디버그 오버레이를 제외하면) 아직 구독자가 없다 - 좌표를 실제
+   Nav2 목표로 소비하는 노드는 이 저장소 범위 밖이다.
+   각 검출의 `header.stamp`는 배열 헤더가 아니라 **그 트랙이 마지막으로 실제 관측된 시각**이다.
+   이번 프레임에 갱신되지 않은 트랙도 `track_timeout` 동안 계속 발행되므로, 하류가 이를 새
+   관측으로 오인하지 않도록 구분해 준다.
 
 ### 경로 B — 라이다 다리검출 갱신 (라이다 메시지 올 때마다 반복)
 1. 이번 메시지의 다리 후보 위치들을 원시 id별로 정리

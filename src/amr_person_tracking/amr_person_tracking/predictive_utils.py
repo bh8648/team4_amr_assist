@@ -204,6 +204,15 @@ class LegKalmanTracker:
         self._prune(stamp)
         return stationary
 
+    def moving_positions(self, release_speed_threshold):
+        """지금 추정 속도가 release_speed_threshold를 넘는 다리들의 위치.
+
+        정적 배경 확정을 되돌리는 근거로 쓴다. stationary_speed_threshold와 같은 값을 쓰면
+        경계에서 등록/해제가 깜빡이므로, 호출자가 더 큰 값을 줘서 히스테리시스를 만든다.
+        """
+        return [kf.position() for kf in self._kalman.values()
+                if kf.speed() > release_speed_threshold]
+
     def _match(self, leg_positions):
         """이번 스캔의 다리 후보들을 기존 칼만필터에 배타적(1:1)으로, 가까운 것부터 그리디로
         배정한다. tracking_utils.assign_tracks와 같은 패턴이지만 Track이 아니라

@@ -110,6 +110,9 @@ class LegDetectorBridgeNode(Node):
         self.declare_parameter('background_filter_enabled', True)
         self.declare_parameter('background_confirm_duration_sec', 3.0)
         self.declare_parameter('background_stationary_speed_threshold', 0.01)
+        # 배경으로 확정된 자리에서 이 속도를 넘는 움직임이 관측되면 확정을 해제한다.
+        # stationary 임계보다 크게 잡아 경계에서 등록/해제가 깜빡이지 않게 한다(히스테리시스).
+        self.declare_parameter('background_release_speed_threshold', 0.05)
         self.declare_parameter('background_leg_match_gate', 0.10)
         self.declare_parameter('background_leg_kf_timeout', 5.0)
         self.declare_parameter('background_kf_process_noise', 0.01)
@@ -152,6 +155,8 @@ class LegDetectorBridgeNode(Node):
         self.leg_circle_fit_rms_max = self.get_parameter('leg_circle_fit_rms_max').value
 
         self.background_filter_enabled = self.get_parameter('background_filter_enabled').value
+        self.background_release_speed_threshold = self.get_parameter(
+            'background_release_speed_threshold').value
         self.background_filter = StaticBackgroundFilter(
             cell_size=self.get_parameter('background_cell_size').value,
             exclusion_radius=self.get_parameter('background_exclusion_radius').value,
@@ -227,6 +232,15 @@ class LegDetectorBridgeNode(Node):
             newly_stationary = self.leg_stationarity_tracker.update(legs_map, stamp)
             for x, y in newly_stationary:
                 self.background_filter.confirm_static(x, y)
+            # 확정을 되돌리는 쪽을 먼저 본다 - 오래 서 있다가 다시 걷기 시작한 사람이
+            # 배경에 갇힌 채 이번 스캔에서 또 걸러지는 것을 막는다. 칼만필터는 legs_map
+            # 전체(배경 필터 적용 전)를 보므로, 배경 자리에 선 사람도 속도가 추정된다.
+            for x, y in self.leg_stationarity_tracker.moving_positions(
+                    self.background_release_speed_threshold):
+                released = self.background_filter.release(x, y)
+                if released:
+                    self.get_logger().info(
+                        f'정적 배경 해제: ({x:.2f}, {y:.2f}) 근처 {released}셀 - 움직임 관측')
             legs_map = [p for p in legs_map if not self.background_filter.is_background(*p)]
 
         persons = pair_legs(legs_map, self.leg_pair_max_distance, self.allow_single_leg_detection)

@@ -308,5 +308,17 @@ def velocity_similarity(vx0, vy0, vx1, vy1):
     return max(0.0, cos_sim) * speed_ratio
 
 
+def sec_to_stamp(sec):
+    """초(float) -> builtin_interfaces/Time. stamp_to_sec의 역함수."""
+    from builtin_interfaces.msg import Time
+    msg = Time()
+    msg.sec = int(sec)
+    msg.nanosec = int(round((sec - msg.sec) * 1e9))
+    if msg.nanosec >= 1000000000:
+        msg.sec += 1
+        msg.nanosec -= 1000000000
+    return msg
+
+
 def stamp_to_sec(stamp):
     return stamp.sec + stamp.nanosec * 1e-9
