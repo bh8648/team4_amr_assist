@@ -186,7 +186,8 @@ class LegDetectorBridgeNode(Node):
         )
 
         self.tf_buffer = tf2_ros.Buffer(cache_time=Duration(seconds=5.0))
-        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+        # spin_thread=True: tf 구독을 스캔 콜백과 분리해, 스캔 처리가 밀려도 tf 버퍼가 멈추지 않게 한다.
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self, spin_thread=True)
 
         # raw 트랙 ID(int) -> Track (map 좌표계). reid_tracking_node와 동일한 목적의 로컬 트래커.
         self.tracks = {}
