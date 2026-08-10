@@ -21,5 +21,6 @@ setup(
     license='Apache-2.0',
     entry_points={'console_scripts': [
         'robot_bridge_node = robot_bridge.robot_bridge_node:main',
+        'worker_tracking_bridge_node = robot_bridge.worker_tracking_bridge_node:main',
     ]},
 )
