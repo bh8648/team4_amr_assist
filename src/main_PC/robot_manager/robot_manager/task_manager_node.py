@@ -222,10 +222,10 @@ class TaskManagerNode(Node):
             note.frequency = int(freq)
             note.max_runtime = note_duration
             msg.notes.append(note)
-        # hardhat_status는 특정 로봇을 지칭하지 않으므로, 지금 작업자를 따라가거나
-        # 배송 중인(=근처에 있을) 로봇에만 울린다
+        # hardhat_status는 특정 로봇을 지칭하지 않으므로, 지금 작업자를
+        # 추종 중(FOLLOWING)인 로봇에만 울린다
         for robot_id, task in self.tasks.items():
-            if task.state in ('FOLLOWING', 'TRANSPORTING'):
+            if task.state == 'FOLLOWING':
                 self.audio_publishers[robot_id].publish(msg)
                 self.get_logger().info(f'{robot_id}: 하이바 미착용 경고음("삐뽀삐뽀") 재생')
 
