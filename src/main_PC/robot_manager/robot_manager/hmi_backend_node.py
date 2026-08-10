@@ -16,7 +16,7 @@ import rclpy
 from ament_index_python.packages import get_package_prefix
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
-from robot_status.msg import TaskCommand, TaskState
+from robot_status.msg import NavigationResult, TaskCommand, TaskState
 
 # =========================================================
 # 1. Pydantic 요청 Body 모델
@@ -72,6 +72,9 @@ class HmiBackendNode(Node):
         self.task_command_publisher = self.create_publisher(TaskCommand, '/task/command', 10)   # 정지, 도킹, 언도킹 등의 명령을 보낼 퍼블리셔
         self.teleop_publishers = {robot_id: self.create_publisher(Twist, f'/{robot_id}/cmd_vel', 10) for robot_id in ('robot5', 'robot11')}
         self.task_state_subscription = self.create_subscription(TaskState, '/task/state', self.task_state_callback, 10)
+        # 브릿지의 실제 Dock/Undock 액션 성공 결과로만 HMI 도킹 표시를 확정한다.
+        self.navigation_result_subscription = self.create_subscription(
+            NavigationResult, '/navigation/result', self.navigation_result_callback, 10)
 
         self.control_states = {}
 
@@ -90,15 +93,25 @@ class HmiBackendNode(Node):
         control['task_state'] = str(msg.state).upper()
         if msg.state == 'DOCKED':
             control['docked'] = 1
-        elif msg.state in ('ASSIGNED', 'FOLLOWING', 'TRANSPORTING', 'RETURNING'):
+        elif msg.state in ('ASSIGNED', 'FOLLOWING', 'TRANSPORTING', 'RETURNING', 'CANCELED'):
             control['docked'] = 0
-        if msg.state == 'RETURNING' and msg.detail == '작업 취소 후 복귀':
-            # TaskState에 CANCELED 값이 없으므로 취소 복귀 메시지를 별도로 기억한다.
+        if (msg.state == 'CANCELED'
+                or (msg.state == 'RETURNING' and msg.detail == '작업 취소 후 복귀')):
             control['canceled'] = 1
         # 새 작업이 시작되면 이전 작업의 취소/수동조작 허가를 반드시 초기화한다.
         if msg.state == 'ASSIGNED':
             control['canceled'] = 0
             control['teleop_enabled'] = 0
+
+    def navigation_result_callback(self, msg):
+        """브릿지가 보고한 실제 도킹 액션 성공 결과를 HMI 제어 상태에 반영한다."""
+        control = self.control_states.get(str(msg.robot_id))
+        if control is None or not msg.success:
+            return
+        if msg.goal_type == 'DOCK':
+            control['docked'] = 1
+        elif msg.goal_type == 'UNDOCK':
+            control['docked'] = 0
 
     def latest_task_state(self, robot_id: str):
         """재시작 뒤에도 제한을 유지하도록 DB의 가장 최근 작업 상태/결과를 조회한다."""
@@ -125,7 +138,7 @@ class HmiBackendNode(Node):
         control = self.control_states.get(robot_id)
         if control is None:
             return False
-        if control['task_state'] == 'ERROR' or control['canceled']:
+        if control['task_state'] in self.MANUAL_CONTROL_STATES or control['canceled']:
             return True
         state, result = self.latest_task_state(robot_id)
         return state in self.MANUAL_CONTROL_STATES or result in self.MANUAL_CONTROL_STATES
@@ -240,7 +253,7 @@ class HmiBackendNode(Node):
         command.robot_id, command.command = robot_id, 'DOCK' if dock else 'UNDOCK'
         self.task_command_publisher.publish(command)    # 도킹, 언도킹 명령을 퍼블리시
 
-        self.control_states[robot_id]['docked'] = int(dock)
+        # 요청 시점에는 상태를 바꾸지 않고 브릿지의 실제 액션 성공 결과를 기다린다.
         self.get_logger().info(f'AMR {robot_id} 도킹 요청: {"DOCK" if dock else "UNDOCK"}')
         return True
 
@@ -549,8 +562,11 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
+        # spin 중인 노드를 먼저 destroy하면 종료 중 executor 예외가 날 수 있다.
+        if rclpy.ok():
+            rclpy.shutdown()
+        spin_thread.join(timeout=2.0)
         ros_node.destroy_node()
-        rclpy.shutdown()
 
 
 if __name__ == '__main__':

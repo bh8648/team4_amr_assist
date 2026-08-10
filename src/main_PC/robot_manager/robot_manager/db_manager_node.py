@@ -131,11 +131,13 @@ class DbManagerNode(Node):
 
         # Task Manager의 DOCKED는 복귀와 도킹이 끝난 작업이므로
         # DB에서는 명세의 최종 상태인 COMPLETED로 변환해 저장한다.
-        completed = msg.state in ('DOCKED', 'ERROR')
-        canceled = msg.state == 'RETURNING' and msg.detail == '작업 취소 후 복귀'
+        completed = msg.state in ('DOCKED', 'ERROR', 'CANCELED')
+        # 새 Task Manager는 CANCELED를 직접 발행한다. 기존 취소 복귀 메시지도
+        # 실행 중인 구버전 노드와의 호환을 위해 계속 취소로 인식한다.
+        canceled = (msg.state == 'CANCELED'
+                    or (msg.state == 'RETURNING' and msg.detail == '작업 취소 후 복귀'))
 
-        # 취소 명령을 받은 Task는 실제 로붇이 RETURNING으로 복귀하더라도
-        # DB에서는 취소 상태를 명확히 표시하기 위해 CANCELED로 저장한다.
+        # 취소된 Task는 로봇의 이후 수동 도킹 여부와 무관하게 CANCELED로 저장한다.
         if canceled:
             database_state = 'CANCELED'
         elif msg.state == 'DOCKED':
@@ -144,7 +146,7 @@ class DbManagerNode(Node):
             database_state = msg.state
 
         # result는 상태 설명(detail)이 아니라 최종 결과만 저장한다.
-        # 취소 후 복귀 중에 CANCELED를 먼저 저장하고, 도킹 완료 시 그 값을 유지한다.
+        # 취소 이후 수동 도킹이 완료되어도 해당 작업의 취소 결과는 유지한다.
         if msg.state == 'ERROR':
             result = 'FAILED'
         elif canceled:
@@ -158,15 +160,17 @@ class DbManagerNode(Node):
             self.conn.execute(
                 """
                 INSERT INTO tasks (
-                    task_id, assigned_robot_id, state, result, created_at,
+                    task_id, assigned_robot_id, destination_id, state, result, created_at,
                     completed_at, duration_seconds
                 )
                 VALUES (
-                    ?, ?, ?, ?, datetime('now', 'localtime'),
+                    ?, ?, NULLIF(?, ''), ?, ?, datetime('now', 'localtime'),
                     CASE WHEN ? THEN datetime('now', 'localtime') END,
                     CASE WHEN ? THEN 0 END
                 )
                 ON CONFLICT(task_id) DO UPDATE SET assigned_robot_id=excluded.assigned_robot_id,
+                    -- HMI에서 배송 목적지를 선택한 TaskState부터 목적지 ID를 확정한다.
+                    destination_id=COALESCE(excluded.destination_id, tasks.destination_id),
                     state=CASE
                         -- 취소 후 PAUSE/DOCKED 메시지가 와도 DB의 최종 취소 상태는 보존한다.
                         WHEN tasks.state = 'CANCELED' THEN tasks.state
@@ -186,7 +190,7 @@ class DbManagerNode(Node):
                     END
                 """,
                 (
-                    msg.task_id, robot_id, database_state, result,
+                    msg.task_id, robot_id, str(msg.destination_id), database_state, result,
                     completed, completed, completed, completed,
                 )
             )
@@ -210,10 +214,9 @@ class DbManagerNode(Node):
             # 수신 간격이 5초 이상이면 OFFLINE, 미만이면 ONLINE
             online_state = "ONLINE" if time_diff < 5.0 else "OFFLINE"
 
-            # TaskState has not been received yet, so store IDLE instead of
-            # assuming that the robot is already DOCKED.
+            # TaskState 수신 전 최초 상태는 배정 가능 조건과 동일하게 DOCKED로 기록한다.
             task_state = self.task_states.get(str(robot_id))
-            robot_state = task_state.state if task_state else "IDLE"
+            robot_state = task_state.state if task_state else "DOCKED"
 
             # ERROR도 작업 중 발생한 최종 상태이므로 해당 Task ID를 보존한다.
             # 작업이 정상 종료된 DOCKED에서만 current_task_id를 NULL로 저장한다.
