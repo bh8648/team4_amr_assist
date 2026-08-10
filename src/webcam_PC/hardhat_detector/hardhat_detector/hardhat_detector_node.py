@@ -36,9 +36,12 @@
 # (pose_locator_node가 먼저 돌면서 person/hardhat_roi/compressed를 publish하고
 #  있어야 함 - 그러려면 그 노드도 락온된 사람이 있어야 함)
 
+import json  # 파라미터 기본값 json 로딩
+from pathlib import Path  # config 경로 조합용
 import time  # 스테일 감지/유예시간 계산에 쓰는 단조 시계
 from collections import deque  # 최근 window_size개 투표를 담는 고정 크기 큐
 
+from ament_index_python.packages import PackageNotFoundError, get_package_share_directory  # 설치된 share 디렉터리 경로 조회
 import cv2  # 디버그 오버레이 텍스트 렌더링
 import rclpy  # ROS2 파이썬 클라이언트 라이브러리
 from rclpy.node import Node  # 노드 베이스 클래스
@@ -49,6 +52,23 @@ from ultralytics import YOLO  # 분류/검출 모델 로딩
 
 from hardhat_detector.vision_utils import classify_hardhat, decode_jpeg, encode_jpeg  # 판별/인코딩 유틸
 
+PACKAGE_NAME = 'hardhat_detector'
+
+
+def _load_default_params():
+    """config/params.json에서 파라미터 기본값을 불러온다.
+
+    colcon build로 설치된 share 디렉터리에서 우선 찾고, 아직 설치되지
+    않은 소스 트리에서 바로 실행하는 경우(예: IDE에서 직접 실행)에는
+    이 파일 기준 상대경로의 config/params.json으로 fallback한다.
+    """
+    try:
+        config_dir = Path(get_package_share_directory(PACKAGE_NAME)) / 'config'
+    except PackageNotFoundError:
+        config_dir = Path(__file__).resolve().parent.parent / 'config'
+    with open(config_dir / 'params.json', encoding='utf-8') as f:
+        return json.load(f)
+
 
 class HardhatDetectorNode(Node):
 
@@ -56,34 +76,36 @@ class HardhatDetectorNode(Node):
         super().__init__('hardhat_detector_node')  # ROS2 노드 이름 등록
 
         # --- 파라미터 ---
-        # pose_locator_node의 hardhat_roi_topic 기본값과 일치해야 함
-        self.declare_parameter('hardhat_roi_topic', 'person/hardhat_roi/compressed')
-        # AMR이 구독할 최종 판정 토픽
-        self.declare_parameter('hardhat_status_topic', 'person/hardhat_status')
-        # 경로 없이 파일명만 주면 Ultralytics가 자기 weights 캐시에서 찾음;
-        # 실제 학습된 하이바 분류 모델은 절대 경로로 override해서 사용
-        self.declare_parameter('model_path', 'hardhat_cls.pt')
-        # 모델의 클래스 이름 중 "하이바 착용"에 해당하는 이름 - 학습 시 정한
-        # 클래스 이름에 맞게 override (classify_hardhat 주석 참고)
-        self.declare_parameter('positive_class_name', 'helmet')
-        # classify 모델의 top1 confidence 게이팅 기준(이 미만이면 애매한
-        # 프레임으로 보고 투표 제외) 겸, detect 모델의 predict() conf 임계값
-        self.declare_parameter('min_confidence', 0.6)
-        # 최종 상태를 정할 때 참고하는 최근 프레임 개수
-        self.declare_parameter('window_size', 5)
-        # window 안에서 이 비율 이상 한쪽으로 쏠려야 상태를 확정/변경함 -
-        # 애매하게 섞이면(과반 미달) 직전 상태를 그대로 유지
-        self.declare_parameter('min_majority_ratio', 0.7)
-        # 새 크롭이 이 시간(초) 이상 안 들어오면 쌓아둔 투표를 리셋
-        self.declare_parameter('stale_timeout_sec', 2.0)
-        # 손으로 하이바를 잠깐 만지는 등으로 detect 모델이 순간적으로 helmet
-        # 박스를 놓치는 경우(confidence 0.0)를 대비한 유예 시간 - 직전 착용
-        # 확인 시각으로부터 이 시간 이내의 미검출 프레임은 투표에 넣지 않고
-        # 그냥 버림(무착용도 아니고 착용도 아닌 "판단 보류"). 이 시간을 넘겨
-        # 계속 미검출이면 그때부터는 정상적으로 미착용 투표에 반영됨
-        self.declare_parameter('occlusion_grace_sec', 1.0)
-        self.declare_parameter('publish_debug_overlay', True)
-        self.declare_parameter('debug_overlay_topic', 'person/hardhat_debug_image/compressed')
+        # 기본값은 config/params.json에서 불러옴(_load_default_params 참고).
+        # 각 키의 의미:
+        #   hardhat_roi_topic: pose_locator_node의 hardhat_roi_topic
+        #     기본값과 일치해야 함
+        #   hardhat_status_topic: AMR이 구독할 최종 판정 토픽
+        #   model_path: 경로 없이 파일명만 주면 Ultralytics가 자기 weights
+        #     캐시에서 찾음; 실제 학습된 하이바 분류 모델은 절대 경로로
+        #     override해서 사용
+        #   positive_class_name: 모델의 클래스 이름 중 "하이바 착용"에
+        #     해당하는 이름 - 학습 시 정한 클래스 이름에 맞게 override
+        #     (classify_hardhat 주석 참고)
+        #   min_confidence: classify 모델의 top1 confidence 게이팅
+        #     기준(이 미만이면 애매한 프레임으로 보고 투표 제외) 겸,
+        #     detect 모델의 predict() conf 임계값
+        #   window_size: 최종 상태를 정할 때 참고하는 최근 프레임 개수
+        #   min_majority_ratio: window 안에서 이 비율 이상 한쪽으로
+        #     쏠려야 상태를 확정/변경함 - 애매하게 섞이면(과반 미달)
+        #     직전 상태를 그대로 유지
+        #   stale_timeout_sec: 새 크롭이 이 시간(초) 이상 안 들어오면
+        #     쌓아둔 투표를 리셋
+        #   occlusion_grace_sec: 손으로 하이바를 잠깐 만지는 등으로
+        #     detect 모델이 순간적으로 helmet 박스를 놓치는 경우
+        #     (confidence 0.0)를 대비한 유예 시간 - 직전 착용 확인
+        #     시각으로부터 이 시간 이내의 미검출 프레임은 투표에 넣지
+        #     않고 그냥 버림(무착용도 아니고 착용도 아닌 "판단 보류").
+        #     이 시간을 넘겨 계속 미검출이면 그때부터는 정상적으로
+        #     미착용 투표에 반영됨
+        default_params = _load_default_params()
+        for name, value in default_params.items():
+            self.declare_parameter(name, value)
 
         hardhat_roi_topic = self.get_parameter('hardhat_roi_topic').value  # 구독할 ROI 토픽
         hardhat_status_topic = self.get_parameter('hardhat_status_topic').value  # 최종 판정 publish 토픽

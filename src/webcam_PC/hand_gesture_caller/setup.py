@@ -1,3 +1,6 @@
+import os  # 경로 조합용
+from glob import glob  # config 디렉터리 파일 목록 수집용
+
 from setuptools import find_packages, setup  # ament_python 패키지 빌드용 setuptools 함수
 
 package_name = 'hand_gesture_caller'  # 패키지 이름 (디렉터리명과 일치해야 함)
@@ -10,6 +13,7 @@ setup(
         ('share/ament_index/resource_index/packages',  # ROS2가 패키지를 찾을 수 있게 리소스 인덱스 등록
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),  # package.xml을 share 디렉터리로 설치
+        (os.path.join('share', package_name, 'config'), glob('config/*.json')),  # 파라미터 기본값 json 설치
     ],
     install_requires=['setuptools'],  # 런타임 파이썬 의존성
     zip_safe=True,  # zip 아카이브 형태로 설치해도 안전함을 명시

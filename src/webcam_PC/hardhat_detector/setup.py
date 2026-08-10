@@ -15,6 +15,7 @@ setup(
         ('share/' + package_name, ['package.xml']),  # package.xml을 share 디렉터리로 설치
         (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),  # launch 파일들 설치
         (os.path.join('share', package_name, 'models'), glob('models/*.pt')),  # 모델 가중치 파일들 설치
+        (os.path.join('share', package_name, 'config'), glob('config/*.json')),  # 파라미터 기본값 json 설치
     ],
     install_requires=['setuptools'],  # 런타임 파이썬 의존성
     zip_safe=True,  # zip 아카이브 형태로 설치해도 안전함을 명시

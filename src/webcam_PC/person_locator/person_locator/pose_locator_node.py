@@ -14,6 +14,10 @@
 #      실제 (x, y)를 얻음 (vision_utils.apply_homography).
 #   5. 그 결과를 geometry_msgs/PointStamped로 "person/position"에 publish함.
 
+import json  # 파라미터 기본값 json 로딩
+from pathlib import Path  # config 경로 조합용
+
+from ament_index_python.packages import PackageNotFoundError, get_package_share_directory  # 설치된 share 디렉터리 경로 조회
 import rclpy  # ROS2 파이썬 클라이언트 라이브러리
 from rclpy.node import Node  # 노드 베이스 클래스
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy  # 토픽 QoS 설정용
@@ -35,6 +39,23 @@ from person_locator.vision_utils import (
     select_person,
 )
 
+PACKAGE_NAME = 'person_locator'
+
+
+def _load_default_params():
+    """config/params.json에서 파라미터 기본값을 불러온다.
+
+    colcon build로 설치된 share 디렉터리에서 우선 찾고, 아직 설치되지
+    않은 소스 트리에서 바로 실행하는 경우(예: IDE에서 직접 실행)에는
+    이 파일 기준 상대경로의 config/params.json으로 fallback한다.
+    """
+    try:
+        config_dir = Path(get_package_share_directory(PACKAGE_NAME)) / 'config'
+    except PackageNotFoundError:
+        config_dir = Path(__file__).resolve().parent.parent / 'config'
+    with open(config_dir / 'params.json', encoding='utf-8') as f:
+        return json.load(f)
+
 
 class PoseLocatorNode(Node):
 
@@ -42,64 +63,55 @@ class PoseLocatorNode(Node):
         super().__init__('pose_locator_node')  # ROS2 노드 이름 등록
 
         # --- 파라미터, 전부 launch 파일이나 --ros-args -p로 override 가능 ---
-        # 경로 없이 파일명만 주면 Ultralytics가 처음 실행할 때 자기 weights
-        # 캐시로 자동 다운로드함; 이미 이 머신에 .pt 파일을 올려뒀으면
-        # (예: /home/soo/corecode/COCO_WholeBody/yolov8n-pose.pt를 복사)
-        # 절대 경로로 override
-        self.declare_parameter('model_path', 'yolov8n-pose.pt')
-        # 박스를 "사람"으로 볼 최소 YOLO 검출 신뢰도
-        self.declare_parameter('conf_threshold', 0.5)
-        # 발목 keypoint를 믿을 최소 신뢰도 - vision_utils.extract_standing_pixel로
-        # 그대로 전달됨
-        self.declare_parameter('ankle_conf_threshold', 0.5)
-        # Ultralytics 내장 multi-object tracker 설정 - 검출된 사람마다 프레임
-        # 간에 안정적인 id를 붙여줘서, select_person이 같은 사람을 계속
-        # 따라갈 수 있게 해줌
-        self.declare_parameter('tracker', 'bytetrack.yaml')
-        # 캘리브레이션된 homography 행렬을 어디서 불러올지 -
-        # `ros2 run person_locator calibrate_homography`로 생성됨
-        self.declare_parameter('homography_yaml_path', 'config/person_homography.yaml')
-        # 입력 이미지 토픽 (camera_publisher.py가 JPEG로 압축해서 publish하며,
-        # 이 노드와 다른 머신일 수도 있음 - camera_publisher.py 주석 참고)
-        self.declare_parameter('image_topic', 'camera/image_raw/compressed')
-        # 출력 토픽: map 프레임 기준 사람의 위치
-        self.declare_parameter('target_topic', 'person/position')
-        # true면 박스+스켈레톤이 그려진 디버그용 이미지도 같이 publish함
-        # - rqt_image_view로 검출이 잘 되는지 눈으로 확인할 수 있음.
-        # 이것도 camera_publisher와 같은 이유로 JPEG 압축해서 내보냄
-        self.declare_parameter('publish_overlay', True)
-        self.declare_parameter('overlay_topic', 'person/debug_image/compressed')
-        self.declare_parameter('overlay_jpeg_quality', 80)
-
+        # 기본값은 config/params.json에서 불러옴(_load_default_params 참고).
+        # 각 키의 의미:
+        #   model_path: YOLO-pose weight 경로. 경로 없이 파일명만 주면
+        #     Ultralytics가 처음 실행할 때 자기 weights 캐시로 자동
+        #     다운로드함; 이미 이 머신에 .pt 파일을 올려뒀으면(예:
+        #     /home/soo/corecode/COCO_WholeBody/yolov8n-pose.pt를 복사)
+        #     절대 경로로 override
+        #   conf_threshold: 박스를 "사람"으로 볼 최소 YOLO 검출 신뢰도
+        #   ankle_conf_threshold: 발목 keypoint를 믿을 최소 신뢰도 -
+        #     vision_utils.extract_standing_pixel로 그대로 전달됨
+        #   tracker: Ultralytics 내장 multi-object tracker 설정 - 검출된
+        #     사람마다 프레임 간에 안정적인 id를 붙여줘서, select_person이
+        #     같은 사람을 계속 따라갈 수 있게 해줌
+        #   homography_yaml_path: 캘리브레이션된 homography 행렬을 어디서
+        #     불러올지 - `ros2 run person_locator calibrate_homography`로 생성됨
+        #   image_topic: 입력 이미지 토픽 (camera_publisher.py가 JPEG로
+        #     압축해서 publish하며, 이 노드와 다른 머신일 수도 있음 -
+        #     camera_publisher.py 주석 참고)
+        #   target_topic: 출력 토픽 - map 프레임 기준 사람의 위치
+        #   publish_overlay: true면 박스+스켈레톤이 그려진 디버그용 이미지도
+        #     같이 publish함 - rqt_image_view로 검출이 잘 되는지 눈으로
+        #     확인할 수 있음. 이것도 camera_publisher와 같은 이유로 JPEG
+        #     압축해서 내보냄
+        #
         # --- 손 제스처 호출(hand_gesture_caller 패키지) 연동 파라미터 ---
-        # 손목 keypoint를 믿을 최소 신뢰도 - 이보다 낮으면 이번 프레임은
-        # wrist ROI를 아예 안 잘라서 안 보냄 (extract_wrist_pixel 참고)
-        self.declare_parameter('wrist_conf_threshold', 0.5)
-        # wrist ROI 정사각형의 반변 길이(px) - 실제로 잘리는 영역은
-        # (2*half)x(2*half), 손목 중심 기준
-        self.declare_parameter('wrist_roi_half_size', 80)
-        self.declare_parameter('publish_wrist_roi', True)
-        self.declare_parameter('wrist_roi_topic', 'person/wrist_roi/compressed')
-        self.declare_parameter('wrist_roi_jpeg_quality', 80)
-        # wrist_gesture_node가 "쥐었다 폈다" 제스처를 확정하면 이 토픽으로
-        # 신호를 보냄 - 받으면 마지막으로 계산해둔 사람 위치를 call_position_topic으로 쏨
-        self.declare_parameter('call_trigger_topic', 'person/call_trigger')
-        # AMR이 구독하는 "지금 이 사람이 부름" 이벤트 좌표
-        self.declare_parameter('call_position_topic', 'person/call_position')
-
+        #   wrist_conf_threshold: 손목 keypoint를 믿을 최소 신뢰도 - 이보다
+        #     낮으면 이번 프레임은 wrist ROI를 아예 안 잘라서 안 보냄
+        #     (extract_wrist_pixel 참고)
+        #   wrist_roi_half_size: wrist ROI 정사각형의 반변 길이(px) -
+        #     실제로 잘리는 영역은 (2*half)x(2*half), 손목 중심 기준
+        #   call_trigger_topic: wrist_gesture_node가 "쥐었다 폈다" 제스처를
+        #     확정하면 이 토픽으로 신호를 보냄 - 받으면 마지막으로
+        #     계산해둔 사람 위치를 call_position_topic으로 쏨
+        #   call_position_topic: AMR이 구독하는 "지금 이 사람이 부름"
+        #     이벤트 좌표
+        #
         # --- 하이바 판별(hardhat_detector 패키지) 연동 파라미터 ---
-        # 사람 bounding box를 그대로 크롭해서 넘김(crop_person_bbox 참고) -
-        # 처음엔 얼굴 keypoint만 좁게 크롭했는데, 오버헤드/광각 카메라처럼
-        # 사람이 화면에서 작게 잡히면 얼굴 keypoint 신뢰도가 안 나와서
-        # 크롭 자체가 계속 스킵되는 문제가 있었음 + 학습 데이터도 전체
-        # 장면이었어서 bbox 크롭이 스케일상 더 잘 맞음
-        self.declare_parameter('hardhat_roi_padding_ratio', 0.15)
-        # 1.0이면 기존과 동일하게 전신을 그대로 씀 - 오탐 튜닝을 위해 위에서부터
-        # 이 비율만큼(예: 0.4 = 상반신/머리)만 남기려면 1.0 미만으로 낮춤
-        self.declare_parameter('hardhat_roi_top_ratio', 1.0)
-        self.declare_parameter('publish_hardhat_roi', True)
-        self.declare_parameter('hardhat_roi_topic', 'person/hardhat_roi/compressed')
-        self.declare_parameter('hardhat_roi_jpeg_quality', 80)
+        #   hardhat_roi_padding_ratio: 사람 bounding box를 그대로 크롭해서
+        #     넘김(crop_person_bbox 참고) - 처음엔 얼굴 keypoint만 좁게
+        #     크롭했는데, 오버헤드/광각 카메라처럼 사람이 화면에서 작게
+        #     잡히면 얼굴 keypoint 신뢰도가 안 나와서 크롭 자체가 계속
+        #     스킵되는 문제가 있었음 + 학습 데이터도 전체 장면이었어서
+        #     bbox 크롭이 스케일상 더 잘 맞음
+        #   hardhat_roi_top_ratio: 1.0이면 기존과 동일하게 전신을 그대로
+        #     씀 - 오탐 튜닝을 위해 위에서부터 이 비율만큼(예: 0.4 =
+        #     상반신/머리)만 남기려면 1.0 미만으로 낮춤
+        default_params = _load_default_params()
+        for name, value in default_params.items():
+            self.declare_parameter(name, value)
 
         model_path = self.get_parameter('model_path').value  # YOLO-pose 가중치 경로
         self.conf_threshold = self.get_parameter('conf_threshold').value

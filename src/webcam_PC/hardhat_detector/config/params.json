@@ -1,0 +1,13 @@
+{
+  "hardhat_roi_topic": "person/hardhat_roi/compressed",
+  "hardhat_status_topic": "person/hardhat_status",
+  "model_path": "hardhat_cls.pt",
+  "positive_class_name": "helmet",
+  "min_confidence": 0.6,
+  "window_size": 5,
+  "min_majority_ratio": 0.7,
+  "stale_timeout_sec": 2.0,
+  "occlusion_grace_sec": 1.0,
+  "publish_debug_overlay": true,
+  "debug_overlay_topic": "person/hardhat_debug_image/compressed"
+}

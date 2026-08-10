@@ -17,8 +17,11 @@
 # (pose_locator_node가 먼저 돌면서 person/wrist_roi/compressed를 publish하고
 #  있어야 함 - 그러려면 그 노드도 락온된 사람이 있어야 함)
 
+import json  # 파라미터 기본값 json 로딩
+from pathlib import Path  # config 경로 조합용
 import time  # 상태머신 타임아웃/쿨다운 계산에 쓰는 단조 시계
 
+from ament_index_python.packages import PackageNotFoundError, get_package_share_directory  # 설치된 share 디렉터리 경로 조회
 import cv2  # BGR<->RGB 변환, 디버그 오버레이 그리기
 import mediapipe as mp  # 손 landmark 검출
 import rclpy  # ROS2 파이썬 클라이언트 라이브러리
@@ -27,6 +30,23 @@ from sensor_msgs.msg import CompressedImage  # 손목 ROI/디버그 오버레이
 from std_msgs.msg import Empty  # 호출 트리거 메시지 타입(페이로드 없음)
 
 from hand_gesture_caller.vision_utils import decode_jpeg, encode_jpeg  # JPEG 인코딩/디코딩 유틸
+
+PACKAGE_NAME = 'hand_gesture_caller'
+
+
+def _load_default_params():
+    """config/params.json에서 파라미터 기본값을 불러온다.
+
+    colcon build로 설치된 share 디렉터리에서 우선 찾고, 아직 설치되지
+    않은 소스 트리에서 바로 실행하는 경우(예: IDE에서 직접 실행)에는
+    이 파일 기준 상대경로의 config/params.json으로 fallback한다.
+    """
+    try:
+        config_dir = Path(get_package_share_directory(PACKAGE_NAME)) / 'config'
+    except PackageNotFoundError:
+        config_dir = Path(__file__).resolve().parent.parent / 'config'
+    with open(config_dir / 'params.json', encoding='utf-8') as f:
+        return json.load(f)
 
 # MediaPipe Hands 21개 landmark 중 이 판정에 쓰는 것만 골라둠
 # (전체 목록: https://developers.google.com/mediapipe/solutions/vision/hand_landmarker)
@@ -137,37 +157,35 @@ class WristGestureNode(Node):
         super().__init__('wrist_gesture_node')  # ROS2 노드 이름 등록
 
         # --- 파라미터 ---
-        # pose_locator_node의 wrist_roi_topic 기본값과 일치해야 함
-        self.declare_parameter('wrist_roi_topic', 'person/wrist_roi/compressed')
-        # pose_locator_node의 call_trigger_topic 기본값과 일치해야 함
-        self.declare_parameter('call_trigger_topic', 'person/call_trigger')
-
-        # MediaPipe Hands 검출 최소 신뢰도 - ROI 자체가 매 프레임 위치가
-        # 바뀌므로(사람이 움직임) tracking 모드보다 매 프레임 새로 검출하는
-        # static_image_mode=True가 더 안정적
-        self.declare_parameter('min_detection_confidence', 0.5)
-
-        # openness ratio 히스테리시스 밴드 - compute_openness_ratio 주석 참고.
-        # 기본값은 경험적 값이라 실측(디버그 오버레이로 실제 ratio 로그 찍어서)
-        # 후 튜닝 필요할 수 있음
-        self.declare_parameter('open_ratio_threshold', 1.7)
-        self.declare_parameter('closed_ratio_threshold', 1.0)
-        # OPEN->CLOSED, CLOSED->OPEN 각 단계 전환에 허용하는 최대 시간(초) -
-        # 이보다 오래 걸리면 의도치 않은 손 모양 변화로 보고 리셋
-        self.declare_parameter('phase_timeout_sec', 1.5)
-        # 진행 중이던 시퀀스가 있을 때, 손을 이 시간(초) 이상 못 찾으면 리셋
-        self.declare_parameter('stale_timeout_sec', 1.0)
-        # 트리거 발행 직후 이 시간(초) 동안은 새 시퀀스를 아예 시작하지 않음 -
-        # 손을 펴는 순간 자체가 다음 "OPEN 기준선"으로 잘못 인식되는 것 방지
-        self.declare_parameter('cooldown_sec', 2.0)
-
-        self.declare_parameter('publish_debug_overlay', True)
-        self.declare_parameter('debug_overlay_topic', 'person/gesture_debug_image/compressed')
-        # 임계값 튜닝용: ratio를 rqt_image_view 없이 터미널 로그로 바로 보고
-        # 싶을 때 켜는 옵션. throttle을 걸어서 스팸은 안 나되, 손을 폈다
-        # 쥐었다 하는 동안 값 변화를 눈으로 따라가기엔 충분한 주기로 찍음
-        self.declare_parameter('log_ratio', True)
-        self.declare_parameter('log_ratio_period_sec', 1.0)
+        # 기본값은 config/params.json에서 불러옴(_load_default_params 참고).
+        # 각 키의 의미:
+        #   wrist_roi_topic: pose_locator_node의 wrist_roi_topic 기본값과
+        #     일치해야 함
+        #   call_trigger_topic: pose_locator_node의 call_trigger_topic
+        #     기본값과 일치해야 함
+        #   min_detection_confidence: MediaPipe Hands 검출 최소 신뢰도 -
+        #     ROI 자체가 매 프레임 위치가 바뀌므로(사람이 움직임) tracking
+        #     모드보다 매 프레임 새로 검출하는 static_image_mode=True가
+        #     더 안정적
+        #   open_ratio_threshold / closed_ratio_threshold: openness ratio
+        #     히스테리시스 밴드 - compute_openness_ratio 주석 참고. 기본값은
+        #     경험적 값이라 실측(디버그 오버레이로 실제 ratio 로그 찍어서)
+        #     후 튜닝 필요할 수 있음
+        #   phase_timeout_sec: OPEN->CLOSED, CLOSED->OPEN 각 단계 전환에
+        #     허용하는 최대 시간(초) - 이보다 오래 걸리면 의도치 않은 손
+        #     모양 변화로 보고 리셋
+        #   stale_timeout_sec: 진행 중이던 시퀀스가 있을 때, 손을 이
+        #     시간(초) 이상 못 찾으면 리셋
+        #   cooldown_sec: 트리거 발행 직후 이 시간(초) 동안은 새 시퀀스를
+        #     아예 시작하지 않음 - 손을 펴는 순간 자체가 다음 "OPEN
+        #     기준선"으로 잘못 인식되는 것 방지
+        #   log_ratio / log_ratio_period_sec: 임계값 튜닝용 - ratio를
+        #     rqt_image_view 없이 터미널 로그로 바로 보고 싶을 때 켜는
+        #     옵션. throttle을 걸어서 스팸은 안 나되, 손을 폈다 쥐었다
+        #     하는 동안 값 변화를 눈으로 따라가기엔 충분한 주기로 찍음
+        default_params = _load_default_params()
+        for name, value in default_params.items():
+            self.declare_parameter(name, value)
 
         wrist_roi_topic = self.get_parameter('wrist_roi_topic').value  # 구독할 손목 ROI 토픽
         call_trigger_topic = self.get_parameter('call_trigger_topic').value  # 트리거 publish 토픽

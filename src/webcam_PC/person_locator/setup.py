@@ -13,7 +13,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),  # package.xml을 share 디렉터리로 설치
         (os.path.join('share', package_name, 'launch'), glob('launch/*.py')),  # launch 파일들 설치
-        (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),  # 호모그래피 등 설정 yaml 설치
+        (os.path.join('share', package_name, 'config'), glob('config/*.yaml') + glob('config/*.json')),  # 호모그래피 yaml + 파라미터 json 설치
         (os.path.join('share', package_name, 'models'), glob('models/*.pt')),  # YOLO-pose 가중치 파일 설치
     ],
     install_requires=['setuptools'],  # 런타임 파이썬 의존성

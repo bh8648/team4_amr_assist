@@ -1,0 +1,17 @@
+{
+  "wrist_roi_topic": "person/wrist_roi/compressed",
+  "call_trigger_topic": "person/call_trigger",
+
+  "min_detection_confidence": 0.5,
+
+  "open_ratio_threshold": 1.7,
+  "closed_ratio_threshold": 1.0,
+  "phase_timeout_sec": 1.5,
+  "stale_timeout_sec": 1.0,
+  "cooldown_sec": 2.0,
+
+  "publish_debug_overlay": true,
+  "debug_overlay_topic": "person/gesture_debug_image/compressed",
+  "log_ratio": true,
+  "log_ratio_period_sec": 1.0
+}
