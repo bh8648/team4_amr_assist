@@ -16,11 +16,19 @@ source install/setup.bash
 ## 사람 추적(amr_person_tracking) 의존성
 
 `robot.launch.py`는 기본적으로 `amr_person_tracking`(사람 검출·추적) 파이프라인도
-함께 띄운다. 이 패키지는 rosdep으로 안 잡히는 pip 의존성을 쓴다:
+함께 띄운다. 이 패키지는 rosdep으로 안 잡히는 pip 의존성을 쓰는데, 버전을 고정하지
+않으면 pip가 numpy/opencv-python의 최신 메이저 버전을 끌어와 ROS2 시스템 패키지와
+충돌할 수 있으므로 실제 하드웨어(OAK-D+라이다)로 검증된 조합을 명시해서 설치한다:
 
 ```bash
-pip install ultralytics opencv-python scipy numpy
+pip install "numpy>=2.0,<2.3" "scipy>=1.14,<1.16" "opencv-python>=4.10,<6" "ultralytics>=8.3,<9"
 ```
+
+CUDA를 쓰는 PC는 이 명령 전에 호스트 NVIDIA 드라이버에 맞는 PyTorch/torchvision
+휠을 먼저 설치해야 한다(ultralytics의 전이 의존성이라 이후 설치 시 자동으로 받아지긴
+하지만, CUDA 빌드를 쓰려면 순서를 지켜야 한다). 외형(ReID) 매칭을 켤 경우에만
+`onnxruntime>=1.20,<2`(GPU는 `onnxruntime-gpu>=1.20,<2`)를 추가로 설치한다 — 기본
+launch 설정은 ReID가 꺼져 있어 필수는 아니다.
 
 그리고 rosdep 대상 의존성(`depthai_ros_driver`, `irobot_create_msgs`)이 설치되어
 있어야 한다. YOLO pose 모델(`yolo11n-pose.pt`)과 ReID onnx 모델은 저장소에
