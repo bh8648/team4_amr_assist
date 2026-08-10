@@ -42,19 +42,35 @@ from person_locator.vision_utils import (
 PACKAGE_NAME = 'person_locator'
 
 
-def _load_default_params():
-    """config/params.json에서 파라미터 기본값을 불러온다.
+def _package_config_dir() -> Path:
+    """colcon build로 설치된 share 디렉터리의 config를 우선 찾고, 아직
 
-    colcon build로 설치된 share 디렉터리에서 우선 찾고, 아직 설치되지
-    않은 소스 트리에서 바로 실행하는 경우(예: IDE에서 직접 실행)에는
-    이 파일 기준 상대경로의 config/params.json으로 fallback한다.
+    설치되지 않은 소스 트리에서 바로 실행하는 경우(예: IDE에서 직접 실행)에는
+    이 파일 기준 상대경로의 config로 fallback한다.
     """
     try:
-        config_dir = Path(get_package_share_directory(PACKAGE_NAME)) / 'config'
+        return Path(get_package_share_directory(PACKAGE_NAME)) / 'config'
     except PackageNotFoundError:
-        config_dir = Path(__file__).resolve().parent.parent / 'config'
-    with open(config_dir / 'params.json', encoding='utf-8') as f:
+        return Path(__file__).resolve().parent.parent / 'config'
+
+
+def _load_default_params():
+    """config/params.json에서 파라미터 기본값을 불러온다."""
+    with open(_package_config_dir() / 'params.json', encoding='utf-8') as f:
         return json.load(f)
+
+
+def _resolve_config_relative_path(value: str) -> str:
+    """파라미터로 받은 경로가 상대경로면 package config 디렉터리 기준으로 풀어준다.
+
+    homography_yaml_path 기본값이 'config/xxx.yaml' 형태의 상대경로라서,
+    ros2 launch 없이 `ros2 run`으로 임의의 cwd에서 바로 실행하면 못 찾고
+    죽는 문제가 있었음 - 여기서 절대경로로 바꿔서 cwd에 안 흔들리게 함.
+    """
+    path = Path(value)
+    if path.is_absolute():
+        return str(path)
+    return str(_package_config_dir() / path.name)
 
 
 class PoseLocatorNode(Node):
@@ -117,7 +133,8 @@ class PoseLocatorNode(Node):
         self.conf_threshold = self.get_parameter('conf_threshold').value
         self.ankle_conf_threshold = self.get_parameter('ankle_conf_threshold').value
         self.tracker_cfg = self.get_parameter('tracker').value
-        homography_yaml_path = self.get_parameter('homography_yaml_path').value
+        homography_yaml_path = _resolve_config_relative_path(
+            self.get_parameter('homography_yaml_path').value)
         image_topic = self.get_parameter('image_topic').value  # 구독할 카메라 토픽
         target_topic = self.get_parameter('target_topic').value  # map 좌표 publish 토픽
         self.publish_overlay = self.get_parameter('publish_overlay').value

@@ -27,7 +27,7 @@ _DEFAULT_POSE_MODEL = os.path.join(
 # (기존 상대경로 'config/person_homography.yaml'는 워크스페이스 루트 등에서
 # 실행하면 못 찾아서 pose_locator_node가 바로 죽는 문제가 있었음)
 _DEFAULT_HOMOGRAPHY_YAML = os.path.join(
-    get_package_share_directory('person_locator'), 'config', 'person_homography.yaml'
+    get_package_share_directory('person_locator'), 'config', 'person_homography_cam1.yaml'
 )
 
 

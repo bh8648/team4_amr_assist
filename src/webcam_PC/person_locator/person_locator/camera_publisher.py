@@ -30,7 +30,7 @@ class CameraPublisher(Node):
 
         # --- 파라미터 (launch 파일이나 실행 시 override 가능,
         # 예: `ros2 run person_locator camera_publisher --ros-args -p device:=/dev/video2`) ---
-        self.declare_parameter('device', 2)          # cv2.VideoCapture 인덱스 또는 /dev/videoN 경로
+        self.declare_parameter('device', 0)          # cv2.VideoCapture 인덱스 또는 /dev/videoN 경로
         self.declare_parameter('capture_width', 640)  # 요청할 프레임 가로 크기
         self.declare_parameter('capture_height', 480)  # 요청할 프레임 세로 크기
         self.declare_parameter('fps', 15.0)            # 프레임을 얼마나 자주 잡아서 publish할지

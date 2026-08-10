@@ -3,7 +3,7 @@
   "conf_threshold": 0.5,
   "ankle_conf_threshold": 0.5,
   "tracker": "bytetrack.yaml",
-  "homography_yaml_path": "config/person_homography.yaml",
+  "homography_yaml_path": "config/person_homography_cam1.yaml",
   "image_topic": "camera/image_raw/compressed",
   "target_topic": "person/position",
   "publish_overlay": true,
