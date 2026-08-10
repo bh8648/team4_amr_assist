@@ -5,7 +5,9 @@ from typing import Dict, Optional, Set, Tuple
 
 import rclpy
 from action_msgs.msg import GoalStatus
+from builtin_interfaces.msg import Duration
 from geometry_msgs.msg import PoseStamped
+from irobot_create_msgs.msg import AudioNote, AudioNoteVector
 from nav2_msgs.action import NavigateToPose
 from rclpy.action import ActionClient
 from rclpy.node import Node
@@ -53,6 +55,8 @@ class TaskManagerNode(Node):
         self.tasks: Dict[str, ManagedTask] = {}
         self.idle_paused: Set[str] = set()
         self.destinations = {}
+        self.worker_wearing_hardhat: Optional[bool] = None  # hardhat_detector_node가 판별하기 전까지는 None
+        self.hardhat_alert_timer = None  # 미착용 경고음 반복 타이머 - 착용 확인되면 취소
 
         # --------------------------------subscription---------------------------------------------------------------
         self.assignment_sub = self.create_subscription(RobotAssignment, '/robot_assignment', self.assignment_callback, 10)  # 할당된 로봇 및 작업자 위치 받아옴
@@ -66,12 +70,16 @@ class TaskManagerNode(Node):
             durability=DurabilityPolicy.TRANSIENT_LOCAL)
         self.destination_sub = self.create_subscription(
             DestinationList, '/destinations', self.destination_callback, destination_qos)
+        # webcam_PC/hardhat_detector 패키지가 판별한 작업자 하이바 착용 여부 (person_locator/hardhat_detector 연동)
+        self.hardhat_status_sub = self.create_subscription(
+            Bool, '/person/hardhat_status', self.hardhat_status_callback, 10)
 
         # --------------------------------publisher---------------------------------------------------------------
         self.state_pub = self.create_publisher(TaskState, '/task/state', 10)
         self.error_pub = self.create_publisher(RobotError, '/robot_error', 10)
         self.stop_publishers = {robot_id: self.create_publisher(Bool, f'/{robot_id}/pause/request', 10) for robot_id in self.VALID_ROBOTS}
         self.dock_publishers = {robot_id: self.create_publisher(Bool, f'/{robot_id}/dock/request', 10) for robot_id in self.VALID_ROBOTS}
+        self.audio_publishers = {robot_id: self.create_publisher(AudioNoteVector, f'/{robot_id}/cmd_audio', 10) for robot_id in self.VALID_ROBOTS}
 
         # --------------------------------Action_client---------------------------------------------------------------
         self.nav_clients = {robot_id: ActionClient(self, NavigateToPose, f'/{robot_id}/navigate_to_pose') for robot_id in self.VALID_ROBOTS}
@@ -189,6 +197,37 @@ class TaskManagerNode(Node):
     def transition(self, task: ManagedTask, new_state: str, detail: str) -> None:   # 상태 전환
         task.previous_state, task.state = task.state, new_state
         self.publish_state(task, detail)
+
+    def hardhat_status_callback(self, msg: Bool) -> None:
+        self.worker_wearing_hardhat = msg.data
+        self.get_logger().info(f'하이바 착용 상태 갱신: {"착용" if msg.data else "미착용"}')
+        if msg.data:
+            # 착용 확인되면 돌고 있던 반복 경고음을 멈춘다
+            if self.hardhat_alert_timer is not None:
+                self.destroy_timer(self.hardhat_alert_timer)
+                self.hardhat_alert_timer = None
+        elif self.hardhat_alert_timer is None:
+            # 미착용으로 바뀌었고 아직 경고음이 안 돌고 있으면 즉시 한 번 울리고,
+            # 착용이 확인될 때까지 5초 간격으로 반복한다
+            self.play_hardhat_alert()
+            self.hardhat_alert_timer = self.create_timer(5.0, self.play_hardhat_alert)
+
+    def play_hardhat_alert(self) -> None:
+        """작업자를 따라가는 중인 로봇에 '삐뽀삐뽀' 경고음(AudioNoteVector)을 publish한다."""
+        msg = AudioNoteVector()
+        msg.append = True  # 연속 재생 및 명령 씹힘 방지
+        note_duration = Duration(sec=0, nanosec=300000000)  # 0.3초
+        for freq in (880.0, 440.0, 880.0, 440.0):  # 삐-뽀-삐-뽀
+            note = AudioNote()
+            note.frequency = int(freq)
+            note.max_runtime = note_duration
+            msg.notes.append(note)
+        # hardhat_status는 특정 로봇을 지칭하지 않으므로, 지금 작업자를 따라가거나
+        # 배송 중인(=근처에 있을) 로봇에만 울린다
+        for robot_id, task in self.tasks.items():
+            if task.state in ('FOLLOWING', 'TRANSPORTING'):
+                self.audio_publishers[robot_id].publish(msg)
+                self.get_logger().info(f'{robot_id}: 하이바 미착용 경고음("삐뽀삐뽀") 재생')
 
     def destination_callback(self, msg: DestinationList) -> None:
         """중앙 DB에서 검증되어 배포된 목적지 ID와 map 좌표를 캐시한다."""
