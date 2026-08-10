@@ -76,13 +76,14 @@ import math
 import array
 
 from vision_msgs.msg import Detection3D, Detection3DArray, ObjectHypothesis, ObjectHypothesisWithPose
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PointStamped, PoseStamped
 from sensor_msgs.msg import Image
 
 from amr_person_tracking.predictive_utils import ConstantVelocityKalman2D
 from amr_person_tracking.tracking_utils import (
     Track,
     assign_tracks,
+    resolve_call_designation,
     sec_to_stamp,
     cosine_similarity,
     distance,
@@ -145,6 +146,24 @@ class ReidTrackingNode(Node):
         # 한 번 정해진 추종 대상이 사라져도 다른 사람으로 갈아타지 않는다(갤러리에서 돌아오길
         # 기다린다). 기다리는 동안 target_person_pose는 발행되지 않는다 - 엉뚱한 사람을
         # 따라가게 하는 것보다 안전하다. dormant_ttl이 상한 역할을 한다.
+        # [웹캠 호출좌표 기반 추종 대상 지정]
+        # 외부 웹캠이 "이 사람이 불렀다"고 알려준 map 좌표. webcam_person_bridge_node가
+        # 자기 로봇 네임스페이스로 중계해 준 것을 구독한다(전역 /person/call_position을
+        # 직접 구독하면 제스처 한 번에 모든 로봇이 동시에 재지정된다).
+        # 상대 토픽(브리지의 call_output_topic과 같은 규칙) - 네임스페이스 아래로 해석된다.
+        self.declare_parameter('call_position_topic', 'vision/webcam/call_position')
+        # 호출 좌표에서 이 반경 안의 트랙 중 가장 가까운 사람을 추종 대상으로 삼는다.
+        # 호모그래피 오차와, 제스처 시점부터 로봇이 도착할 때까지 호출자가 움직인 거리를
+        # 함께 흡수해야 하므로 넉넉히 잡는다. 실측 인접 간격(0.63m)은 반경을 좁힐 근거가
+        # 아니다 - 반경 안에서 **가장 가까운** 트랙을 고르는 것이 실제 판별 기준이다.
+        self.declare_parameter('call_designation_radius', 2.0)
+        # 이 시간이 지나도록 반경 안에 아무도 안 나타나면 호출을 포기하고 기존 정책으로
+        # 돌아간다. 없으면 오래된 호출이 영원히 재선정을 막는다(dormant_ttl과 같은 역할).
+        self.declare_parameter('call_ttl', 30.0)
+        # 호출이 현재 추종 대상과 sticky 대기를 선점할지. 사람이 명시적으로 부른 것이므로
+        # 기본은 선점이다 - 갤러리에서 기다리던 신원 때문에 "이리 와"를 무시하는 쪽이
+        # 더 나쁜 오류다.
+        self.declare_parameter('call_overrides_follow', True)
         self.declare_parameter('sticky_follow', True)
         # sticky_follow가 기다리는 동안, 살아있는 트랙이 **정확히 하나뿐이면** 그 사람을 대상으로
         # 삼는다. 임베딩이 꺼져 있으면(기본) 갤러리 복원은 위치 근접만 보는데, "사라진 자리
@@ -250,6 +269,10 @@ class ReidTrackingNode(Node):
         self.dormant_ttl = self.get_parameter('dormant_ttl').value
         self.revival_similarity = self.get_parameter('revival_similarity').value
         self.sticky_follow = self.get_parameter('sticky_follow').value
+        self.call_designation_radius = self.get_parameter('call_designation_radius').value
+        self.call_ttl = self.get_parameter('call_ttl').value
+        self.call_overrides_follow = self.get_parameter('call_overrides_follow').value
+        self.pending_call = None      # (x, y, stamp) - 아직 사람을 못 찾은 호출
         self.sticky_follow_adopt_when_alone = self.get_parameter(
             'sticky_follow_adopt_when_alone').value
         self.log_track_lifecycle = self.get_parameter('log_track_lifecycle').value
@@ -272,6 +295,9 @@ class ReidTrackingNode(Node):
         self.reid_sub = self.create_subscription(
             Image, self.get_parameter('reid_embeddings_topic').value,
             self.embeddings_callback, qos_profile_sensor_data)
+        self.create_subscription(
+            PointStamped, self.get_parameter('call_position_topic').value,
+            self.call_position_callback, 10)
         self.webcam_sub = self.create_subscription(
             Detection3DArray, webcam_topic, self.webcam_detections_callback, 10)
         self.leg_sub = self.create_subscription(
@@ -499,7 +525,7 @@ class ReidTrackingNode(Node):
             self.last_independent_update[track_id] = (x, y, stamp)
 
         self._prune_tracks(stamp_to_sec(msg.header.stamp))
-        self._maybe_select_followed_track()
+        self._maybe_select_followed_track(stamp_to_sec(msg.header.stamp))
         self.publish_tracked(msg.header)
         self.publish_target_pose(msg.header)
 
@@ -630,7 +656,31 @@ class ReidTrackingNode(Node):
             f'[lifecycle] 생성 track {track_id} @({x:.2f},{y:.2f}) 출처={source} '
             f'상류id={det_id!r}(기존매핑 {len(seen)}건) / {near_txt} / {gal_txt}{batch_txt}')
 
-    def _maybe_select_followed_track(self):
+    def call_position_callback(self, msg: PointStamped):
+        """웹캠 호출 좌표를 받아 추종 대상 지정을 예약한다.
+
+        브리지가 이미 프레임을 맞춰 보내지만 여기서 한 번 더 검증한다 - 이벤트 토픽이라
+        로그가 넘칠 일이 없고, 프레임이 어긋난 지정 좌표는 **엉뚱한 사람**을 고르게 만드는
+        조용한 실패라 값이 싸다.
+        """
+        if msg.header.frame_id != self.map_frame:
+            self.get_logger().warn(
+                f'호출 좌표 프레임이 {msg.header.frame_id or "(빈값)"} - '
+                f'{self.map_frame}가 아니라 무시한다')
+            return
+        stamp = stamp_to_sec(msg.header.stamp)
+        self.pending_call = (msg.point.x, msg.point.y, stamp)
+        self.get_logger().info(
+            f'호출 좌표 수신: ({self.pending_call[0]:.2f}, {self.pending_call[1]:.2f}) '
+            f'- 반경 {self.call_designation_radius:.1f}m 안에서 추종 대상을 고른다')
+        if self.call_overrides_follow:
+            # 사람이 명시적으로 지정했으므로 갤러리에서 기다리던 신원은 포기한다.
+            self.dormant_followed_id = None
+            self.followed_track_id = None
+        self._maybe_select_followed_track(stamp)
+        self.publish_target_pose(msg.header)
+
+    def _maybe_select_followed_track(self, now=None):
         """추종 대상 선정 정책. 실제 대상 지정(제스처/호출좌표 등)은 아직 이 패키지 범위 밖이라
         초기 획득은 "가장 먼저 잡힌(가장 오래된) 트랙"이라는 단순한 기본값을 쓴다.
 
@@ -645,6 +695,28 @@ class ReidTrackingNode(Node):
         따라가게 하는 것보다 안전하다. 무한정 기다리지 않도록 dormant_ttl이 지나 갤러리에서
         만료되면(_prune_tracks) dormant_followed_id가 풀려 아래 재선정이 다시 동작한다.
         """
+        # [우선순위] 호출 지정 > sticky 대기 > 가장 오래된 트랙.
+        # 호출 지정을 맨 위에 두는 이유: 로봇이 호출 좌표로 이동하는 동안 기존 정책이
+        # 지나가던 사람을 잡아두면, 도착해서 추종을 시작할 때 엉뚱한 사람을 따라간다.
+        if self.pending_call is not None and now is not None:
+            action, tid = resolve_call_designation(
+                self.tracks, self.pending_call, now,
+                self.call_designation_radius, self.call_ttl)
+            if action == 'designate':
+                self.followed_track_id = tid
+                self.pending_call = None
+                self.dormant_followed_id = None
+                self._reset_leg_lock()
+                self.get_logger().info(f'호출 좌표로 추종 대상 지정: track {tid}')
+                return
+            if action == 'wait':
+                # 아직 호출자를 못 찾았다. 여기서 반환해야 아래 폴백이 다른 사람을
+                # 붙잡지 않는다.
+                return
+            self.pending_call = None
+            self.get_logger().warn(
+                f'호출 좌표 만료({self.call_ttl:.0f}s) - 기존 선정 정책으로 돌아간다')
+
         if self.followed_track_id is not None and self.followed_track_id in self.tracks:
             return
         if self.sticky_follow and self.dormant_followed_id is not None:

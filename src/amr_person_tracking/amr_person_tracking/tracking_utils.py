@@ -167,6 +167,39 @@ def cosine_similarity(a, b):
     return dot / (na * nb)
 
 
+def resolve_call_designation(tracks, call, now, radius, ttl):
+    """웹캠 호출 좌표로 추종 대상을 정한다. 순수 함수라 단위테스트로 고정한다.
+
+    반환: ('designate', track_id) | ('wait', None) | ('expire', None)
+
+    호출 좌표는 "이 사람을 따라와라"는 사람의 명시적 지정이다. 로봇이 그 좌표까지
+    이동하는 데 수 초가 걸리므로, 도착 시점에 그 근처에서 가장 가까운 트랙을 고른다.
+
+    후보가 없으면 'designate'가 아니라 **'wait'**를 돌려주는 것이 핵심이다. 호출자가
+    아직 카메라에 안 잡혔는데 기존 정책(가장 먼저 생긴 트랙)으로 폴백하면, 이동하는
+    동안 지나가던 사람을 붙잡고 도착해서는 엉뚱한 사람을 따라가게 된다.
+
+    radius <= 0 이면 거리 제한 없음(가장 가까운 트랙을 무조건 채택), ttl <= 0 이면
+    만료 없음 - 이 패키지의 다른 파라미터와 같은 규약이다. 다만 둘 다 끄는 것은
+    권장하지 않는다: 만료가 없으면 오래된 호출이 영원히 재선정을 막는다.
+    """
+    if call is None:
+        return ('wait', None)
+    cx, cy, call_stamp = call
+    if ttl > 0.0 and now - call_stamp > ttl:
+        return ('expire', None)
+    best_id, best_d = None, None
+    for tid, tr in tracks.items():
+        d = distance(tr.x, tr.y, cx, cy)
+        if radius > 0.0 and d > radius:
+            continue
+        if best_d is None or d < best_d:
+            best_id, best_d = tid, d
+    if best_id is None:
+        return ('wait', None)
+    return ('designate', best_id)
+
+
 def gate_radius(dt, gating_max_speed, min_gate):
     """dt초 동안 gating_max_speed(m/s)로 이동 가능한 최대 거리. dt가 아주 작을 때(같은 순간에
     가까운 두 출처가 들어오는 경우 등) 게이트가 0에 가까워지지 않도록 최소값을 보장한다."""

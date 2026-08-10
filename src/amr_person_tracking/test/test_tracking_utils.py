@@ -13,6 +13,7 @@ from amr_person_tracking.tracking_utils import (
     assign_tracks,
     cosine_similarity,
     match_track,
+    resolve_call_designation,
 )
 
 
@@ -246,3 +247,40 @@ def test_gating_still_rejects_beyond_radius():
     assigned = assign_tracks(tracks, [(3.0, 0.0)], 100.1,
                              gating_max_speed=2.0, min_gate=0.3)
     assert assigned == [None]
+
+
+def _tracks_at(*pts):
+    return {i + 1: Track(i + 1, x, y, 100.0, source='oakd') for i, (x, y) in enumerate(pts)}
+
+
+def test_resolve_call_designation_picks_nearest_within_radius():
+    """호출 좌표 근처에 여럿 있으면 가장 가까운 사람을 고른다."""
+    tracks = _tracks_at((0.0, 0.0), (1.9, 0.0), (2.4, 0.0))
+    action, tid = resolve_call_designation(
+        tracks, call=(2.0, 0.0, 100.0), now=100.5, radius=2.0, ttl=30.0)
+    assert (action, tid) == ('designate', 2)
+
+
+def test_resolve_call_designation_waits_when_no_track_in_radius():
+    """호출자가 아직 안 잡혔으면 'wait' - 여기서 폴백하면 엉뚱한 사람을 붙잡는다."""
+    tracks = _tracks_at((10.0, 0.0))
+    assert resolve_call_designation(
+        tracks, call=(0.0, 0.0, 100.0), now=100.5, radius=2.0, ttl=30.0) == ('wait', None)
+    # 트랙이 아예 없을 때도 마찬가지
+    assert resolve_call_designation(
+        {}, call=(0.0, 0.0, 100.0), now=100.5, radius=2.0, ttl=30.0) == ('wait', None)
+
+
+def test_resolve_call_designation_expires_after_ttl():
+    """무한정 기다리면 아무도 못 따라간다 - ttl이 지나면 기존 정책으로 돌아가야 한다."""
+    tracks = _tracks_at((0.0, 0.0))
+    assert resolve_call_designation(
+        tracks, call=(0.0, 0.0, 100.0), now=131.0, radius=2.0, ttl=30.0) == ('expire', None)
+    # ttl <= 0 이면 만료 없음 (이 패키지의 다른 파라미터와 같은 규약)
+    action, _ = resolve_call_designation(
+        tracks, call=(0.0, 0.0, 100.0), now=9999.0, radius=2.0, ttl=0.0)
+    assert action == 'designate'
+
+
+def test_resolve_call_designation_no_call_is_wait():
+    assert resolve_call_designation({}, None, 100.0, 2.0, 30.0) == ('wait', None)

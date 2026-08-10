@@ -50,7 +50,13 @@ def generate_launch_description():
         # 없는 입력이라 debug_viewer_node 대신 RViz Marker로 확인한다
         DeclareLaunchArgument('publish_markers', default_value='true'),
         # 웹캠 로컬라이제이션 노드가 발행하는 원거리 검출 스트림 (외부 패키지, 이 워크스페이스 밖)
-        DeclareLaunchArgument('webcam_detections_topic', default_value='/vision/webcam/detections_3d'),
+        # 로봇별 토픽으로 둔다. 전역으로 두면 로봇 2대를 띄웠을 때 mock 발행자 둘이 같은
+        # 토픽에 쏘고 양쪽 reid가 서로의 것까지 받는다. 실제 웹캠 스트림이 붙을 때도
+        # 로봇별 브리지가 변환해 내보내는 구조라 네임스페이스가 맞다.
+        DeclareLaunchArgument(
+            'webcam_detections_topic',
+            default_value=PathJoinSubstitution(
+                ['/', LaunchConfiguration('namespace'), 'vision/webcam/detections_3d'])),
         # LiDAR 드라이버가 발행하는 원본 스캔. leg_detector_bridge_node가 이 토픽을 직접 구독해
         # 다리쌍을 검출한다 (ros2_leg_detector 등 외부 패키지 불필요 - 노드 docstring 참고)
         DeclareLaunchArgument(
@@ -69,6 +75,14 @@ def generate_launch_description():
         DeclareLaunchArgument('log_follow_overlay_misses', default_value='false'),
         # map 좌표가 이 거리 안에서 겹치는 검출은 한 사람으로 보고 하나만 남긴다. 0이면 끈다.
         DeclareLaunchArgument('duplicate_merge_distance', default_value='0.25'),
+        # 외부 웹캠(person_locator, 별도 PC)의 호출 좌표. 현장에 하나뿐인 전역 토픽이다.
+        DeclareLaunchArgument('call_input_topic', default_value='/person/call_position'),
+        DeclareLaunchArgument('call_designation_radius', default_value='2.0'),
+        DeclareLaunchArgument('call_ttl', default_value='30.0'),
+        # 웹캠 브리지 기동 여부. 웹캠 PC가 없으면 꺼둬도 나머지는 그대로 동작한다.
+        DeclareLaunchArgument('enable_webcam_bridge', default_value='true'),
+        # 예측 회피 이동 벡터 마커(rviz2). 회피 동작과 무관한 부가 발행이라 기본 꺼짐.
+        DeclareLaunchArgument('publish_motion_markers', default_value='false'),
         # 전역 좌표계. 각 노드가 tf2 조회/출력 frame_id에 사용한다. AMCL/nav2가 없는 로스백
         # 재생 테스트에서는 map 프레임이 존재하지 않으므로 odom으로 넘겨야 tf lookup이 성공한다.
         DeclareLaunchArgument('map_frame', default_value='map'),
@@ -121,6 +135,10 @@ def generate_launch_description():
     # 서로 연결되지만 다중 로봇에선 로봇 간 임베딩이 섞이고, 디버그 FOLLOWING 표시가
     # 다른 로봇의 추종 대상을 그린다.
     embeddings_topic = PathJoinSubstitution(['/', namespace, 'vision/detection_embeddings'])
+    motion_marker_topic = PathJoinSubstitution(['/', namespace, 'vision/motion_vector_markers'])
+    # 전역 /person/call_position을 로봇별 토픽으로 중계한 결과. reid는 이쪽만 구독한다 -
+    # 전역을 직접 구독하면 제스처 한 번에 모든 로봇이 동시에 재지정된다.
+    call_position_topic = PathJoinSubstitution(['/', namespace, 'vision/webcam/call_position'])
     leg_marker_topic = PathJoinSubstitution(['/', namespace, 'vision/leg_detections/markers'])
     depth_view_topic = PathJoinSubstitution(['/', namespace, 'oakd/stereo/depth_view/compressed'])
 
@@ -134,6 +152,7 @@ def generate_launch_description():
 
     oakd_detector = Node(
         package='amr_person_tracking',
+        namespace=namespace,
         executable='oakd_detector_node',
         name='oakd_detector_node',
         output='screen',
@@ -165,13 +184,16 @@ def generate_launch_description():
     # 디스플레이가 있는 세션에서 launch를 실행해야 한다 (SSH라면 -X/-Y 필요).
     debug_viewer = Node(
         package='amr_person_tracking',
+        namespace=namespace,
         executable='debug_viewer_node',
         name='oakd_detector_debug_viewer',
         output='screen',
         condition=IfCondition(LaunchConfiguration('publish_debug_image')),
         parameters=[{
             'image_topic': debug_image_topic,
-            'window_name': 'oakd_detector debug',
+            # 창 이름에 네임스페이스를 넣는다 - cv2는 이름이 같으면 같은 창이라,
+            # 로봇 2대를 한 데스크톱에서 띄우면 서로 상대 화면을 덮어쓴다.
+            'window_name': PathJoinSubstitution([namespace, 'oakd debug']),
             'window_width': LaunchConfiguration('debug_window_width'),
             'window_height': LaunchConfiguration('debug_window_height'),
         }],
@@ -181,6 +203,7 @@ def generate_launch_description():
     # 특수 처리 없이 볼 수 있게 depth를 컬러맵 입힌 평범한 jpeg로 재발행한다.
     depth_view_republisher = Node(
         package='amr_person_tracking',
+        namespace=namespace,
         executable='depth_view_republisher_node',
         name='depth_view_republisher_node',
         output='screen',
@@ -193,6 +216,7 @@ def generate_launch_description():
 
     leg_detector_bridge = Node(
         package='amr_person_tracking',
+        namespace=namespace,
         executable='leg_detector_bridge_node',
         name='leg_detector_bridge_node',
         output='screen',
@@ -223,6 +247,7 @@ def generate_launch_description():
     # 스트림이 없어, 라이다 다리검출 출력에 노이즈+지연을 더해 "독립 출처"처럼 재발행한다.
     mock_webcam_publisher = Node(
         package='amr_person_tracking',
+        namespace=namespace,
         executable='mock_webcam_publisher_node',
         name='mock_webcam_publisher_node',
         output='screen',
@@ -236,6 +261,7 @@ def generate_launch_description():
 
     reid_tracking = Node(
         package='amr_person_tracking',
+        namespace=namespace,
         executable='reid_tracking_node',
         name='reid_tracking_node',
         output='screen',
@@ -247,12 +273,16 @@ def generate_launch_description():
             'target_pose_topic': target_pose_topic,
             'reid_embeddings_topic': embeddings_topic,
             'log_track_lifecycle': LaunchConfiguration('log_track_lifecycle'),
+            'call_position_topic': call_position_topic,
+            'call_designation_radius': LaunchConfiguration('call_designation_radius'),
+            'call_ttl': LaunchConfiguration('call_ttl'),
             'map_frame': LaunchConfiguration('map_frame'),
         }],
     )
 
     predictive_avoidance = Node(
         package='amr_person_tracking',
+        namespace=namespace,
         executable='predictive_avoidance_node',
         name='predictive_avoidance_node',
         output='screen',
@@ -265,10 +295,31 @@ def generate_launch_description():
             'predicted_points_topic': predicted_points_topic,
             'local_costmap_param_service': costmap_param_service,
             'avoidance_mode': LaunchConfiguration('avoidance_mode'),
+            'publish_markers': LaunchConfiguration('publish_motion_markers'),
+            'markers_topic': motion_marker_topic,
             'map_frame': LaunchConfiguration('map_frame'),
+        }],
+    )
+
+    # 외부 웹캠의 전역 호출 좌표를 이 로봇의 좌표계/클럭/네임스페이스로 중계한다.
+    # tf remap이 필요하므로(터틀봇4는 tf를 <ns>/tf로 발행) reid가 아니라 여기서 처리한다.
+    webcam_person_bridge = Node(
+        package='amr_person_tracking',
+        namespace=namespace,
+        executable='webcam_person_bridge_node',
+        name='webcam_person_bridge_node',
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('enable_webcam_bridge')),
+        remappings=tf_remappings,
+        parameters=[{
+            'call_input_topic': LaunchConfiguration('call_input_topic'),
+            'call_output_topic': call_position_topic,
+            'output_frame': LaunchConfiguration('map_frame'),
+            'tf_allow_latest_fallback': LaunchConfiguration('tf_allow_latest_fallback'),
         }],
     )
 
     return LaunchDescription(
         args + [oakd_detector, debug_viewer, depth_view_republisher, leg_detector_bridge,
-                mock_webcam_publisher, reid_tracking, predictive_avoidance])
+                mock_webcam_publisher, reid_tracking, predictive_avoidance,
+                webcam_person_bridge])

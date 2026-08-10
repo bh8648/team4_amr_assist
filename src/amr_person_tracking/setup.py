@@ -37,6 +37,7 @@ setup(
             'predictive_avoidance_node = amr_person_tracking.predictive_avoidance_node:main',
             'depth_view_republisher_node = amr_person_tracking.depth_view_republisher_node:main',
             'mock_webcam_publisher_node = amr_person_tracking.mock_webcam_publisher_node:main',
+            'webcam_person_bridge_node = amr_person_tracking.webcam_person_bridge_node:main',
         ],
     },
 )
