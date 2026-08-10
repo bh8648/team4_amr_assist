@@ -28,6 +28,7 @@ class ManagedTask:  # 로봇의 정보를 모델 클래스
     nav_generation: int = 0
     goal_pending: bool = False
     goal_completed: bool = False
+    awaiting_undock: bool = False
     canceled: bool = False  # ROS 상태 문자열과 별도로 취소된 작업의 수동 복구 권한을 보존한다.
     destination_id: str = ''  # HMI가 선택한 중앙 목적지 설정 ID를 상태와 DB에 전달한다.
 
@@ -96,10 +97,15 @@ class TaskManagerNode(Node):
             return
         
         task_id = f'TASK_{msg.assigned_at.sec}_{msg.assigned_at.nanosec}'
-        task = ManagedTask(task_id=task_id, robot_id=robot_id, state='ASSIGNED', goal_type='TO_WORKER', target=(float(msg.target_x), float(msg.target_y), 0.0))
+        task = ManagedTask(
+            task_id=task_id, robot_id=robot_id, state='ASSIGNED',
+            goal_type='TO_WORKER', target=(float(msg.target_x), float(msg.target_y), 0.0),
+            awaiting_undock=True)
         self.tasks[robot_id] = task
-        self.publish_state(task, 'AMR 배정 완료')
-        self.send_navigation_goal(task)
+        # 첫 좌표로 이동하기 전에 Create3의 실제 Undock 성공을 확인한다.
+        # 브릿지는 False 요청을 Undock 액션으로 변환하고 /navigation/result로 결과를 회신한다.
+        self.publish_state(task, 'AMR 배정 완료, 출발 전 언도킹 요청')
+        self.dock_publishers[robot_id].publish(Bool(data=False))
 
     def command_callback(self, msg: TaskCommand) -> None:
         robot_id = self.normalize_robot_id(msg.robot_id)
@@ -315,8 +321,20 @@ class TaskManagerNode(Node):
                 task.goal_completed = True
                 self.transition(task, 'DOCKED', '실제 도킹 액션 성공')
             return
-        # 수동 Undock 성공은 작업 상태를 바꾸지 않으며 HMI 도킹 상태만 갱신한다.
         if msg.goal_type == 'UNDOCK':
+            # 작업 배정과 무관한 수동 Undock 결과는 기존처럼 작업 상태에 반영하지 않는다.
+            if not task.awaiting_undock:
+                return
+            task.awaiting_undock = False
+            if not msg.success:
+                if task.state != 'ERROR':
+                    self.transition(task, 'ERROR', msg.error_code or 'UNDOCK_FAILED')
+                return
+            # Undock 대기 중 일시정지/오류가 발생했으면 즉시 주행하지 않는다.
+            # PAUSED는 재개 시 기존 resume_task 경로에서 goal을 전송한다.
+            if task.state == 'ASSIGNED':
+                self.publish_state(task, '언도킹 완료, 작업자 위치로 이동')
+                self.send_navigation_goal(task)
             return
         if msg.goal_type != task.goal_type:
             return
@@ -343,7 +361,10 @@ class TaskManagerNode(Node):
 
     def retry_navigation_goals(self) -> None:
         for task in self.tasks.values():
-            if task.state in ('ASSIGNED', 'TRANSPORTING', 'RETURNING') and task.target and not task.goal_completed and task.goal_handle is None and not task.goal_pending:
+            if (task.state in ('ASSIGNED', 'TRANSPORTING', 'RETURNING')
+                    and task.target and not task.awaiting_undock
+                    and not task.goal_completed and task.goal_handle is None
+                    and not task.goal_pending):
                 self.send_navigation_goal(task)
 
     def deadlock_callback(self, msg: DeadlockPermission) -> None:

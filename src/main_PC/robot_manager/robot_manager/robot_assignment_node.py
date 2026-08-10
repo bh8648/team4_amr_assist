@@ -407,7 +407,7 @@ class RobotAssignmentNode(Node):
 
     def goal_callback(self, goal: PointStamped) -> None:
         """새 작업자 호출 위치를 받아 AMR 배정을 시도한다."""
-
+        
         # 새로 수신한 Goal의 목표 좌표를 비교와 로그 출력에 사용할 수 있도록 변환한다.
         target_x = float(goal.point.x)
         target_y = float(goal.point.y)
