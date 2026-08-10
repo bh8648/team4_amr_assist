@@ -20,7 +20,6 @@ setup(
     maintainer_email='user@todo.todo',
     description='Robot DB Manager and Dummy Publisher Node Package',
     license='Apache-2.0',
-    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'db_manager_node = robot_manager.db_manager_node:main',
@@ -30,9 +29,6 @@ setup(
             'deadlock_prevention_node = robot_manager.deadlock_prevention_node:main',
             # 중앙 DB의 목적지 설정을 로봇별 HMI와 Task Manager에 배포한다.
             'destination_manager_node = robot_manager.destination_manager_node:main',
-            'test_node = robot_manager.test_node:main',
-            'dummy_publisher = robot_manager.dummy_status_publisher:main',
-            'webcam_pc_cli = robot_manager.webcam_pc_cli:main',
         ],
     },
 )

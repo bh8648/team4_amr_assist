@@ -3,6 +3,8 @@ install/
 log/
 __pycache__/
 *.pyc
+**/node_modules/
+**/dist/
 
 # Local editor caches (browse.vc.db can grow to multiple GB)
 /.vscode/

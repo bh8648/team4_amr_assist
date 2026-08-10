@@ -562,8 +562,11 @@ def main(args=None):
     except KeyboardInterrupt:
         pass
     finally:
+        # spin 중인 노드를 먼저 destroy하면 종료 중 executor 예외가 날 수 있다.
+        if rclpy.ok():
+            rclpy.shutdown()
+        spin_thread.join(timeout=2.0)
         ros_node.destroy_node()
-        rclpy.shutdown()
 
 
 if __name__ == '__main__':

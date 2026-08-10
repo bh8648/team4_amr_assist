@@ -165,7 +165,7 @@ class TaskManagerNode(Node):
             task.goal_completed = False
             self.transition(task, 'RETURNING', '배송 확인 완료')
             self.send_navigation_goal(task, replace=True)
-        elif command == 'RETURN_TO_DOCK' and task.state in ('ASSIGNED', 'FOLLOWING', 'TRANSPORTING'):
+        elif command == 'RETURN_TO_DOCK' and task.state in ('ASSIGNED', 'FOLLOWING', 'TRANSPORTING', 'PAUSED'):
             # 정상 HMI 도킹은 수동 DOCK과 달리 dock pose까지 자율 복귀한 뒤 실제 Dock 액션을 수행한다.
             task.pause_reason = ''
             self.stop_publishers[robot_id].publish(Bool(data=False))
