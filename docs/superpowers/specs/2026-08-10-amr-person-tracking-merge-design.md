@@ -129,6 +129,31 @@ main의 `src/robot_PC/robot_bridge/robot_bridge/robot_bridge_node.py`는 이미 
 기존 `robot_bridge_node.py`/`test_robot_bridge_node.py`는 무수정이므로 회귀 테스트는
 그대로 통과해야 한다 (변경 없음 확인 차원).
 
+### 검증 범위 — 에이전트가 할 수 있는 것 / 사용자 하드웨어가 필요한 것
+
+이 저장소에는 카메라·라이다·실물 로봇이 물려 있지 않다. 위 5개 단위테스트는
+`test_robot_bridge_node.py`와 동일하게 `rclpy.init()` 후 콜백을 직접 호출하는
+방식이라 하드웨어 없이 에이전트가 작성·실행·검증까지 끝낼 수 있다. 반면
+`amr_person_tracking`의 4개 핵심 노드(`oakd_detector_node`,
+`leg_detector_bridge_node`, `reid_tracking_node`, `predictive_avoidance_node`)는
+원본 브랜치에도 노드 자체를 띄우는 자동화 테스트가 없고(유틸 함수 테스트만 있음),
+카메라/라이다 실측 데이터로만 파라미터가 맞춰져 있다 — **이 부분은 에이전트가 혼자
+검증할 방법이 없고, 반드시 사용자가 실물 로봇에서 확인해야 한다.**
+
+| 항목 | 에이전트 단독 가능 | 사용자 필요 이유 |
+|---|---|---|
+| `worker_tracking_bridge_node` 5개 단위테스트 | ✅ | - |
+| launch 파일 문법(`GroupAction`/`SetRemap`/`IncludeLaunchDescription`) | ✅ (import·구성 실행 확인 가능) | - |
+| `amr_person_tracking` 패키지 colcon build | ✅ (이 환경에 ultralytics/opencv/torch 설치돼 있어 빌드 자체는 가능) | - |
+| `depthai_ros_driver`, 실제 OAK-D 스트림 | ❌ | 이 PC에 카메라가 없고 해당 ROS 패키지도 미설치 — 로봇 PC에 이미 있는지 확인 필요 |
+| YOLO pose 모델(`yolo11n-pose.pt`) / ReID onnx 모델 | ❌ | 저장소에 가중치 파일이 커밋돼 있지 않음(상대경로 `'yolo11n-pose.pt'`). 로봇 PC 인터넷으로 ultralytics 자동 다운로드를 쓸지, 이미 갖고 계신 파일을 배치할지 확인 필요 |
+| 라이다 다리검출 곡률/배경필터 임계값이 실제 현장에서 맞는지 | ❌ | 원 개발자도 실측 로스백으로만 튜닝함 — 새 장소에서는 실물 라이다로 재검증 필요 |
+| `target_person_pose_raw` 리맵 → `worker_tracking_bridge_node` → Nav2 goal 엔드투엔드 추종 | ❌ | 실제 사람을 따라가는 동작이라 시뮬레이션/유닛테스트로 대체 불가 |
+| `ros2 launch robot_bridge robot.launch.py` 실제 구동(토픽 리맵이 의도대로 걸리는지) | ❌ | 하드웨어 노드가 없으면 대기 상태로만 남아 이 개발 PC에서는 실질 확인이 안 됨 |
+
+구현 단계에서 이 표의 "사용자 필요" 항목에 도달하면 코드는 준비해 두고, 실제 실행·확인은
+요청드리겠습니다.
+
 ## 변경 파일 목록
 
 - 신규: `src/robot_PC/amr_person_tracking/**` (feature 브랜치에서 무수정 이식,
