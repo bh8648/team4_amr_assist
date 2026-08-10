@@ -49,3 +49,6 @@ qtcreator-*
 
 # Catkin custom files
 CATKIN_IGNORE
+# colcon 산출물 - 워크스페이스 루트뿐 아니라 패키지 안에 생긴 것도 제외한다
+install/
+log/
