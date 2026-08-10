@@ -93,10 +93,10 @@ class HmiBackendNode(Node):
         control['task_state'] = str(msg.state).upper()
         if msg.state == 'DOCKED':
             control['docked'] = 1
-        elif msg.state in ('ASSIGNED', 'FOLLOWING', 'TRANSPORTING', 'RETURNING'):
+        elif msg.state in ('ASSIGNED', 'FOLLOWING', 'TRANSPORTING', 'RETURNING', 'CANCELED'):
             control['docked'] = 0
-        if msg.state == 'RETURNING' and msg.detail == '작업 취소 후 복귀':
-            # TaskState에 CANCELED 값이 없으므로 취소 복귀 메시지를 별도로 기억한다.
+        if (msg.state == 'CANCELED'
+                or (msg.state == 'RETURNING' and msg.detail == '작업 취소 후 복귀')):
             control['canceled'] = 1
         # 새 작업이 시작되면 이전 작업의 취소/수동조작 허가를 반드시 초기화한다.
         if msg.state == 'ASSIGNED':
@@ -138,7 +138,7 @@ class HmiBackendNode(Node):
         control = self.control_states.get(robot_id)
         if control is None:
             return False
-        if control['task_state'] == 'ERROR' or control['canceled']:
+        if control['task_state'] in self.MANUAL_CONTROL_STATES or control['canceled']:
             return True
         state, result = self.latest_task_state(robot_id)
         return state in self.MANUAL_CONTROL_STATES or result in self.MANUAL_CONTROL_STATES

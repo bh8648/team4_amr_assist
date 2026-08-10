@@ -131,11 +131,13 @@ class DbManagerNode(Node):
 
         # Task Manager의 DOCKED는 복귀와 도킹이 끝난 작업이므로
         # DB에서는 명세의 최종 상태인 COMPLETED로 변환해 저장한다.
-        completed = msg.state in ('DOCKED', 'ERROR')
-        canceled = msg.state == 'RETURNING' and msg.detail == '작업 취소 후 복귀'
+        completed = msg.state in ('DOCKED', 'ERROR', 'CANCELED')
+        # 새 Task Manager는 CANCELED를 직접 발행한다. 기존 취소 복귀 메시지도
+        # 실행 중인 구버전 노드와의 호환을 위해 계속 취소로 인식한다.
+        canceled = (msg.state == 'CANCELED'
+                    or (msg.state == 'RETURNING' and msg.detail == '작업 취소 후 복귀'))
 
-        # 취소 명령을 받은 Task는 실제 로붇이 RETURNING으로 복귀하더라도
-        # DB에서는 취소 상태를 명확히 표시하기 위해 CANCELED로 저장한다.
+        # 취소된 Task는 로봇의 이후 수동 도킹 여부와 무관하게 CANCELED로 저장한다.
         if canceled:
             database_state = 'CANCELED'
         elif msg.state == 'DOCKED':
@@ -144,7 +146,7 @@ class DbManagerNode(Node):
             database_state = msg.state
 
         # result는 상태 설명(detail)이 아니라 최종 결과만 저장한다.
-        # 취소 후 복귀 중에 CANCELED를 먼저 저장하고, 도킹 완료 시 그 값을 유지한다.
+        # 취소 이후 수동 도킹이 완료되어도 해당 작업의 취소 결과는 유지한다.
         if msg.state == 'ERROR':
             result = 'FAILED'
         elif canceled:

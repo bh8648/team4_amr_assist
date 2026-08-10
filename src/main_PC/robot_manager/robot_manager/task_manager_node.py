@@ -175,15 +175,14 @@ class TaskManagerNode(Node):
             self.transition(task, 'RETURNING', '로봇 HMI 정상 복귀 요청')
             self.send_navigation_goal(task, replace=True)
         elif command == 'CANCEL' and task.state in self.CANCELABLE_STATES:
-            # ROS TaskState에는 CANCELED가 없으므로 별도 플래그로 수동 복구 허가를 유지한다.
             task.canceled = True
-            # PAUSED 상태에서 취소한 경우 정지 요청을 해제해야 복귀 Nav2 goal이 실행된다.
             task.pause_reason = ''
-            self.stop_publishers[robot_id].publish(Bool(data=False))
-            task.goal_type, task.target = 'TO_DOCK', tuple(float(value) for value in self.get_parameter(f'{robot_id}_dock_pose').value)
+            task.awaiting_undock = False
+            self.invalidate_navigation_goal(task)
+            self.stop_publishers[robot_id].publish(Bool(data=True))
+            task.goal_type, task.target = '', None
             task.goal_completed = False
-            self.transition(task, 'RETURNING', '작업 취소 후 복귀')
-            self.send_navigation_goal(task, replace=True)
+            self.transition(task, 'CANCELED', '작업 취소, 현재 위치 정지')
         else:
             self.publish_error(robot_id, task.task_id, f'INVALID_TRANSITION_{task.state}_{command}')
 
@@ -279,10 +278,14 @@ class TaskManagerNode(Node):
 
     def goal_response_callback(self, future, robot_id: str, goal_type: str, generation: int) -> None:   # Action goal 수락 여부
         task = self.tasks.get(robot_id)
+        goal_handle = future.result()
         if task is None or generation != task.nav_generation:
+            # 취소 요청과 goal 수락 응답이 엇갈리면 뒤늦게 수락된 goal도 즉시 취소한다.
+            if goal_handle.accepted:
+                goal_handle.cancel_goal_async()
             return
         task.goal_pending = False
-        task.goal_handle = future.result()
+        task.goal_handle = goal_handle
         if not task.goal_handle.accepted:
             # HMI가 작업 단계별 원인을 표시할 수 있도록 goal 종류가 포함된 코드를 사용한다.
             self.handle_navigation_result(
@@ -317,7 +320,7 @@ class TaskManagerNode(Node):
             return
         # 브릿지의 실제 Dock 액션 성공 결과가 도착한 뒤에만 작업을 DOCKED로 완료한다.
         if msg.goal_type == 'DOCK':
-            if msg.success and task.goal_type == 'TO_DOCK':
+            if msg.success and (task.goal_type == 'TO_DOCK' or task.state == 'CANCELED'):
                 task.goal_completed = True
                 self.transition(task, 'DOCKED', '실제 도킹 액션 성공')
             return

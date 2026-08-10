@@ -26,15 +26,17 @@ class RobotAssignmentNode(Node):
     VALID_ROBOTS = ('robot5', 'robot11')
 
     def __init__(self):
-        super().__init__('amr_allocation_node')
+        super().__init__('robot_assignment_node')
 
         self.declare_parameter('status_timeout_sec', 5.0)   # 로봇 상태의 유효 시간 (초)
         self.declare_parameter('minimum_battery', 20.0)     # 로봇에게 작업을 배정하기 위한 최소 배터리량
         self.declare_parameter('battery_penalty_weight', 0.05)      # 배터리 소모 패널티
         self.declare_parameter('heading_penalty_weight', 0.5)       # 각도 오차 패널티
-        self.declare_parameter('assignment_timeout_sec', 60.0)      # 배정을 대기할 시간
+        self.declare_parameter('assignment_timeout_sec', 30.0)      # 배정을 대기할 시간
         self.declare_parameter('retry_interval_sec', 5.0)           # 배정 실패시 5초 대기 후 재배정 시도
         self.declare_parameter('person_stop_distance', 0.6)         # 사람 좌표 앞에서 멈출 거리(m)
+        self.declare_parameter('duplicate_call_window_sec', 10.0)   # 중복 호출 판정 시간(초)
+        self.declare_parameter('duplicate_call_distance', 0.5)      # 중복 호출 판정 거리(m)
         project_root = Path(get_package_prefix('robot_manager')).resolve().parents[1]
         default_map_path = project_root / 'maps/map2.yaml'
         self.declare_parameter('map_yaml_path', os.environ.get('AMR_MAP_YAML', str(default_map_path)))
@@ -63,8 +65,13 @@ class RobotAssignmentNode(Node):
             self.get_parameter('assignment_timeout_sec').value
         )
         self.person_stop_distance = float(self.get_parameter('person_stop_distance').value)
-        if self.person_stop_distance < 0.0:
-            raise ValueError('person_stop_distance는 0 이상이어야 합니다.')
+        self.duplicate_call_window_sec = float(
+            self.get_parameter('duplicate_call_window_sec').value)
+        self.duplicate_call_distance = float(
+            self.get_parameter('duplicate_call_distance').value)
+        if (self.person_stop_distance < 0.0 or self.duplicate_call_window_sec < 0.0
+                or self.duplicate_call_distance < 0.0):
+            raise ValueError('거리와 시간 파라미터는 0 이상이어야 합니다.')
 
         configured_map_path = Path(os.path.expanduser(self.get_parameter('map_yaml_path').value))
         self.map_yaml_path = (configured_map_path if configured_map_path.is_absolute() else project_root / configured_map_path).resolve()
@@ -83,6 +90,10 @@ class RobotAssignmentNode(Node):
 
         # pending Goal이 생성된 시각
         self.pending_since: Optional[Time] = None
+
+        # 짧은 시간 안에 같은 사람이 반복 호출하는 것을 막기 위한 마지막 유효 호출 정보
+        self.last_call_position: Optional[Tuple[float, float]] = None
+        self.last_call_received_at: Optional[Time] = None
 
         qos = QoSProfile(
             depth=10,
@@ -405,6 +416,18 @@ class RobotAssignmentNode(Node):
     # Goal 수신
     # ================================================================
 
+    def is_duplicate_call(self, target_x: float, target_y: float, received_at: Time) -> bool:
+        """마지막 유효 호출과 시간·거리가 모두 가까우면 중복으로 판단한다."""
+        if self.last_call_position is None or self.last_call_received_at is None:
+            return False
+        elapsed_sec = (received_at - self.last_call_received_at).nanoseconds / 1e9
+        distance = math.hypot(
+            target_x - self.last_call_position[0],
+            target_y - self.last_call_position[1],
+        )
+        return (0.0 <= elapsed_sec <= self.duplicate_call_window_sec
+                and distance <= self.duplicate_call_distance)
+
     def goal_callback(self, goal: PointStamped) -> None:
         """새 작업자 호출 위치를 받아 AMR 배정을 시도한다."""
         
@@ -424,6 +447,14 @@ class RobotAssignmentNode(Node):
             self.get_logger().warn(f'유효하지 않은 목표 좌표: ({target_x}, {target_y}), 원인={invalid_reason}')
             return
 
+        received_at = self.get_clock().now()
+        if self.is_duplicate_call(target_x, target_y, received_at):
+            self.get_logger().info(
+                f'중복 작업자 호출 무시: ({target_x:.2f}, {target_y:.2f}), '
+                f'{self.duplicate_call_window_sec:.1f}초/{self.duplicate_call_distance:.2f}m 이내'
+            )
+            return
+
         # 이미 재배정을 기다리는 Goal이 있으면 기존 요청을 유지하고 새 요청을 거부한다.
         if self.pending_goal is not None:
             self.publish_assignment_result(goal, False, '', 'PENDING_ASSIGNMENT_EXISTS')
@@ -433,6 +464,9 @@ class RobotAssignmentNode(Node):
             )
             return
 
+        self.last_call_position = (target_x, target_y)
+        self.last_call_received_at = received_at
+
         # 대기 중인 작업이 없으면 즉시 AMR 배정을 시도한다.
         success = self.attempt_assignment(goal, publish_failure=True)
 
@@ -441,7 +475,7 @@ class RobotAssignmentNode(Node):
 
         # 즉시 배정하지 못한 Goal은 복사하여 저장하고 재배정 대기 시간을 시작한다.
         self.pending_goal = copy.deepcopy(goal)
-        self.pending_since = self.get_clock().now()
+        self.pending_since = received_at
 
         self.get_logger().info(f'배정 요청을 WAITING 상태로 저장: 목표=({target_x:.2f}, {target_y:.2f})')
 
