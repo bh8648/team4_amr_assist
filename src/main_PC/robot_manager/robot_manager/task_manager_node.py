@@ -143,6 +143,10 @@ class TaskManagerNode(Node):
             if not task.goal_completed:
                 self.invalidate_navigation_goal(task)
             self.transition(task, 'FOLLOWING', '작업자 추종 시작')
+            # FOLLOWING 진입 전에 이미 미착용으로 확정된 경우, hardhat_status 이벤트가
+            # 다시 오지 않을 수 있으므로(상태 바뀔 때만 publish) 여기서도 알림을 점검한다.
+            if self.worker_wearing_hardhat is False:
+                self.start_hardhat_alert()
         elif command == 'START_TRANSPORT' and task.state == 'FOLLOWING':
             # 로봇 HMI는 좌표 대신 ID만 보내며, 실제 Nav2 좌표는 중앙 DB 배포 설정만 신뢰한다.
             destination_id = str(msg.destination_id).strip()
@@ -205,10 +209,15 @@ class TaskManagerNode(Node):
             if self.hardhat_alert_timer is not None:
                 self.destroy_timer(self.hardhat_alert_timer)
                 self.hardhat_alert_timer = None
-        elif self.hardhat_alert_timer is None:
+        else:
             # 미착용으로 바뀌었고 아직 경고음이 안 돌고 있으면 즉시 한 번 울리고,
             # 착용이 확인될 때까지 5초 간격으로 반복한다
-            self.play_hardhat_alert()
+            self.start_hardhat_alert()
+
+    def start_hardhat_alert(self) -> None:
+        """미착용 경고음을 즉시 1회 재생하고, 아직 안 돌고 있다면 5초 반복 타이머를 건다."""
+        self.play_hardhat_alert()
+        if self.hardhat_alert_timer is None:
             self.hardhat_alert_timer = self.create_timer(5.0, self.play_hardhat_alert)
 
     def play_hardhat_alert(self) -> None:
