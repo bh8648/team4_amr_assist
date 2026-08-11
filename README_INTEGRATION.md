@@ -1,12 +1,13 @@
 # Team4 AMR Assist 통합본 안내
 
-이 폴더는 2026-08-11 기준으로 아래 세 개발 흐름을 하나로 합친 로컬 통합본이다.
+이 폴더는 2026-08-11 기준으로 아래 개발 흐름을 하나로 합친 로컬 통합본이다.
 GitHub 원격 저장소에는 이 통합 과정에서 어떤 브랜치나 커밋도 push하지 않았다.
 
 | 통합 기준 | 커밋 | 반영한 역할 |
 |---|---|---|
+| `origin/main` | `1567af2` | 최신 통합본과 Create3 실제 `DockStatus` 기반 HMI 도킹 상태 판정 |
 | `feature/amr_person_tracking_merge` | `330c7a8` | AMR OAK-D·LiDAR 사람 인식/추종 파이프라인과 관련 문서 |
-| `main` | `7ac3829` | 중앙 PC, DB/HMI, 목적지 4곳, 최신 공통 Robot bridge |
+| 이전 `main` 기준 | `7ac3829` | 중앙 PC, DB/HMI, 목적지 4곳, 최신 공통 Robot bridge |
 | `feature/integ/person_locator` | `b1f7bc8` | 새 웹캠 호출 방식, 호모그래피 cam1, 안전모 판정 연동 |
 
 ## 1. 장비 배치
@@ -67,6 +68,10 @@ PC와 TurtleBot의 시스템 시간도 NTP/Chrony 등으로 맞춰야 한다.
 - 중앙 `task_manager_node`에는 안전모 경고 기능만 병합했다.
   최신 `main`에서 제거된 `deadlock_prevention_node`와 `DeadlockPermission`은 되살리지 않았다.
 - 최신 `main`의 DB 종료 처리, 지도 경로, HMI 테스트와 목적지 4곳을 반영했다.
+- `origin/main` `1567af2`의 Create3 실제 `DockStatus` 기반 도킹 상태 판정을 반영했다.
+- 작업자가 한 명인 현재 운영 조건에 맞춰 BoT-SORT의 confidence/association 기준과
+  `reid_tracking_node`의 트랙 유실 유예·위치 게이트·단일 후보 재채택 기준을 완화했다.
+  관련 값은 `amr_person_tracking.launch.py`의 launch 인자로 다시 조정할 수 있다.
 - 과거 worker bridge 설계 문서는 이력 보존용으로 남겼고, 문서 맨 위에
   최종 실행 기준이 아니라는 표시를 추가했다.
 

@@ -1,7 +1,7 @@
 {
   "hardhat_roi_topic": "person/hardhat_roi/compressed",
   "hardhat_status_topic": "person/hardhat_status",
-  "model_path": "yolov8n_tuned.pt",
+  "model_path": "hardhat_cls.pt",
   "positive_class_name": "helmet",
   "min_confidence": 0.6,
   "window_size": 5,

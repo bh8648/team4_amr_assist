@@ -87,6 +87,17 @@ def generate_launch_description():
         DeclareLaunchArgument('log_follow_overlay_misses', default_value='false'),
         # map 좌표가 이 거리 안에서 겹치는 검출은 한 사람으로 보고 하나만 남긴다. 0이면 끈다.
         DeclareLaunchArgument('duplicate_merge_distance', default_value='0.25'),
+        # 현재 운영 조건은 추종 작업자 1명이다. 순간 가림/깊이 좌표 튐으로 내부 ID가 끊기는
+        # 현상을 줄이되 현장에서 바로 되돌릴 수 있도록 reid_tracking_node의 완화값을 launch
+        # 인자로 노출한다. 다인 추종으로 바뀌면 gate/distance를 좁히고 단일 후보 재채택을 끈다.
+        DeclareLaunchArgument('tracking_min_gate', default_value='0.45'),
+        DeclareLaunchArgument('tracking_timeout', default_value='5.0'),
+        DeclareLaunchArgument('id_rescue_max_distance', default_value='1.5'),
+        DeclareLaunchArgument('revival_max_distance', default_value='2.0'),
+        DeclareLaunchArgument('sticky_follow_adopt_when_alone', default_value='true'),
+        DeclareLaunchArgument('lidar_gating_position_threshold', default_value='0.8'),
+        DeclareLaunchArgument('lidar_lock_confirm_frames', default_value='5'),
+        DeclareLaunchArgument('leg_lock_grace_period', default_value='2.0'),
         # 외부 웹캠(person_locator, 별도 PC)의 호출 좌표. 현장에 하나뿐인 전역 토픽이다.
         DeclareLaunchArgument('call_input_topic', default_value='/person/call_position'),
         DeclareLaunchArgument('call_designation_radius', default_value='2.0'),
@@ -290,6 +301,16 @@ def generate_launch_description():
             'call_position_topic': call_position_topic,
             'call_designation_radius': LaunchConfiguration('call_designation_radius'),
             'call_ttl': LaunchConfiguration('call_ttl'),
+            'gating_min_gate': LaunchConfiguration('tracking_min_gate'),
+            'track_timeout': LaunchConfiguration('tracking_timeout'),
+            'id_rescue_max_distance': LaunchConfiguration('id_rescue_max_distance'),
+            'revival_max_distance': LaunchConfiguration('revival_max_distance'),
+            'sticky_follow_adopt_when_alone': LaunchConfiguration(
+                'sticky_follow_adopt_when_alone'),
+            'lidar_gating_position_threshold': LaunchConfiguration(
+                'lidar_gating_position_threshold'),
+            'lidar_lock_confirm_frames': LaunchConfiguration('lidar_lock_confirm_frames'),
+            'leg_lock_grace_period': LaunchConfiguration('leg_lock_grace_period'),
             'map_frame': LaunchConfiguration('map_frame'),
         }],
     )

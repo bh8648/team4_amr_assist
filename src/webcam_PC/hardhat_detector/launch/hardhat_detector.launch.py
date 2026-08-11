@@ -18,7 +18,7 @@ from launch_ros.actions import Node  # ROS2 노드 실행 액션
 # colcon build가 models/*.pt를 share/hardhat_detector/models로 복사해두므로
 # 그 설치된 경로를 기본 모델 경로로 사용
 _DEFAULT_MODEL = os.path.join(
-    get_package_share_directory('hardhat_detector'), 'models', 'yolov8n_tuned.pt'
+    get_package_share_directory('hardhat_detector'), 'models', 'detect_warn_yolo11n_best.pt'
 )
 
 
