@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>robot_bridge</name>
+  <version>0.0.0</version>
+  <description>Robot5/Robot11 공통 AMCL/Nav2/Create3 중앙 연동 브릿지</description>
+  <maintainer email="user@todo.todo">user</maintainer>
+  <license>Apache-2.0</license>
+  <depend>rclpy</depend>
+  <depend>action_msgs</depend>
+  <depend>robot_status</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>nav2_msgs</depend>
+  <depend>irobot_create_msgs</depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>robot_hmi_backend</exec_depend>
+  <exec_depend>amr_person_tracking</exec_depend>
+  <test_depend>python3-pytest</test_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>

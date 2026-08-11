@@ -1,0 +1,489 @@
+<mxfile host="app.diagrams.net">
+  <diagram name="System Flow (설명 위주)" id="system-flow-fn-4">
+    <mxGraphModel dx="1400" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2700" pageHeight="1550" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ===================== PC 배경 ===================== -->
+        <mxCell id="bg_cam" value="카메라 PC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;align=left;fontSize=15;fontStyle=1;spacingLeft=10;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="60" width="320" height="320" as="geometry" />
+        </mxCell>
+        <mxCell id="bg_infer" value="추론 PC (YOLO-pose + MediaPipe)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;align=left;fontSize=15;fontStyle=1;spacingLeft=10;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="400" y="60" width="1460" height="1440" as="geometry" />
+        </mxCell>
+        <mxCell id="bg_amr" value="AMR PC (Nav2)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;verticalAlign=top;align=left;fontSize=15;fontStyle=1;spacingLeft=10;spacingTop=8;" vertex="1" parent="1">
+          <mxGeometry x="1880" y="60" width="700" height="700" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== 노드 배경 (점선 그룹) ===================== -->
+        <mxCell id="bg_camnode" value="camera_publisher" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=none;strokeColor=#6c8ebf;verticalAlign=top;align=left;fontSize=12;fontStyle=1;fontColor=#6c8ebf;spacingLeft=6;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="140" y="110" width="200" height="230" as="geometry" />
+        </mxCell>
+        <mxCell id="bg_pose" value="pose_locator_node" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=none;strokeColor=#6c8ebf;verticalAlign=top;align=left;fontSize=12;fontStyle=1;fontColor=#6c8ebf;spacingLeft=6;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="440" y="110" width="960" height="740" as="geometry" />
+        </mxCell>
+        <mxCell id="bg_wrist" value="wrist_gesture_node" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=none;strokeColor=#82b366;verticalAlign=top;align=left;fontSize=12;fontStyle=1;fontColor=#82b366;spacingLeft=6;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="1420" y="110" width="420" height="570" as="geometry" />
+        </mxCell>
+        <mxCell id="bg_hh" value="hardhat_detector_node" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=none;strokeColor=#d79b00;verticalAlign=top;align=left;fontSize=12;fontStyle=1;fontColor=#d79b00;spacingLeft=6;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="1420" y="710" width="420" height="700" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== 카메라 PC ===================== -->
+        <mxCell id="person" value="사람" style="shape=actor;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#333333;" vertex="1" parent="1">
+          <mxGeometry x="60" y="260" width="50" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="f_cam1" value="촬영 타이머&#10;(일정 주기로 실행)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="160" y="140" width="180" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f_cam2" value="카메라에서 프레임 캡처" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="160" y="195" width="180" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="f_cam3" value="이미지 압축 후 발행" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="160" y="245" width="180" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== pose_locator_node: 공통 트렁크 ===================== -->
+        <mxCell id="f_p1" value="카메라 프레임 수신" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="460" y="150" width="220" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f_p2" value="이미지 압축 해제" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="460" y="205" width="220" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="f_p3" value="사람 자세 추적&#10;(YOLO-pose)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="460" y="255" width="220" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="f_p4" value="추적할 사람 선택" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="460" y="315" width="220" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="d_p4" value="사람을 찾았는가?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="470" y="375" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="no_lock" value="잠금 해제&#10;(이번 프레임 종료)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;fontSize=10;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="200" y="390" width="190" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== 4개 분기: 전부 y=460에서 나란히 시작 (교차 방지) ===================== -->
+
+        <!-- Branch A: 위치/호출 (x=460) -->
+        <mxCell id="f_pA1" value="서 있는 위치(발) 추출" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="460" y="460" width="220" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f_pA2" value="카메라 좌표를 지면 좌표로 변환" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="460" y="515" width="220" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="f_pA3" value="위치 발행&#10;+ 마지막 위치 저장" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="460" y="565" width="220" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="f_pA4" value="호출 트리거 수신" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="460" y="630" width="220" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="d_pA4" value="현재 락온된 사람이&#10;있는가?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="470" y="690" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="no_target" value="무시&#10;(경고 로그만 남김)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;fontSize=10;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="200" y="705" width="190" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f_pA5" value="호출 위치 발행" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="460" y="775" width="220" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Branch B: 손목 ROI (x=700, 높이를 살짝 줄여서 y=670에서 끝나게 함 - 아래쪽 통로 확보용) -->
+        <mxCell id="d_pB0" value="손목이 신뢰도 있게&#10;보이는가?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="700" y="460" width="220" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="wrist_skip" value="건너뜀&#10;(이번 프레임 손목 이미지 없음)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;fontSize=10;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="700" y="390" width="220" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f_pB1" value="손목 위치 추출" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="700" y="530" width="220" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="f_pB2" value="손목 주변 이미지 잘라내기" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="700" y="580" width="220" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="f_pB3" value="손목 이미지 압축 후 발행" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="700" y="630" width="220" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Branch C: 하이바 ROI (x=940) -->
+        <mxCell id="f_pC1" value="사람 영역 이미지 잘라내기" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="940" y="460" width="220" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f_pC2" value="하이바 이미지 압축 후 발행" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="940" y="515" width="220" height="50" as="geometry" />
+        </mxCell>
+
+        <!-- Branch D: 디버그 오버레이 (x=1180, 단말) -->
+        <mxCell id="d_pD0" value="디버그 오버레이를&#10;켰는가?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1180" y="460" width="200" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="f_pD1" value="디버그 이미지 생성 후 발행&#10;person/debug_image/compressed&#10;(CompressedImage: jpeg bytes / rqt_image_view)" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontColor=#555555;" vertex="1" parent="1">
+          <mxGeometry x="1180" y="535" width="200" height="65" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== wrist_gesture_node ===================== -->
+        <mxCell id="f_w1" value="손목 이미지 수신" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1440" y="150" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="f_w2" value="이미지 압축 해제" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1440" y="200" width="320" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="f_w3" value="손 랜드마크 검출&#10;(MediaPipe)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1440" y="245" width="320" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f_w4" value="손 펴짐 정도 계산" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1440" y="300" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="f_w5" value="제스처 상태 갱신&#10;(폈다 → 쥐었다 → 폈다 추적)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1440" y="350" width="320" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="d_w5" value="제스처가 확정되었는가?&#10;(폈다-쥐었다-폈다 완성)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="415" width="200" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="f_w6" value="호출 트리거 발행" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1440" y="505" width="320" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="d_w7" value="디버그 오버레이를&#10;켰는가?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="565" width="200" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="f_w7" value="디버그 오버레이 발행&#10;person/gesture_debug_image/compressed&#10;(CompressedImage: jpeg bytes / rqt_image_view)" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;fontColor=#555555;" vertex="1" parent="1">
+          <mxGeometry x="1440" y="645" width="320" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== hardhat_detector_node ===================== -->
+        <mxCell id="f_h1" value="하이바 이미지 수신" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1440" y="750" width="320" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="f_h2" value="이미지 압축 해제" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1440" y="800" width="320" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="f_h3" value="하이바 착용 여부 분류" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1440" y="845" width="320" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f_h4" value="최근 프레임 다수결로&#10;상태 판정" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1440" y="900" width="320" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="d_h4" value="이전 상태와&#10;달라졌는가?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="965" width="200" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="f_h5" value="하이바 상태 발행" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1440" y="1050" width="320" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="d_h6" value="디버그 오버레이를&#10;켰는가?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="1110" width="200" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="f_h6" value="디버그 오버레이 발행&#10;person/hardhat_debug_image/compressed&#10;(CompressedImage: jpeg bytes / rqt_image_view)" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=10;fontColor=#555555;" vertex="1" parent="1">
+          <mxGeometry x="1440" y="1190" width="320" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="d_htimer" value="새 하이바 이미지가&#10;일정 시간 이상 없는가?" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1500" y="1265" width="200" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="reset_votes" value="투표 기록 초기화&#10;(사람이 다시 나타나면 새로 판정)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#999999;fontSize=10;fontColor=#666666;" vertex="1" parent="1">
+          <mxGeometry x="1440" y="1360" width="320" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== AMR PC: 왼쪽 컬럼 ===================== -->
+        <mxCell id="f_tf1" value="사람 위치 수신" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1920" y="140" width="300" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f_tf2" value="TF 좌표 변환 송신&#10;(map → person)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1920" y="195" width="300" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f_nt1" value="호출 위치 수신&#10;(대기열에 저장)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1920" y="290" width="300" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="d_nt_loop" value="대기 중인 호출 위치가&#10;있는가?&#10;(아니오 → 계속 대기)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1940" y="350" width="260" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="f_nt2" value="목표 지점으로 주행 시작" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1920" y="445" width="300" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="d_nt3" value="목표까지 남은 거리가&#10;기준(0.7m) 이하인가?&#10;(아니오 → 계속 확인)" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+          <mxGeometry x="1930" y="520" width="280" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="cancel_box" value="주행 취소&#10;(목표 근처 도착)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1920" y="635" width="300" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="f_nt4" value="주행 결과 기록" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1920" y="695" width="300" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== AMR PC: 오른쪽 컬럼 (Nav2) ===================== -->
+        <mxCell id="nav2" value="Nav2 액션 서버&#10;(목표 이동 처리,&#10;AMCL + bt_navigator)" style="ellipse;shape=cloud;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="2280" y="330" width="260" height="120" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== 외부/미완성 ===================== -->
+        <mxCell id="alert_todo" value="안전모 경보 노드&#10;(아직 미구현 - 이 상태를 받는 곳이 없음)" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="1440" y="1440" width="320" height="55" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== Edges: 카메라 PC 내부 ===================== -->
+        <mxCell id="e_person_cam" value="촬영" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=open;html=1;dashed=1;strokeColor=#999999;fontSize=9;fontColor=#666666;" edge="1" parent="1" source="person" target="f_cam1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_cam1_2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_cam1" target="f_cam2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_cam2_3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_cam2" target="f_cam3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_cam_p2" value="이미지 전달&#10;camera/image_raw/compressed&#10;(CompressedImage: format, data=jpeg bytes)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#1a1a1a;fontSize=10;fontStyle=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="f_cam3" target="f_p2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== Edges: pose_locator_node 트렁크 ===================== -->
+        <mxCell id="e_p1_2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_p1" target="f_p2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_p2_3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_p2" target="f_p3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_p3_4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_p3" target="f_p4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_p4_d" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_p4" target="d_p4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_d_no" value="아니오" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#999999;fontSize=10;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="d_p4" target="no_lock">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_d_pA1" value="예" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;fontSize=10;fontStyle=1;exitX=0.2;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="d_p4" target="f_pA1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_d_pB0" value="예" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;fontSize=10;fontStyle=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="d_p4" target="d_pB0">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_d_pC1" value="예" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;fontSize=10;fontStyle=1;exitX=0.8;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="d_p4" target="f_pC1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_d_pD0" value="예" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;fontSize=10;exitX=1;exitY=0.7;entryX=0.5;entryY=0;" edge="1" parent="1" source="d_p4" target="d_pD0">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== Edges: Branch A ===================== -->
+        <mxCell id="e_pA1_2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_pA1" target="f_pA2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_pA2_3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_pA2" target="f_pA3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_pA3_tf1" value="위치 전달&#10;person/position&#10;(PointStamped: point.x, point.y)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#1a1a1a;fontSize=10;fontStyle=1;exitX=1;exitY=0.5;entryX=0.5;entryY=0;" edge="1" parent="1" source="f_pA3" target="f_tf1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="695" y="589" />
+              <mxPoint x="695" y="20" />
+              <mxPoint x="2070" y="20" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_pA3_pA4" value="마지막 위치 참조" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=open;dashed=1;html=1;strokeColor=#999999;fontSize=9;fontColor=#666666;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="f_pA3" target="f_pA4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_w6_pA4" value="호출 트리거 전달&#10;person/call_trigger&#10;(std_msgs/Empty: 필드 없음)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#d79b00;dashed=1;fontSize=10;fontStyle=1;exitX=0.5;exitY=0;entryX=0;entryY=0.5;" edge="1" parent="1" source="f_w6" target="f_pA4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1600" y="40" />
+              <mxPoint x="380" y="40" />
+              <mxPoint x="380" y="652" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_pA4_d" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_pA4" target="d_pA4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_dpA4_no" value="아니오" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#999999;fontSize=10;exitX=0;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="d_pA4" target="no_target">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_dpA4_yes" value="예" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;fontSize=10;fontStyle=1;" edge="1" parent="1" source="d_pA4" target="f_pA5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_pA5_nt1" value="호출 위치 전달&#10;person/call_position&#10;(PointStamped: point.x, point.y)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#1a1a1a;fontSize=10;fontStyle=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="f_pA5" target="f_nt1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="693" y="798" />
+              <mxPoint x="693" y="695" />
+              <mxPoint x="1900" y="695" />
+              <mxPoint x="1900" y="312" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ===================== Edges: Branch B ===================== -->
+        <mxCell id="e_dpB0_no" value="아니오" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#999999;fontSize=10;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="d_pB0" target="wrist_skip">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_dpB0_yes" value="예" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;fontSize=10;fontStyle=1;" edge="1" parent="1" source="d_pB0" target="f_pB1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_pB1_2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_pB1" target="f_pB2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_pB2_3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_pB2" target="f_pB3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_pB3_w1" value="손목 이미지 전달&#10;person/wrist_roi/compressed&#10;(CompressedImage: data=jpeg bytes)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#1a1a1a;fontSize=10;fontStyle=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="f_pB3" target="f_w1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== Edges: Branch C ===================== -->
+        <mxCell id="e_pC1_2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_pC1" target="f_pC2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_pC2_h1" value="하이바 이미지 전달&#10;person/hardhat_roi/compressed&#10;(CompressedImage: data=jpeg bytes)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#1a1a1a;fontSize=10;fontStyle=1;exitX=1;exitY=1;entryX=0;entryY=0.5;" edge="1" parent="1" source="f_pC2" target="f_h1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1160" y="600" />
+              <mxPoint x="1400" y="600" />
+              <mxPoint x="1400" y="770" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ===================== Edges: overlay (디버그, 단말) ===================== -->
+        <mxCell id="e_dpD0_yes" value="예" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;dashed=1;strokeColor=#999999;fontSize=9;fontColor=#666666;" edge="1" parent="1" source="d_pD0" target="f_pD1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_dw7_yes" value="예" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;dashed=1;strokeColor=#999999;fontSize=9;fontColor=#666666;" edge="1" parent="1" source="d_w7" target="f_w7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_dh6_yes" value="예" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;dashed=1;strokeColor=#999999;fontSize=9;fontColor=#666666;" edge="1" parent="1" source="d_h6" target="f_h6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== Edges: wrist_gesture_node 내부 ===================== -->
+        <mxCell id="e_w1_2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_w1" target="f_w2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_w2_3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_w2" target="f_w3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_w3_4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_w3" target="f_w4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_w4_5" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_w4" target="f_w5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_w5_d" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;exitX=0.3;exitY=1;entryX=0.3;entryY=0;" edge="1" parent="1" source="f_w5" target="d_w5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_dw5_yes" value="예" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;fontSize=10;fontStyle=1;" edge="1" parent="1" source="d_w5" target="f_w6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_w5_dw7" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;dashed=1;strokeColor=#999999;exitX=1;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="f_w5" target="d_w7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1800" y="375" />
+              <mxPoint x="1800" y="597" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ===================== Edges: hardhat_detector_node 내부 ===================== -->
+        <mxCell id="e_h1_2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_h1" target="f_h2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_h2_3" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_h2" target="f_h3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_h3_4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_h3" target="f_h4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_h4_d" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;exitX=0.3;exitY=1;entryX=0.3;entryY=0;" edge="1" parent="1" source="f_h4" target="d_h4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_dh4_yes" value="예" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;fontSize=10;fontStyle=1;" edge="1" parent="1" source="d_h4" target="f_h5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_h4_dh6" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;dashed=1;strokeColor=#999999;exitX=1;exitY=0.5;entryX=1;entryY=0.5;" edge="1" parent="1" source="f_h4" target="d_h6">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1800" y="925" />
+              <mxPoint x="1800" y="1142" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e_h5_alert" value="상태 전달&#10;person/hardhat_status&#10;(std_msgs/Bool: data=true/false)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#b85450;dashed=1;fontSize=10;fontStyle=1;" edge="1" parent="1" source="f_h5" target="alert_todo">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_dhtimer_yes" value="예" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=open;dashed=1;html=1;strokeColor=#999999;fontSize=9;fontColor=#666666;" edge="1" parent="1" source="d_htimer" target="reset_votes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_reset_h4" value="다음 판정에 반영" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=open;dashed=1;html=1;strokeColor=#999999;fontSize=9;fontColor=#666666;exitX=0;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="reset_votes" target="f_h4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1400" y="1382" />
+              <mxPoint x="1400" y="925" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ===================== Edges: AMR PC 내부 ===================== -->
+        <mxCell id="e_tf1_2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_tf1" target="f_tf2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_tf2_nav2" value="TF 발행&#10;/tf&#10;(TransformStamped: translation.x,&#10;translation.y, rotation=identity)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#9673a6;fontSize=10;fontStyle=1;exitX=1;exitY=0.5;entryX=0;entryY=0.2;" edge="1" parent="1" source="f_tf2" target="nav2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_nt1_d" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_nt1" target="d_nt_loop">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_dntloop_yes" value="예" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;fontSize=10;fontStyle=1;" edge="1" parent="1" source="d_nt_loop" target="f_nt2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_nt2_d" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="f_nt2" target="d_nt3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_nt2_nav2" value="목표 좌표 전달&#10;(NavigateToPose goal:&#10;pose.position.x, pose.position.y)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#9673a6;fontSize=10;fontStyle=1;exitX=1;exitY=0.5;entryX=0;entryY=0.5;" edge="1" parent="1" source="f_nt2" target="nav2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_nav2_dnt3" value="남은 거리 알려줌&#10;(feedback: distance_remaining,&#10;단위 m)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=open;dashed=1;html=1;strokeColor=#9673a6;fontSize=9;exitX=0;exitY=0.7;entryX=1;entryY=0.5;" edge="1" parent="1" source="nav2" target="d_nt3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_dnt3_yes" value="예" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;fontSize=10;fontStyle=1;" edge="1" parent="1" source="d_nt3" target="cancel_box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_cancel_nav2" value="이동 취소 요청&#10;(action cancel: 필드 없음)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=open;dashed=1;html=1;strokeColor=#9673a6;fontSize=9;exitX=1;exitY=0.5;entryX=0;entryY=0.85;" edge="1" parent="1" source="cancel_box" target="nav2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_cancel_4" style="edgeStyle=orthogonalEdgeStyle;rounded=1;endArrow=block;html=1;strokeColor=#333333;" edge="1" parent="1" source="cancel_box" target="f_nt4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ===================== 범례 ===================== -->
+        <mxCell id="legend" value="범례" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#999999;verticalAlign=top;align=left;fontSize=12;fontStyle=1;spacingLeft=6;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="40" y="420" width="320" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="legend1" value="사각형 = 처리 단계 (설명 위주)" style="text;html=1;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="50" y="450" width="300" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend2" value="노란 마름모 = 조건 분기 (예/아니오 질문형)" style="text;html=1;fontSize=10;align=left;fontColor=#d6b656;" vertex="1" parent="1">
+          <mxGeometry x="50" y="470" width="300" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend3" value="검정 굵은 실선 = 노드 간 데이터 전달 (ROS2 토픽)" style="text;html=1;fontSize=10;align=left;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="50" y="490" width="300" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend4" value="검정 얇은 실선 = 같은 노드 안 처리 순서" style="text;html=1;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="50" y="510" width="300" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend5" value="주황 점선 = 제스처 확정 트리거 (역방향, 맨 위로 우회)" style="text;html=1;fontSize=10;align=left;fontColor=#d79b00;" vertex="1" parent="1">
+          <mxGeometry x="50" y="530" width="300" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend6" value="회색 점선(화살표) = 저장된 값 참조 (호출 아님)" style="text;html=1;fontSize=10;align=left;fontColor=#999999;" vertex="1" parent="1">
+          <mxGeometry x="50" y="550" width="300" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend7" value="보라색 = TF / Nav2 액션 (목표·피드백·취소)" style="text;html=1;fontSize=10;align=left;fontColor=#9673a6;" vertex="1" parent="1">
+          <mxGeometry x="50" y="570" width="300" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend8" value="빨강 점선 = 아직 받는 곳 없는 미완성 연결" style="text;html=1;fontSize=10;align=left;fontColor=#b85450;" vertex="1" parent="1">
+          <mxGeometry x="50" y="590" width="300" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend9" value="마름모 안 괄호 문구 = &quot;아니오&quot;일 때 동작" style="text;html=1;fontSize=10;align=left;" vertex="1" parent="1">
+          <mxGeometry x="50" y="610" width="300" height="20" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

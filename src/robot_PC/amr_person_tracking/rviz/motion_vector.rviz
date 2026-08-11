@@ -1,0 +1,99 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /MotionVectors1
+      Splitter Ratio: 0.5
+    Tree Height: 700
+Visualization Manager:
+  Class: ""
+  Name: root
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 1
+      Plane Cell Count: 20
+      Color: 60; 60; 60
+      Reference Frame: <Fixed Frame>
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+      Show Arrows: false
+      Show Axes: true
+      Show Names: true
+      Marker Scale: 0.5
+    - Class: rviz_default_plugins/LaserScan
+      Name: Scan
+      Enabled: true
+      Topic:
+        Value: /robot5/scan
+        Depth: 5
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+      Size (m): 0.03
+      Style: Points
+      Color: 120; 120; 120
+      Color Transformer: FlatColor
+    - Class: rviz_default_plugins/MarkerArray
+      Name: MotionVectors
+      Enabled: true
+      Topic:
+        Value: /robot5/vision/motion_vector_markers
+        Depth: 20
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+      Namespaces:
+        {}
+    - Class: rviz_default_plugins/PointCloud2
+      Name: PredictedPoints
+      Enabled: true
+      Topic:
+        Value: /robot5/vision/predicted_obstacle_points
+        Depth: 5
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+      Size (m): 0.08
+      Style: Spheres
+      Color: 120; 120; 255
+      Color Transformer: FlatColor
+    - Class: rviz_default_plugins/Image
+      Name: DetectorDebug
+      Enabled: true
+      Topic:
+        Value: /robot5/vision/oakd_detector/debug/compressed
+        Depth: 5
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+      Max Value: 1
+      Min Value: 0
+      Normalize Range: true
+  Global Options:
+    Background Color: 30; 30; 30
+    Fixed Frame: odom
+    Frame Rate: 30
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Distance: 12
+      Pitch: 1.2
+      Yaw: 3.14
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+    Saved: ~
+Window Geometry:
+  Height: 900
+  Width: 1600
+  Displays:
+    collapsed: false
+  DetectorDebug:
+    collapsed: false

@@ -1,0 +1,27 @@
+{
+  "name": "robot-worker-hmi",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "dev:robot5": "vite --host 0.0.0.0 --mode robot5",
+    "dev:robot11": "vite --host 0.0.0.0 --mode robot11",
+    "build": "vite build",
+    "build:robot5": "vite build --mode robot5",
+    "build:robot11": "vite build --mode robot11",
+    "test": "node --test test/hmiApi.test.mjs",
+    "test:e2e": "node test/uiE2e.mjs",
+    "test:e2e:robot5": "HMI_E2E_ROBOT_ID=robot5 node test/uiE2e.mjs",
+    "test:e2e:robot11": "HMI_E2E_ROBOT_ID=robot11 node test/uiE2e.mjs"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^6.0.4",
+    "vite": "^8.2.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "ws": "^8.18.3"
+  }
+}

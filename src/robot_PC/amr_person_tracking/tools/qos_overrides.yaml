@@ -1,0 +1,25 @@
+# ros2 bag record/play --qos-profile-overrides-path 로 넘기는 파일.
+# ros2bag/api/__init__.py의 interpret_dict_as_qos_profile 기준: 토픽당 딕셔너리 1개(리스트 아님),
+# enum은 숫자가 아니라 short key 문자열(reliable/best_effort, keep_last/keep_all,
+# transient_local/volatile, automatic/manual_by_topic)을 쓴다.
+#
+# 큰 압축 이미지 토픽만 RELIABLE + 넉넉한 depth로 강제한다. 원본이 이미 reliable로
+# 내보내는데도(이 워크스페이스 bag metadata 확인함) 재생/녹화 경로에서 depth=0/unknown 같은
+# 애매한 값으로 떨어지는 걸 막기 위함. odom/scan은 이미 잘 되므로 건드리지 않는다.
+/robot5/oakd/rgb/image_raw/compressed:
+  history: keep_last
+  depth: 30
+  reliability: reliable
+  durability: volatile
+
+/robot5/oakd/stereo/image_raw/compressedDepth:
+  history: keep_last
+  depth: 30
+  reliability: reliable
+  durability: volatile
+
+/robot5/oakd/rgb/camera_info:
+  history: keep_last
+  depth: 30
+  reliability: reliable
+  durability: volatile

@@ -1,0 +1,26 @@
+{
+  "model_path": "yolov8n-pose.pt",
+  "conf_threshold": 0.5,
+  "ankle_conf_threshold": 0.5,
+  "tracker": "bytetrack.yaml",
+  "homography_yaml_path": "config/person_homography_cam1.yaml",
+  "image_topic": "camera/image_raw/compressed",
+  "target_topic": "person/position",
+  "publish_overlay": true,
+  "overlay_topic": "person/debug_image/compressed",
+  "overlay_jpeg_quality": 80,
+
+  "wrist_conf_threshold": 0.5,
+  "wrist_roi_half_size": 80,
+  "publish_wrist_roi": true,
+  "wrist_roi_topic": "person/wrist_roi/compressed",
+  "wrist_roi_jpeg_quality": 80,
+  "call_trigger_topic": "person/call_trigger",
+  "call_position_topic": "person/call_position",
+
+  "hardhat_roi_padding_ratio": 0.15,
+  "hardhat_roi_top_ratio": 1.0,
+  "publish_hardhat_roi": true,
+  "hardhat_roi_topic": "person/hardhat_roi/compressed",
+  "hardhat_roi_jpeg_quality": 80
+}
