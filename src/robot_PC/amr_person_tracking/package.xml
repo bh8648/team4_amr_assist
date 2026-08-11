@@ -17,6 +17,7 @@
   <exec_depend>visualization_msgs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>tf2_geometry_msgs</exec_depend>
+  <exec_depend>tf2_msgs</exec_depend>
   <exec_depend>message_filters</exec_depend>
   <exec_depend>rcl_interfaces</exec_depend>
   <!-- predictive_avoidance_node의 가상 포인트 PointCloud2 인코딩(create_cloud_xyz32)에 사용 -->

@@ -149,6 +149,13 @@ def generate_launch_description():
         # 웹캠 로컬라이제이션 스트림이 없는 이 워크스페이스에서, 라이다 다리검출 출력에 노이즈를
         # 더해 "독립 출처"처럼 재발행해 웹캠->OAK-D->라이다 융합 경로를 실제로 돌려본다.
         DeclareLaunchArgument('publish_mock_webcam', default_value='false'),
+        # Robot PC에서 Raspberry Pi 카메라 구간, TurtleBot4 센서 구간, 로컬 NIC를
+        # 5초마다 대역폭/네트워크/QoS 세 항목으로 요약한다.
+        DeclareLaunchArgument('enable_transport_diagnostics', default_value='true'),
+        DeclareLaunchArgument('transport_diagnostics_period', default_value='5.0'),
+        # 비워두면 /proc/net/route의 기본 경로 인터페이스를 자동 선택한다.
+        DeclareLaunchArgument('network_interface', default_value=''),
+        DeclareLaunchArgument('bandwidth_warn_mbps', default_value='80.0'),
     ]
 
     namespace = LaunchConfiguration('namespace')
@@ -367,7 +374,29 @@ def generate_launch_description():
         }],
     )
 
+    transport_diagnostics = Node(
+        package='amr_person_tracking',
+        namespace=namespace,
+        executable='transport_diagnostics_node',
+        name='transport_diagnostics_node',
+        output='screen',
+        condition=IfCondition(LaunchConfiguration('enable_transport_diagnostics')),
+        parameters=[{
+            'namespace': namespace,
+            'period_sec': LaunchConfiguration('transport_diagnostics_period'),
+            'network_interface': LaunchConfiguration('network_interface'),
+            'bandwidth_warn_mbps': LaunchConfiguration('bandwidth_warn_mbps'),
+            'diagnostics_topic': diagnostics_topic,
+            'rgb_topic': LaunchConfiguration('rgb_topic'),
+            'depth_topic': LaunchConfiguration('depth_topic'),
+            'camera_info_topic': LaunchConfiguration('camera_info_topic'),
+            'scan_topic': LaunchConfiguration('scan_topic'),
+            'odom_topic': LaunchConfiguration('odom_topic'),
+            'tf_topic': PathJoinSubstitution(['/', namespace, 'tf']),
+        }],
+    )
+
     return LaunchDescription(
         args + [oakd_detector, debug_viewer, depth_view_republisher, leg_detector_bridge,
                 mock_webcam_publisher, reid_tracking, predictive_avoidance,
-                webcam_person_bridge])
+                webcam_person_bridge, transport_diagnostics])

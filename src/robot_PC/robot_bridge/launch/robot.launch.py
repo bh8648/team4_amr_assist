@@ -31,6 +31,12 @@ def _launch_nodes(context):
                 'namespace': robot_id,
                 'pose_model_path': LaunchConfiguration('pose_model_path'),
                 'tracker_config_path': LaunchConfiguration('tracker_config_path'),
+                'enable_transport_diagnostics': LaunchConfiguration(
+                    'enable_transport_diagnostics'),
+                'transport_diagnostics_period': LaunchConfiguration(
+                    'transport_diagnostics_period'),
+                'network_interface': LaunchConfiguration('network_interface'),
+                'bandwidth_warn_mbps': LaunchConfiguration('bandwidth_warn_mbps'),
                 # 운영 PC는 디스플레이가 없을 수 있으므로 OpenCV 디버그 창은 기본 비활성화한다.
                 'publish_debug_image': 'false',
                 'publish_markers': 'false',
@@ -80,6 +86,22 @@ def generate_launch_description():
                 'botsort_reid.yaml',
             ]),
             description='AMR 사람 추적기 설정 파일의 절대 경로',
+        ),
+        DeclareLaunchArgument(
+            'enable_transport_diagnostics', default_value='true',
+            description='5초 주기 전송 대역폭/네트워크/QoS 진단을 실행할지 여부',
+        ),
+        DeclareLaunchArgument(
+            'transport_diagnostics_period', default_value='5.0',
+            description='전송 진단 로그 주기(초)',
+        ),
+        DeclareLaunchArgument(
+            'network_interface', default_value='',
+            description='진단할 Robot PC NIC. 비어 있으면 기본 경로를 자동 선택',
+        ),
+        DeclareLaunchArgument(
+            'bandwidth_warn_mbps', default_value='80.0',
+            description='Robot PC NIC RX/TX 대역폭 WARN 기준(Mbit/s)',
         ),
         OpaqueFunction(function=_launch_nodes),
     ])

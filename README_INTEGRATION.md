@@ -77,6 +77,11 @@ PC와 TurtleBot의 시스템 시간도 NTP/Chrony 등으로 맞춰야 한다.
   가장 좋은 한 명만 추적 입력으로 발행한다.
 - 사용하지 않는 전용 외형 임베딩 기능은 기본 비활성화했다. 비활성 상태에서는 인코더와
   임베딩 토픽 구독·발행, `[reid]` 통계 타이머를 생성하지 않아 관련 로그도 나오지 않는다.
+- AMR PC의 추종 launch는 기본으로 5초마다 `BANDWIDTH`, `NETWORK`, `QOS` 진단 로그를
+  출력하고 `/<robot_id>/diagnostics`에도 같은 상태를 발행한다. 로컬 NIC의 RX/TX·drop·error와
+  Raspberry Pi 카메라 및 TurtleBot4 센서 토픽의 수신률·최근 수신 시각·publisher·QoS
+  incompatibility를 함께 확인한다. 원격 장비의 NIC 카운터를 직접 읽는 방식은 아니며,
+  원격 두 구간의 대역폭은 실제 수신한 ROS 메시지 payload의 근삿값이다.
 - 과거 worker bridge 설계 문서는 이력 보존용으로 남겼고, 문서 맨 위에
   최종 실행 기준이 아니라는 표시를 추가했다.
 
@@ -184,6 +189,19 @@ colcon build --symlink-install --base-paths src/robot_PC
 source install/setup.bash
 ros2 launch robot_bridge robot.launch.py robot_id:=robot5
 ```
+
+진단은 기본 활성화되어 있으며 자동 선택된 NIC가 실제 통신 인터페이스와 다르면 명시한다.
+
+```bash
+ros2 launch robot_bridge robot.launch.py \
+  robot_id:=robot5 \
+  network_interface:=wlan0 \
+  bandwidth_warn_mbps:=80.0
+```
+
+첫 10초는 DDS discovery를 기다려 연결 경고를 유예한다. 이후 RGB/depth, scan, odom, tf의
+publisher 부재·수신 정지·기준 미달 Hz 또는 incompatible QoS가 있으면 WARN으로 출력한다.
+진단이 필요 없는 운영에서는 `enable_transport_diagnostics:=false`로 끌 수 있다.
 
 ### AMR 11 PC
 
