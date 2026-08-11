@@ -108,6 +108,32 @@ def test_error_callback_does_nothing_when_no_task_exists():
         rclpy.shutdown()
 
 
+def test_successful_manual_dock_recovers_error_robot_to_docked():
+    rclpy.init()
+    node = TaskManagerNode()
+    try:
+        node.dock_publishers['robot11'] = Mock()
+        node.stop_publishers['robot11'] = Mock()
+        _assign(node)
+        task = node.tasks['robot11']
+        node.error_callback(_error('robot11', task.task_id, 'NAVIGATION_FAILED'))
+        assert task.state == 'ERROR'
+
+        node.command_callback(_command('robot11', task.task_id, 'DOCK'))
+        assert node.dock_publishers['robot11'].publish.call_args.args[0].data is True
+
+        result = NavigationResult()
+        result.robot_id, result.task_id = 'robot11', task.task_id
+        result.goal_type, result.success = 'DOCK', True
+        node.navigation_result_callback(result)
+
+        assert task.state == 'DOCKED'
+        assert task.goal_completed is True
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
 def test_follow_pause_resume_and_return_to_dock_flow():
     """인식 성공을 가정해 HMI 명령부터 실제 도킹 완료까지 상태 전이를 검증한다."""
     rclpy.init()
@@ -132,7 +158,9 @@ def test_follow_pause_resume_and_return_to_dock_flow():
 
         node.handle_navigation_result('robot11', 'TO_WORKER', True, '')
         assert task.goal_completed is True
+        assert task.state == 'FOLLOWING'
 
+        # 도착 직후 이미 FOLLOWING이며, 뒤늦은 감지 신호는 안전한 중복 입력이다.
         node.command_callback(_command('robot11', task.task_id, 'WORKER_DETECTED'))
         assert task.state == 'FOLLOWING'
 
@@ -191,6 +219,7 @@ def test_complete_delivery_flow_reaches_docked(robot_id):
         undock.goal_type, undock.success = 'UNDOCK', True
         node.navigation_result_callback(undock)
         node.handle_navigation_result(robot_id, 'TO_WORKER', True, '')
+        assert task.state == 'FOLLOWING'
         node.command_callback(_command(robot_id, task.task_id, 'WORKER_DETECTED'))
         assert task.state == 'FOLLOWING'
 
@@ -202,6 +231,14 @@ def test_complete_delivery_flow_reaches_docked(robot_id):
         assert task.goal_type == 'TO_DESTINATION'
         assert task.destination_id == 'DEST-A'
         assert task.target == (3.2, -1.4, 0.0)
+        assert task.awaiting_follow_stop is True
+        node.send_navigation_goal.assert_not_called()
+
+        follow_stopped = NavigationResult()
+        follow_stopped.robot_id, follow_stopped.task_id = robot_id, task.task_id
+        follow_stopped.goal_type, follow_stopped.success = 'FOLLOWING_STOPPED', True
+        node.navigation_result_callback(follow_stopped)
+        assert task.awaiting_follow_stop is False
         node.send_navigation_goal.assert_called_once_with(task, replace=True)
 
         node.handle_navigation_result(robot_id, 'TO_DESTINATION', True, '')
@@ -222,6 +259,35 @@ def test_complete_delivery_flow_reaches_docked(robot_id):
         node.navigation_result_callback(dock)
         assert task.state == 'DOCKED'
         assert task.goal_completed is True
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_transport_fails_without_follow_stop_confirmation():
+    """추종 종료 확인이 없으면 목적지 goal을 보내지 않고 안전하게 ERROR로 전환한다."""
+    rclpy.init()
+    node = TaskManagerNode()
+    try:
+        node.error_pub = Mock()
+        node.send_navigation_goal = Mock()
+        _assign(node)
+        task = node.tasks['robot11']
+        task.state = 'FOLLOWING'
+
+        start = _command('robot11', task.task_id, 'START_TRANSPORT')
+        start.target_x, start.target_y = 3.0, 4.0
+        node.command_callback(start)
+        task.follow_stop_requested_time_ns = (
+            node.get_clock().now().nanoseconds - node.follow_stop_timeout_ns - 1)
+
+        node.retry_navigation_goals()
+
+        assert task.state == 'ERROR'
+        assert task.awaiting_follow_stop is False
+        node.send_navigation_goal.assert_not_called()
+        error = node.error_pub.publish.call_args.args[0]
+        assert error.error_code == 'FOLLOW_STOP_TIMEOUT'
     finally:
         node.destroy_node()
         rclpy.shutdown()

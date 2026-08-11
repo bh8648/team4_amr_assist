@@ -10,7 +10,7 @@ import rclpy
 
 from robot_manager import hmi_backend_node as backend
 from robot_manager.hmi_backend_node import HmiBackendNode
-from robot_status.msg import TaskState
+from robot_status.msg import NavigationResult, TaskState
 
 from .test_db_manager_pipeline import SCHEMA
 
@@ -34,6 +34,22 @@ def test_admin_hmi_loads_installed_map_and_database(tmp_path):
         assert len(map_data['cells']) == map_data['width'] * map_data['height']
         assert map_data['resolution'] > 0
         assert node.fetch_latest_robot_status() == {}
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_admin_hmi_destination_api_returns_map_labels(tmp_path, monkeypatch):
+    node = _make_node(tmp_path)
+    monkeypatch.setattr(backend, 'ros_node', node)
+    try:
+        destinations = backend.get_hmi_destinations()
+        assert destinations == [{
+            'destination_id': 'DEST-A',
+            'destination_name': 'A 구역',
+            'position_x': 3.2,
+            'position_y': -1.4,
+        }]
     finally:
         node.destroy_node()
         rclpy.shutdown()
@@ -86,6 +102,43 @@ def test_actual_dock_status_remains_authoritative_in_error_state(tmp_path):
         status.is_docked = True
         node.dock_status_callback('robot11', status)
         assert control['docked'] == 1
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_error_dock_success_shows_docked_without_hiding_assigned_state(tmp_path):
+    node = _make_node(tmp_path)
+    try:
+        with sqlite3.connect(node.db_path) as conn:
+            conn.execute(
+                "INSERT INTO tasks (task_id, assigned_robot_id, state, result) "
+                "VALUES ('TASK-ERROR', 'robot11', 'ERROR', 'FAILED')")
+            conn.execute(
+                "INSERT INTO robot_status_logs "
+                "(robot_id, online, state, current_task_id, battery, position_x, position_y, orientation_yaw) "
+                "VALUES ('robot11', 'ONLINE', 'ERROR', 'TASK-ERROR', 80, 1, 2, 0)")
+
+        state = TaskState()
+        state.robot_id, state.task_id, state.state = 'robot11', 'TASK-ERROR', 'ERROR'
+        node.task_state_callback(state)
+        dock_status = DockStatus()
+        dock_status.is_docked = False
+        node.dock_status_callback('robot11', dock_status)
+
+        result = NavigationResult()
+        result.robot_id, result.task_id = 'robot11', 'TASK-ERROR'
+        result.goal_type, result.success = 'DOCK', True
+        node.navigation_result_callback(result)
+        assert node.fetch_hmi_robots()[0]['mode'] == 'DOCKED'
+
+        with sqlite3.connect(node.db_path) as conn:
+            conn.execute(
+                "UPDATE tasks SET task_id='TASK-ASSIGNED', state='ASSIGNED', result=NULL "
+                "WHERE assigned_robot_id='robot11'")
+        state.task_id, state.state = 'TASK-ASSIGNED', 'ASSIGNED'
+        node.task_state_callback(state)
+        assert node.fetch_hmi_robots()[0]['mode'] == 'ASSIGNED'
     finally:
         node.destroy_node()
         rclpy.shutdown()

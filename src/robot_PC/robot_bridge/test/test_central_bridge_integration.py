@@ -1,6 +1,7 @@
 """Central Task Manager와 robot bridge 사이의 실제 ROS 토픽 통합 테스트."""
 
 import time
+from unittest.mock import Mock
 
 import pytest
 import rclpy
@@ -22,8 +23,8 @@ def _spin_until(executor, predicate, timeout_sec=3.0):
 
 
 @pytest.mark.parametrize('robot_id', ['robot5', 'robot11'])
-def test_tracking_pose_crosses_dds_and_changes_central_state(robot_id):
-    """TaskState와 target pose가 실제 토픽을 왕복해 FOLLOWING으로 전환되는지 확인한다."""
+def test_worker_arrival_starts_following_and_tracking_pose_crosses_dds(robot_id):
+    """TO_WORKER 성공이 FOLLOWING을 만들고 이후 target pose가 추종으로 이어지는지 확인한다."""
     rclpy.init(args=['--ros-args', '-p', f'robot_id:={robot_id}'])
     manager = TaskManagerNode()
     bridge = RobotBridgeNode()
@@ -33,20 +34,23 @@ def test_tracking_pose_crosses_dds_and_changes_central_state(robot_id):
         executor.add_node(node)
 
     try:
-        # 액션 서버 없이 토픽 계약만 검증하므로 최초 접근이 끝난 상태를 중앙에서 발행한다.
+        # 액션 서버 없이 중앙의 TO_WORKER 성공 콜백부터 DDS 상태 전달까지 검증한다.
         task = ManagedTask(
             task_id=f'TEST_{robot_id}', robot_id=robot_id, state='ASSIGNED',
-            goal_type='TO_WORKER', goal_completed=True)
+            goal_type='TO_WORKER')
         manager.tasks[robot_id] = task
         pose_pub = probe.create_publisher(PoseStamped, f'/{robot_id}/target_person_pose', 10)
+        bridge.latest_x, bridge.latest_y, bridge.latest_yaw = 0.0, 0.0, 0.0
+        bridge.send_follow_goal = Mock()
 
-        # DDS discovery가 끝난 후 상태를 발행해야 volatile TaskState를 놓치지 않는다.
+        # DDS discovery가 끝난 후 성공 상태를 발행해야 volatile TaskState를 놓치지 않는다.
         for _ in range(5):
             executor.spin_once(timeout_sec=0.05)
-        manager.publish_state(task, '작업자 위치 도착, 작업자 감지 대기')
+        manager.handle_navigation_result(robot_id, 'TO_WORKER', True, '')
+        assert task.state == 'FOLLOWING'
         assert _spin_until(
             executor,
-            lambda: bridge.current_task_state == 'ASSIGNED'
+            lambda: bridge.current_task_state == 'FOLLOWING'
             and bridge.worker_tracking_enabled,
         )
 
@@ -56,9 +60,8 @@ def test_tracking_pose_crosses_dds_and_changes_central_state(robot_id):
         pose.pose.orientation.w = 1.0
         pose_pub.publish(pose)
 
-        # bridge가 WORKER_DETECTED를 발행하고 manager가 FOLLOWING을 회신하는 전체 왕복이다.
-        assert _spin_until(executor, lambda: task.state == 'FOLLOWING')
-        assert _spin_until(executor, lambda: bridge.current_task_state == 'FOLLOWING')
+        # FOLLOWING 상태에서 첫 유효 pose가 즉시 안전거리 추종 goal로 이어진다.
+        assert _spin_until(executor, lambda: bridge.send_follow_goal.called)
         assert bridge.current_task_id == task.task_id
     finally:
         for node in (probe, bridge, manager):

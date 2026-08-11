@@ -15,7 +15,19 @@ from sensor_msgs.msg import BatteryState
 from std_msgs.msg import Bool
 
 from robot_status.msg import NavigationResult, RobotError, RobotStatus, TaskCommand, TaskState
-from robot_bridge.pose_utils import build_robot_status, is_followable_pose, quaternion_to_yaw
+from robot_bridge.pose_utils import (
+    build_robot_status,
+    is_followable_pose,
+    quaternion_to_yaw,
+    yaw_to_quaternion,
+)
+
+
+# 도킹 스테이션 기준 로봇별 고정 초기 포즈. RViz2 "2D Pose Estimate" 없이 AMCL을 수렴시킨다.
+INITIAL_POSES = {
+    'robot5': (0.0, 0.0, 0.0),
+    'robot11': (-2.235, -5.022, -1.528),
+}
 
 
 class RobotBridgeNode(Node):
@@ -25,7 +37,7 @@ class RobotBridgeNode(Node):
         super().__init__('robot_bridge_node')
         self.declare_parameter('robot_id', robot_id)
         self.robot_id = str(self.get_parameter('robot_id').value).strip()
-        if self.robot_id not in ('robot5', 'robot11'):
+        if self.robot_id not in INITIAL_POSES:
             raise ValueError('robot_id는 robot5 또는 robot11이어야 합니다.')
         topic_prefix = f'/{self.robot_id}'
         # 추종 인식 좌표가 고주파로 들어와도 Nav2 goal은 기본 1Hz 이하로 제한한다.
@@ -71,6 +83,11 @@ class RobotBridgeNode(Node):
         self.nav_goal_handle = None
         self.nav_goal_pending = False
         self.nav_generation = 0
+        # 교체 중인 과거 goal까지 포함해 모든 FOLLOWING NavigateToPose 종료를 추적한다.
+        # TRANSPORTING handoff는 이 두 컬렉션이 모두 비워진 뒤에만 완료로 보고한다.
+        self.follow_goal_handles = {}
+        self.follow_pending_generations = set()
+        self.follow_stop_task_id = ''
         self.last_follow_goal_time_ns: Optional[int] = None
         self.last_follow_goal: Optional[tuple] = None
         # 마지막으로 정상 사람 좌표를 받은 시각이다. FOLLOWING 진입 시부터 유실 시간을 잰다.
@@ -81,6 +98,8 @@ class RobotBridgeNode(Node):
         self.spin_goal_handle = None
         self.spin_goal_pending = False
         self.spin_generation = 0
+        self.spin_goal_handles = {}
+        self.spin_pending_generations = set()
 
         # 로봇별 namespace의 실제 위치·배터리·제어 요청만 구독한다.
         self.amcl_sub = self.create_subscription(
@@ -109,6 +128,10 @@ class RobotBridgeNode(Node):
         self.error_pub = self.create_publisher(RobotError, '/robot_error', 10)
         self.task_command_pub = self.create_publisher(TaskCommand, '/task/command', 10)
         self.status_timer = self.create_timer(1.0, self.publish_robot_status)
+        # RViz2 2D Pose Estimate 없이도 AMCL이 수렴하도록 고정 초기 포즈를 반복 발행한다.
+        self.initial_pose_pub = self.create_publisher(
+            PoseWithCovarianceStamped, f'{topic_prefix}/initialpose', 10)
+        self.initial_pose_timer = self.create_timer(1.0, self.publish_initial_pose_retry)
         # 좌표 토픽이 완전히 끊겨도 유실을 감지할 수 있도록 별도 타이머로 감시한다.
         self.tracking_watchdog_timer = self.create_timer(0.2, self.tracking_watchdog_callback)
 
@@ -127,6 +150,22 @@ class RobotBridgeNode(Node):
         q = pose.orientation
         # 공통 변환 유틸을 사용해 로봇별 계산 차이를 방지한다.
         self.latest_yaw = quaternion_to_yaw(q.x, q.y, q.z, q.w)
+
+    def publish_initial_pose_retry(self) -> None:
+        """첫 AMCL pose를 받기 전까지 로봇별 초기 pose를 반복 발행한다."""
+        if self.latest_x is not None:
+            self.initial_pose_timer.cancel()
+            return
+        x, y, yaw = INITIAL_POSES[self.robot_id]
+        msg = PoseWithCovarianceStamped()
+        msg.header.frame_id = 'map'
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.pose.pose.position.x, msg.pose.pose.position.y = x, y
+        msg.pose.pose.orientation.z, msg.pose.pose.orientation.w = yaw_to_quaternion(yaw)
+        msg.pose.covariance[0] = 0.25
+        msg.pose.covariance[7] = 0.25
+        msg.pose.covariance[35] = 0.06853891945200942
+        self.initial_pose_pub.publish(msg)
 
     def battery_callback(self, msg: BatteryState) -> None:
         """BatteryState의 0~1 비율을 DB 규격인 퍼센트로 변환한다."""
@@ -218,8 +257,12 @@ class RobotBridgeNode(Node):
                     self.process_following_person_pose(pending_pose)
             elif previous_state == 'FOLLOWING' and msg.state != 'FOLLOWING':
                 # 배송 모드 등으로 넘어갈 때 추종 Navigate/Spin이 남아 제어권을 잡지 않게 정리한다.
-                self.cancel_follow_goal()
-                self.cancel_search_spin()
+                if msg.state == 'TRANSPORTING':
+                    self.cancel_search_spin()
+                    self.begin_follow_stop_handoff(msg.task_id)
+                else:
+                    self.cancel_follow_goal()
+                    self.cancel_search_spin()
                 self.last_person_pose_time_ns = None
                 self.search_started_time_ns = None
             if msg.task_id != self.worker_detected_task_id:
@@ -381,21 +424,51 @@ class RobotBridgeNode(Node):
         generation = self.nav_generation
         # goal 수락 응답 전 추가 요청이 쌓이지 않도록 pending 상태를 먼저 기록한다.
         self.nav_goal_pending = True
+        self.follow_pending_generations.add(generation)
         future = self.nav_client.send_goal_async(goal)
         self.last_follow_goal_time_ns = self.get_clock().now().nanoseconds
         q = goal.pose.pose.orientation
         self.last_follow_goal = (
             goal.pose.pose.position.x, goal.pose.pose.position.y,
             quaternion_to_yaw(q.x, q.y, q.z, q.w))
+        self.get_logger().info(
+            f'{self.robot_id}: FOLLOWING Nav2 goal 전송 '
+            f'x={goal.pose.pose.position.x:.3f}, y={goal.pose.pose.position.y:.3f}, '
+            f'generation={generation}')
         future.add_done_callback(lambda result: self.follow_goal_response_callback(result, generation))
 
     def cancel_follow_goal(self) -> None:
         """현재 추종 NavigateToPose와 아직 도착하지 않은 응답을 모두 무효화한다."""
         self.nav_generation += 1
         self.nav_goal_pending = False
-        if self.nav_goal_handle is not None:
-            self.nav_goal_handle.cancel_goal_async()
-            self.nav_goal_handle = None
+        for goal_handle in tuple(self.follow_goal_handles.values()):
+            goal_handle.cancel_goal_async()
+        self.nav_goal_handle = None
+
+    def begin_follow_stop_handoff(self, task_id: str) -> None:
+        """배송 goal과 겹치지 않도록 모든 추종 goal의 최종 종료를 기다린다."""
+        self.follow_stop_task_id = task_id
+        self.nav_generation += 1
+        self.nav_goal_pending = False
+        for goal_handle in tuple(self.follow_goal_handles.values()):
+            goal_handle.cancel_goal_async()
+        self.nav_goal_handle = None
+        self.publish_follow_stopped_if_ready()
+
+    def publish_follow_stopped_if_ready(self) -> None:
+        """수락 대기·실행 중인 추종 goal이 하나도 없을 때 중앙에 handoff를 확인한다."""
+        if (not self.follow_stop_task_id or self.follow_pending_generations
+                or self.follow_goal_handles or self.spin_pending_generations
+                or self.spin_goal_handles):
+            return
+        task_id, self.follow_stop_task_id = self.follow_stop_task_id, ''
+        result = NavigationResult()
+        result.stamp = self.get_clock().now().to_msg()
+        result.task_id, result.robot_id = task_id, self.robot_id
+        result.goal_type, result.success = 'FOLLOWING_STOPPED', True
+        self.navigation_result_pub.publish(result)
+        self.get_logger().info(
+            f'{self.robot_id}: FOLLOWING Nav2 goal 종료 확인, task_id={task_id}')
 
     def tracking_watchdog_callback(self) -> None:
         """사람 좌표 유실 시 Nav2 Spin 탐색을 시작하고 제한 시간 후 오류를 보고한다."""
@@ -434,36 +507,48 @@ class RobotBridgeNode(Node):
         self.spin_generation += 1
         generation = self.spin_generation
         self.spin_goal_pending = True
+        self.spin_pending_generations.add(generation)
         future = self.spin_client.send_goal_async(goal)
         future.add_done_callback(lambda result: self.spin_goal_response_callback(result, generation))
 
     def spin_goal_response_callback(self, future, generation: int) -> None:
         """오래된 Spin 응답은 즉시 취소하고 현재 탐색 응답만 보관한다."""
         goal_handle = future.result()
+        self.spin_pending_generations.discard(generation)
         if generation != self.spin_generation or self.current_task_state != 'FOLLOWING':
             if goal_handle.accepted:
+                self.spin_goal_handles[generation] = goal_handle
                 goal_handle.cancel_goal_async()
+                goal_handle.get_result_async().add_done_callback(
+                    lambda result: self.spin_result_callback(
+                        result, goal_handle, generation))
+            self.publish_follow_stopped_if_ready()
             return
         self.spin_goal_pending = False
         if not goal_handle.accepted:
             self.get_logger().warn(f'{self.robot_id} spin goal이 거부되었습니다.')
+            self.publish_follow_stopped_if_ready()
             return
         self.spin_goal_handle = goal_handle
+        self.spin_goal_handles[generation] = goal_handle
         goal_handle.get_result_async().add_done_callback(
             lambda result: self.spin_result_callback(result, goal_handle, generation))
 
     def spin_result_callback(self, _future, goal_handle, generation: int) -> None:
         """한 바퀴 탐색이 끝나면 handle을 비워 watchdog이 필요 시 다음 탐색을 보낸다."""
+        self.spin_goal_handles.pop(generation, None)
         if generation == self.spin_generation and self.spin_goal_handle is goal_handle:
             self.spin_goal_handle = None
+        self.publish_follow_stopped_if_ready()
 
     def cancel_search_spin(self) -> None:
         """재검출·상태 전환·정지 시 진행 중인 Spin과 지연 응답을 무효화한다."""
         self.spin_generation += 1
         self.spin_goal_pending = False
-        if self.spin_goal_handle is not None:
-            self.spin_goal_handle.cancel_goal_async()
-            self.spin_goal_handle = None
+        for goal_handle in tuple(self.spin_goal_handles.values()):
+            goal_handle.cancel_goal_async()
+        self.spin_goal_handle = None
+        self.publish_follow_stopped_if_ready()
 
     def publish_worker_lost_once(self) -> None:
         """같은 Task에 WORKER_LOST 오류가 중복 발행되지 않도록 한 번만 보고한다."""
@@ -478,29 +563,40 @@ class RobotBridgeNode(Node):
     def follow_goal_response_callback(self, future, generation: int) -> None:
         """정지 또는 최신 goal보다 오래된 응답은 즉시 취소한다."""
         goal_handle = future.result()
+        self.follow_pending_generations.discard(generation)
         if generation != self.nav_generation:
             if goal_handle.accepted:
+                self.follow_goal_handles[generation] = goal_handle
                 goal_handle.cancel_goal_async()
+                goal_handle.get_result_async().add_done_callback(
+                    lambda result: self.follow_result_callback(
+                        result, goal_handle, generation))
+            self.publish_follow_stopped_if_ready()
             return
         self.nav_goal_pending = False
         if not goal_handle.accepted:
             self.get_logger().warn(f'{self.robot_id} 추종 goal 거부됨')
             self.publish_action_result('FOLLOWING', False, 'FOLLOW_GOAL_REJECTED')
+            self.publish_follow_stopped_if_ready()
             return
         self.nav_goal_handle = goal_handle
+        self.follow_goal_handles[generation] = goal_handle
         goal_handle.get_result_async().add_done_callback(
             lambda result: self.follow_result_callback(result, goal_handle, generation))
 
     def follow_result_callback(self, future, goal_handle, generation: int) -> None:
         """최신 추종 goal의 실제 실패만 오류로 보고하고 교체·정지 취소는 무시한다."""
-        if generation != self.nav_generation:
-            return
+        self.follow_goal_handles.pop(generation, None)
         if self.nav_goal_handle is goal_handle:
             self.nav_goal_handle = None
+        if generation != self.nav_generation:
+            self.publish_follow_stopped_if_ready()
+            return
         response = future.result()
         if response.status != GoalStatus.STATUS_SUCCEEDED:
             self.publish_action_result(
                 'FOLLOWING', False, f'FOLLOW_FAILED_STATUS_{response.status}')
+        self.publish_follow_stopped_if_ready()
 
     def publish_action_result(self, goal_type: str, success: bool, error_code: str) -> None:
         """액션 결과를 Task Manager로 보내고 실패 오류는 DB 기록 토픽에도 발행한다."""

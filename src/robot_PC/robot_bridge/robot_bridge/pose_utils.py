@@ -8,6 +8,11 @@ def quaternion_to_yaw(x: float, y: float, z: float, w: float) -> float:
     return math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
 
 
+def yaw_to_quaternion(yaw: float) -> tuple:
+    """z축 회전만 있다고 가정하고 yaw(라디안)에서 쿼터니언 (z, w)를 만든다."""
+    return math.sin(yaw / 2.0), math.cos(yaw / 2.0)
+
+
 def is_valid_quaternion(x: float, y: float, z: float, w: float) -> bool:
     """모든 성분이 0인 쿼터니언(추적 대상 없음을 뜻하는 무효 메시지)을 걸러낸다."""
     return not (x == 0.0 and y == 0.0 and z == 0.0 and w == 0.0)
