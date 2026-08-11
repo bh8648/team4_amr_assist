@@ -56,7 +56,6 @@ class TaskManagerNode(Node):
         self.idle_paused: Set[str] = set()
         self.destinations = {}
         self.worker_wearing_hardhat: Optional[bool] = None  # hardhat_detector_node가 판별하기 전까지는 None
-        self.hardhat_alert_timer = None  # 미착용 경고음 반복 타이머 - 착용 확인되면 취소
 
         # --------------------------------subscription---------------------------------------------------------------
         self.assignment_sub = self.create_subscription(RobotAssignment, '/robot_assignment', self.assignment_callback, 10)  # 할당된 로봇 및 작업자 위치 받아옴
@@ -199,18 +198,12 @@ class TaskManagerNode(Node):
         self.publish_state(task, detail)
 
     def hardhat_status_callback(self, msg: Bool) -> None:
+        previous = self.worker_wearing_hardhat
         self.worker_wearing_hardhat = msg.data
         self.get_logger().info(f'하이바 착용 상태 갱신: {"착용" if msg.data else "미착용"}')
-        if msg.data:
-            # 착용 확인되면 돌고 있던 반복 경고음을 멈춘다
-            if self.hardhat_alert_timer is not None:
-                self.destroy_timer(self.hardhat_alert_timer)
-                self.hardhat_alert_timer = None
-        elif self.hardhat_alert_timer is None:
-            # 미착용으로 바뀌었고 아직 경고음이 안 돌고 있으면 즉시 한 번 울리고,
-            # 착용이 확인될 때까지 5초 간격으로 반복한다
+        if not msg.data and previous is not False:
+            # 착용 -> 미착용으로 바뀐 순간에만 한 번 울린다 (반복 재생 안 함)
             self.play_hardhat_alert()
-            self.hardhat_alert_timer = self.create_timer(5.0, self.play_hardhat_alert)
 
     def play_hardhat_alert(self) -> None:
         """작업자를 따라가는 중인 로봇에 '삐뽀삐뽀' 경고음(AudioNoteVector)을 publish한다."""
