@@ -20,7 +20,7 @@ from launch_ros.actions import Node  # ROS2 노드 실행 액션
 # 다른 가중치를 쓰려면 launch argument로 override하면 됨(파일명만 주면
 # Ultralytics가 캐시에서 자동 다운로드도 시도함).
 _DEFAULT_POSE_MODEL = os.path.join(
-    get_package_share_directory('person_locator'), 'models', 'yolo11n-pose.pt'
+    get_package_share_directory('person_locator'), 'models', 'yolov8n-pose.pt'
 )
 # 마찬가지로 config/*.yaml도 setup.py의 data_files가 share로 복사해두므로,
 # launch를 어느 cwd에서 실행하든 항상 찾을 수 있게 절대경로로 잡는다
