@@ -30,6 +30,10 @@ def generate_launch_description():
             default_value=PathJoinSubstitution([
                 FindPackageShare('amr_person_tracking'), 'config', 'botsort_reid.yaml']),
         ),
+        # 전용 외형 임베딩 모델은 현재 사용하지 않는다. false면 인코더/토픽/통계 타이머를
+        # 만들지 않아 [reid] 임베딩 짝없음 로그도 출력되지 않는다.
+        DeclareLaunchArgument('enable_embeddings', default_value='false'),
+        DeclareLaunchArgument('reid_model_path', default_value=''),
         # OAK-D RGB/Depth/CameraInfo (모두 compressed, 대역폭 절약)
         DeclareLaunchArgument(
             'rgb_topic',
@@ -199,6 +203,8 @@ def generate_launch_description():
             'publish_debug_image': LaunchConfiguration('publish_debug_image'),
             'pose_model_path': LaunchConfiguration('pose_model_path'),
             'tracker_config_path': LaunchConfiguration('tracker_config_path'),
+            'enable_embeddings': LaunchConfiguration('enable_embeddings'),
+            'reid_model_path': LaunchConfiguration('reid_model_path'),
             'max_detection_distance': LaunchConfiguration('max_detection_distance'),
             'log_follow_overlay_misses': LaunchConfiguration('log_follow_overlay_misses'),
             'duplicate_merge_distance': LaunchConfiguration('duplicate_merge_distance'),
@@ -303,6 +309,7 @@ def generate_launch_description():
             'tracked_detections_topic': tracked_topic,
             'target_pose_topic': target_pose_topic,
             'reid_embeddings_topic': embeddings_topic,
+            'enable_embeddings': LaunchConfiguration('enable_embeddings'),
             'log_track_lifecycle': LaunchConfiguration('log_track_lifecycle'),
             'call_position_topic': call_position_topic,
             'call_designation_radius': LaunchConfiguration('call_designation_radius'),

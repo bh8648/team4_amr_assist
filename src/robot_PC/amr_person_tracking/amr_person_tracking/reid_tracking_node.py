@@ -129,6 +129,7 @@ class ReidTrackingNode(Node):
 
         # 외형(ReID) 기반 재식별. oakd_detector_node가 reid_model_path로 켜져 있을 때만
         # 임베딩이 들어오고, 없으면 아래 값들은 모두 무시돼 기존 위치 기반 동작이 된다.
+        self.declare_parameter('enable_embeddings', False)
         self.declare_parameter('reid_embeddings_topic', '/robot5/vision/detection_embeddings')
         # 게이트를 통과한 후보들 사이의 선택에만 더해지는 외형 비용 가중치(미터 단위 거리와
         # 더해지므로 "유사도 1 차이 = 몇 m 차이로 볼지"에 해당). 0이면 외형 미사용.
@@ -265,6 +266,7 @@ class ReidTrackingNode(Node):
         self.leg_match_max_extrapolation = self.get_parameter('leg_match_max_extrapolation').value
         self.swap_check_max_age = self.get_parameter('swap_check_max_age').value
         self.appearance_weight = self.get_parameter('appearance_weight').value
+        self.enable_embeddings = self.get_parameter('enable_embeddings').value
         self.embedding_alpha = self.get_parameter('embedding_alpha').value
         self.dormant_ttl = self.get_parameter('dormant_ttl').value
         self.revival_similarity = self.get_parameter('revival_similarity').value
@@ -292,9 +294,12 @@ class ReidTrackingNode(Node):
             Detection3DArray, oakd_topic, self.oakd_detections_callback, qos_profile_sensor_data)
         # 외형 임베딩 동반 토픽. oakd_detector_node가 detections와 동일한 header.stamp로,
         # 행 i가 detections[i]에 대응하도록 32FC1 (N x D) Image로 발행한다.
-        self.reid_sub = self.create_subscription(
-            Image, self.get_parameter('reid_embeddings_topic').value,
-            self.embeddings_callback, qos_profile_sensor_data)
+        self.reid_sub = (
+            self.create_subscription(
+                Image, self.get_parameter('reid_embeddings_topic').value,
+                self.embeddings_callback, qos_profile_sensor_data)
+            if self.enable_embeddings else None
+        )
         self.create_subscription(
             PointStamped, self.get_parameter('call_position_topic').value,
             self.call_position_callback, 10)
@@ -333,7 +338,10 @@ class ReidTrackingNode(Node):
         self._stat_emb_matched = 0
         self._stat_emb_missed = 0
         self._stat_revivals = 0
-        self.create_timer(5.0, self._log_reid_stats)
+        self.reid_stats_timer = (
+            self.create_timer(5.0, self._log_reid_stats)
+            if self.enable_embeddings else None
+        )
 
         # 웹캠-라이다 신원 매칭 상태
         self.locked_leg_id = None                # 락온된 라이다 쪽 원본 id 문자열 (예: 'leg_7')
@@ -371,6 +379,8 @@ class ReidTrackingNode(Node):
 
     def _take_embeddings(self, stamp, count):
         """이 stamp의 임베딩 행렬을 꺼낸다(소비). 없거나 행수가 안 맞으면 None들의 리스트."""
+        if not self.enable_embeddings:
+            return [None] * count
         matrix = self.pending_embeddings.pop(round(stamp, 6), None)
         if matrix is None or len(matrix) != count:
             if count:
@@ -381,6 +391,8 @@ class ReidTrackingNode(Node):
 
     def _log_reid_stats(self):
         """외형 매칭이 실제로 붙고 있는지 주기적으로 보고한다(전부 0이면 뭔가 끊긴 것)."""
+        if not self.enable_embeddings:
+            return
         if not (self._stat_emb_received or self._stat_emb_matched or self._stat_emb_missed):
             return
         self.get_logger().info(
@@ -484,14 +496,20 @@ class ReidTrackingNode(Node):
                     self.tracks[track_id] = track
                     del self.dormant_gallery[track_id]
                     self._stat_revivals += 1
+                    revival_basis = (
+                        '외형 재식별'
+                        if self.enable_embeddings and embedding is not None
+                        else '위치 기반 재연결'
+                    )
                     if self.dormant_followed_id == track_id:
                         self.followed_track_id = track_id
                         self.dormant_followed_id = None
                         self._reset_leg_lock()
                         self.get_logger().info(
-                            f'외형 재식별로 추종 대상 복귀: track {track_id}')
+                            f'{revival_basis}로 추종 대상 복귀: track {track_id}')
                     else:
-                        self.get_logger().info(f'외형 재식별로 신원 복원: track {track_id}')
+                        self.get_logger().info(
+                            f'{revival_basis}로 신원 복원: track {track_id}')
                 else:
                     track_id = self._next_track_id
                     self._next_track_id += 1

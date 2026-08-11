@@ -183,6 +183,7 @@ class OakdDetectorNode(Node):
         model_path = self.get_parameter('pose_model_path').value
         device = self.get_parameter('device').value
         self.tracker_config_path = self.get_parameter('tracker_config_path').value or None
+        self.enable_embeddings = self.get_parameter('enable_embeddings').value
         self.get_logger().info(f'YOLO-pose 모델 로드: {model_path}')
         if self.tracker_config_path:
             self.get_logger().info(f'커스텀 트래커 설정 사용: {self.tracker_config_path}')
@@ -198,13 +199,15 @@ class OakdDetectorNode(Node):
         # None으로 두고 넘어간다 - reid_tracking_node도 임베딩이 없으면 위치 기반으로 degrade한다.
         reid_path = self.get_parameter('reid_model_path').value
         self.reid_encoder = None
-        if reid_path:
+        if self.enable_embeddings and reid_path:
             try:
                 from ultralytics.trackers.utils.reid import ReID
                 self.reid_encoder = ReID(reid_path)
                 self.get_logger().info(f'ReID 인코더 로드: {reid_path}')
             except Exception as exc:
                 self.get_logger().error(f'ReID 인코더 로드 실패(임베딩 없이 계속): {exc}')
+        elif self.enable_embeddings:
+            self.get_logger().warn('임베딩이 활성화됐지만 reid_model_path가 비어 있어 비활성화한다')
 
         # ---- 입력 ----
         # RGB와 Depth만 동기화한다. CameraInfo는 정적이라 동기화 대상에 넣으면
@@ -311,6 +314,7 @@ class OakdDetectorNode(Node):
         # 기존 동작을 그대로 유지한다. 사람이 화면 밖으로 나갔다 재등장할 때 신원을 잇기 위해
         # reid_tracking_node가 쓰는 외형 특징을 여기서 계산해 동반 토픽으로 내보낸다.
         # 기술자 선택 근거는 tools/reid_embedding_eval.py 참고(전용 ReID만 임계가 견고함).
+        self.declare_parameter('enable_embeddings', False)
         self.declare_parameter('reid_model_path', '')
         self.declare_parameter('reid_embeddings_topic',
                                '/robot5/vision/detection_embeddings')
