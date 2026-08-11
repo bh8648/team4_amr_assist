@@ -9,7 +9,15 @@ from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
 
 from robot_bridge.robot_bridge_node import RobotBridgeNode
-from robot_manager.task_manager_node import ManagedTask, TaskManagerNode
+
+# Robot PC 전용(`--base-paths src/robot_PC`) 빌드에는 Central PC 패키지가 없다.
+# 통합 워크스페이스에서는 원래 테스트를 실행하고 Robot PC에서는 명시적으로 건너뛴다.
+task_manager_module = pytest.importorskip(
+    'robot_manager.task_manager_node',
+    reason='Central PC robot_manager is not part of the Robot PC-only build',
+)
+ManagedTask = task_manager_module.ManagedTask
+TaskManagerNode = task_manager_module.TaskManagerNode
 
 
 def _spin_until(executor, predicate, timeout_sec=3.0):

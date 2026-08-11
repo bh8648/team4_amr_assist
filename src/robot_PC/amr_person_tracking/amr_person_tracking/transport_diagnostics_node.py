@@ -3,14 +3,16 @@
 
 from dataclasses import dataclass
 import os
+import shutil
+import subprocess
 import time
 
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from nav_msgs.msg import Odometry
 import rclpy
-from rclpy.event_handler import SubscriptionEventCallbacks
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos_event import SubscriptionEventCallbacks
 from sensor_msgs.msg import CameraInfo, CompressedImage, LaserScan
 from tf2_msgs.msg import TFMessage
 
@@ -18,7 +20,10 @@ from amr_person_tracking.transport_diagnostics_utils import (
     bits_per_second,
     classify_topic,
     counter_delta,
+    discovery_config_issues,
+    discovery_runtime_issues,
     parse_default_interface,
+    parse_discovery_servers,
 )
 
 
@@ -67,6 +72,8 @@ class TransportDiagnosticsNode(Node):
         self.declare_parameter('network_interface', '')
         self.declare_parameter('bandwidth_warn_mbps', 80.0)
         self.declare_parameter('stale_after_sec', 2.5)
+        self.declare_parameter('require_discovery_server', True)
+        self.declare_parameter('discovery_probe_period_sec', 30.0)
         self.declare_parameter('diagnostics_topic', '/robot5/diagnostics')
         self.declare_parameter('rgb_topic', '/robot5/oakd/rgb/image_raw/compressed')
         self.declare_parameter('depth_topic', '/robot5/oakd/stereo/image_raw/compressedDepth')
@@ -84,8 +91,24 @@ class TransportDiagnosticsNode(Node):
         self.startup_grace_sec = max(0.0, float(self.get_parameter('startup_grace_sec').value))
         self.bandwidth_warn_mbps = float(self.get_parameter('bandwidth_warn_mbps').value)
         self.stale_after_sec = max(0.1, float(self.get_parameter('stale_after_sec').value))
+        self.require_discovery_server = bool(
+            self.get_parameter('require_discovery_server').value)
+        self.discovery_probe_period_sec = max(
+            5.0, float(self.get_parameter('discovery_probe_period_sec').value))
         requested_interface = str(self.get_parameter('network_interface').value).strip()
         self.network_interface = requested_interface or self._default_interface()
+
+        discovery_value = os.environ.get('ROS_DISCOVERY_SERVER', '')
+        self.discovery_servers, parse_issues = parse_discovery_servers(discovery_value)
+        self.discovery_config_issues = discovery_config_issues(
+            os.environ.get('RMW_IMPLEMENTATION', ''),
+            os.environ.get('ROS_LOCALHOST_ONLY', ''),
+            self.discovery_servers,
+            parse_issues,
+            self.require_discovery_server,
+        )
+        self.discovery_reachability = {}
+        self.discovery_last_probe_at = None
 
         self.started_at = time.monotonic()
         self.last_report_at = self.started_at
@@ -151,6 +174,35 @@ class TransportDiagnosticsNode(Node):
             return None
         return values
 
+    def _refresh_discovery_reachability(self, now):
+        """Discovery Server host ICMP 도달성을 저빈도로 갱신한다.
+
+        UDP 11811 listener 자체는 ICMP로 확정할 수 없다. 대신 host ping과
+        타입을 명시한 ROS 구독에서 발견한 실제 endpoint를 결합해 판정한다.
+        """
+        if (self.discovery_last_probe_at is not None
+                and now - self.discovery_last_probe_at < self.discovery_probe_period_sec):
+            return
+        self.discovery_last_probe_at = now
+        ping = shutil.which('ping')
+        for _, host, _ in self.discovery_servers:
+            if host in self.discovery_reachability and ping is None:
+                continue
+            if ping is None:
+                self.discovery_reachability[host] = None
+                continue
+            try:
+                result = subprocess.run(
+                    [ping, '-n', '-c', '1', '-W', '1', host],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=1.5,
+                    check=False,
+                )
+                self.discovery_reachability[host] = result.returncode == 0
+            except (OSError, subprocess.TimeoutExpired):
+                self.discovery_reachability[host] = False
+
     def _nic_report(self, current, elapsed):
         if current is None:
             return None, ['nic_unavailable']
@@ -199,11 +251,14 @@ class TransportDiagnosticsNode(Node):
         qos_issues = []
         topic_parts = []
         diagnostic_values = []
+        remote_endpoint_count = 0
 
         for probe in self.probes:
             hz = probe.count / elapsed
             age = None if probe.last_seen is None else max(0.0, now - probe.last_seen)
-            publishers = probe.subscription.get_publisher_count()
+            # Humble Subscription에는 get_publisher_count()가 없으므로 Node graph API를 쓴다.
+            publishers = self.count_publishers(probe.topic)
+            remote_endpoint_count += publishers
             state = classify_topic(
                 age, publishers, hz, probe.minimum_hz,
                 in_startup_grace=in_grace, stale_after_sec=self.stale_after_sec)
@@ -241,16 +296,51 @@ class TransportDiagnosticsNode(Node):
             DiagnosticStatus.WARN
             if network_issues and not in_grace else DiagnosticStatus.OK)
         qos_level = DiagnosticStatus.WARN if qos_issues and not in_grace else DiagnosticStatus.OK
-
-        log_text = (
-            f'[transport {elapsed:.1f}s] BANDWIDTH={"WARN" if bandwidth_level else "OK"} '
-            f'{nic_text} pi_rx={raspberry_mbps:.2f}Mbps tb4_rx={turtlebot_mbps:.2f}Mbps | '
-            f'NETWORK={"WARN:" + ",".join(network_issues) if network_level else "OK"} '
-            f'{" ".join(topic_parts)} | '
-            f'QOS={"WARN:" + ",".join(qos_issues) if qos_level else "OK"}'
+        self._refresh_discovery_reachability(now)
+        discovery_issues = discovery_runtime_issues(
+            self.discovery_config_issues,
+            self.discovery_servers,
+            self.discovery_reachability,
+            remote_endpoint_count,
+            in_startup_grace=in_grace,
+            require_server=self.require_discovery_server,
         )
-        (self.get_logger().warn if bandwidth_level or network_level or qos_level
-         else self.get_logger().info)(log_text)
+        discovery_level = (
+            DiagnosticStatus.WARN if discovery_issues else DiagnosticStatus.OK)
+        server_parts = []
+        for server_id, host, port in self.discovery_servers:
+            reachable = self.discovery_reachability.get(host)
+            state = 'unknown' if reachable is None else ('up' if reachable else 'down')
+            server_parts.append(f'id{server_id}={host}:{port}/{state}')
+        server_text = ','.join(server_parts) if server_parts else 'multicast/unset'
+
+        # Humble의 메시지 상수는 b'\x00'/b'\x01'이라 OK도 bool()이 True다.
+        # 상태 상수의 truthiness가 아니라 실제 issue 목록으로 사람이 보는 로그를 만든다.
+        bandwidth_log = (
+            'WARN:' + ','.join(bandwidth_issues) if bandwidth_issues else 'OK')
+        network_log = (
+            'WARN:' + ','.join(network_issues)
+            if network_issues and not in_grace else 'OK')
+        qos_log = (
+            'WARN:' + ','.join(qos_issues) if qos_issues and not in_grace else 'OK')
+        discovery_log = (
+            'WARN:' + ','.join(discovery_issues) if discovery_issues else 'OK')
+        log_text = (
+            f'[transport {elapsed:.1f}s] BANDWIDTH={bandwidth_log} '
+            f'{nic_text} pi_rx={raspberry_mbps:.2f}Mbps tb4_rx={turtlebot_mbps:.2f}Mbps | '
+            f'NETWORK={network_log} '
+            f'{" ".join(topic_parts)} | '
+            f'QOS={qos_log} | DISCOVERY={discovery_log} '
+            f'{server_text} endpoints={remote_endpoint_count}'
+        )
+        has_warnings = bool(
+            bandwidth_issues or discovery_issues
+            or (not in_grace and (network_issues or qos_issues)))
+        # Humble logger는 같은 호출 위치의 severity 변경을 허용하지 않는다.
+        if has_warnings:
+            self.get_logger().warn(log_text)
+        else:
+            self.get_logger().info(log_text)
 
         msg = DiagnosticArray()
         msg.header.stamp = self.get_clock().now().to_msg()
@@ -267,6 +357,17 @@ class TransportDiagnosticsNode(Node):
                 ('nic_errors', nic['errors']),
                 ('nic_state', nic['state']),
             ])
+        discovery_values = [
+            ('rmw_implementation', os.environ.get('RMW_IMPLEMENTATION', 'default')),
+            ('ros_domain_id', os.environ.get('ROS_DOMAIN_ID', 'default')),
+            ('ros_localhost_only', os.environ.get('ROS_LOCALHOST_ONLY', 'default')),
+            ('ros_super_client', os.environ.get('ROS_SUPER_CLIENT', 'unset')),
+            ('ros_discovery_server', os.environ.get('ROS_DISCOVERY_SERVER', '')),
+            ('servers', server_text),
+            ('remote_endpoint_count', remote_endpoint_count),
+            ('udp_listener_note',
+             'host ping + ROS endpoint evidence; UDP port not directly probed'),
+        ]
         msg.status = [
             self._status(
                 f'{self.namespace}: transport/bandwidth', bandwidth_level,
@@ -280,6 +381,11 @@ class TransportDiagnosticsNode(Node):
                 f'{self.namespace}: transport/qos', qos_level,
                 '연결 대기' if in_grace else ('정상' if not qos_issues else ', '.join(qos_issues)),
                 diagnostic_values),
+            self._status(
+                f'{self.namespace}: transport/discovery', discovery_level,
+                ('연결 대기' if in_grace and not discovery_issues else
+                 ('정상' if not discovery_issues else ', '.join(discovery_issues))),
+                discovery_values),
         ]
         self.diagnostics_pub.publish(msg)
         self.nic_previous = nic_current

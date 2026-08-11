@@ -26,5 +26,8 @@ setup(
     },
     entry_points={'console_scripts': [
         'robot_bridge_node = robot_bridge.robot_bridge_node:main',
+        'initial_pose_publisher_node = '
+        'robot_bridge.initial_pose_publisher_node:main',
+        'capture_initial_pose = robot_bridge.capture_initial_pose_node:main',
     ]},
 )

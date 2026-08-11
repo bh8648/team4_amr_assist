@@ -11,10 +11,29 @@ import pytest
 from amr_person_tracking.tracking_utils import (
     Track,
     assign_tracks,
+    coasted_track_position,
     cosine_similarity,
     match_track,
+    observation_is_fresh,
     resolve_call_designation,
 )
+
+
+def test_camera_observation_freshness_controls_lidar_handover():
+    observation = (1.0, 2.0, 10.0)
+    assert observation_is_fresh(observation, now=10.4, timeout=0.5)
+    assert not observation_is_fresh(observation, now=10.6, timeout=0.5)
+    assert not observation_is_fresh(None, now=10.0, timeout=0.5)
+
+
+def test_target_coast_is_short_and_stops_stale_goal():
+    track = Track(1, x=1.0, y=2.0, stamp=10.0, source='oakd')
+    track.vx = 1.0
+    assert coasted_track_position(track, 10.4, 1.0, 0.5) == pytest.approx(
+        (1.4, 2.0, 0.4))
+    assert coasted_track_position(track, 10.8, 1.0, 0.5) == pytest.approx(
+        (1.5, 2.0, 0.8))
+    assert coasted_track_position(track, 11.1, 1.0, 0.5) is None
 
 
 def test_match_track_exclude_ids_prevents_double_assignment():

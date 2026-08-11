@@ -26,10 +26,8 @@ update_tracks(oakd_detections_callback/webcam_detections_callback 공용)가 처
   2. 매칭 실패 시 새 트랙 생성, 지속 트랙 ID 부여
   3. 매칭된 트랙의 직전 출처와 이번 출처가 다르면(webcam<->oakd 전환) 이번 한 프레임만
      position_alpha를 낮춰 위치를 블렌딩해 좌표 불연속을 완화
-  4. 단, 그 트랙이 현재 라이다 다리검출에 락온된 추종 대상이면 위치/속도를 덮어쓰지 않는다
-     (아래 leg_detections_callback의 5단계 "추종 유지"와 충돌 - 두 출처가 매 프레임 번갈아
-     쓰면 유한차분 속도 추정이 실제로 없는 왕복 운동으로 튄다). last_independent_update만
-     기록해 6단계 백그라운드 검증에 쓴다
+  4. RGB/웹캠 관측이 최근이면 카메라 좌표를 우선한다. 라이다 락온은 뒤에서 유지하다가
+     카메라 관측이 잠깐 끊기면 동일 트랙을 이어서 갱신한다
   5. 다인원이 자주 겹치는 경우를 위한 appearance 임베딩 보조 매칭은 **구현돼 있고 기본만 꺼져
      있다**(appearance_weight=0). oakd_detector_node가 reid_model_path로 임베딩을 발행할 때만
      동작하며, 켜면 assign_tracks의 비용에 코사인 거리가 가중 합산된다. 기본을 끈 이유는
@@ -83,12 +81,14 @@ from amr_person_tracking.predictive_utils import ConstantVelocityKalman2D
 from amr_person_tracking.tracking_utils import (
     Track,
     assign_tracks,
+    coasted_track_position,
     resolve_call_designation,
     sec_to_stamp,
     cosine_similarity,
     distance,
     extract_person_position,
     extract_person_variance,
+    observation_is_fresh,
     stamp_to_sec,
     velocity_similarity,
 )
@@ -120,6 +120,11 @@ class ReidTrackingNode(Node):
         self.declare_parameter('source_switch_blend_alpha', 0.4)
         # 어느 출처로부터도 이만큼 갱신이 없으면 트랙을 삭제한다 (가려짐/프레임 이탈 허용 시간)
         self.declare_parameter('track_timeout', 3.0)
+        # 최근 카메라 관측이 있으면 RGB/웹캠 좌표를 우선하고 LiDAR는 shadow lock만 유지한다.
+        self.declare_parameter('camera_priority_timeout', 0.5)
+        # 두 센서가 함께 깜빡일 때 짧게 예측하되, 오래된 좌표를 계속 목표로 내보내지는 않는다.
+        self.declare_parameter('target_coast_timeout', 1.0)
+        self.declare_parameter('target_coast_max_extrapolation', 0.5)
         # 위치 게이팅이 실패해도, 상류(oakd_detector_node의 YOLO track(persist=True) 등)가
         # 이전에 같은 id를 이 내부 트랙에 매핑해준 적이 있으면 그 힌트로 구제한다 - 실측으로
         # 상류 트래킹이 이 노드의 순수 위치 게이팅보다 occlusion에 훨씬 강함을 확인했다. 다만
@@ -161,6 +166,9 @@ class ReidTrackingNode(Node):
         # 이 시간이 지나도록 반경 안에 아무도 안 나타나면 호출을 포기하고 기존 정책으로
         # 돌아간다. 없으면 오래된 호출이 영원히 재선정을 막는다(dormant_ttl과 같은 역할).
         self.declare_parameter('call_ttl', 30.0)
+        # 호출 좌표를 받았지만 추종 대상을 아직 정하지 못했을 때만 주기적으로 원인을
+        # 출력한다. 0 이하면 끈다. 평상시에는 로그를 전혀 늘리지 않는다.
+        self.declare_parameter('call_diagnostic_period', 5.0)
         # 호출이 현재 추종 대상과 sticky 대기를 선점할지. 사람이 명시적으로 부른 것이므로
         # 기본은 선점이다 - 갤러리에서 기다리던 신원 때문에 "이리 와"를 무시하는 쪽이
         # 더 나쁜 오류다.
@@ -256,6 +264,10 @@ class ReidTrackingNode(Node):
         self.velocity_alpha = self.get_parameter('velocity_alpha').value
         self.source_switch_blend_alpha = self.get_parameter('source_switch_blend_alpha').value
         self.track_timeout = self.get_parameter('track_timeout').value
+        self.camera_priority_timeout = self.get_parameter('camera_priority_timeout').value
+        self.target_coast_timeout = self.get_parameter('target_coast_timeout').value
+        self.target_coast_max_extrapolation = self.get_parameter(
+            'target_coast_max_extrapolation').value
         self.id_rescue_max_distance = self.get_parameter('id_rescue_max_distance').value
         self.id_rescue_max_extrapolation = self.get_parameter('id_rescue_max_extrapolation').value
         self.lidar_gating_position_threshold = self.get_parameter('lidar_gating_position_threshold').value
@@ -273,6 +285,7 @@ class ReidTrackingNode(Node):
         self.sticky_follow = self.get_parameter('sticky_follow').value
         self.call_designation_radius = self.get_parameter('call_designation_radius').value
         self.call_ttl = self.get_parameter('call_ttl').value
+        self.call_diagnostic_period = self.get_parameter('call_diagnostic_period').value
         self.call_overrides_follow = self.get_parameter('call_overrides_follow').value
         self.pending_call = None      # (x, y, stamp) - 아직 사람을 못 찾은 호출
         self.sticky_follow_adopt_when_alone = self.get_parameter(
@@ -341,6 +354,23 @@ class ReidTrackingNode(Node):
         self.reid_stats_timer = (
             self.create_timer(5.0, self._log_reid_stats)
             if self.enable_embeddings else None
+        )
+
+        # 호출 좌표와 로봇 측 track이 매칭되지 않을 때 입력 단절, 사람 미검출, 좌표 불일치를
+        # 한 줄에서 구분하기 위한 최근 입력 상태. 수신 시각은 이 노드의 clock, stamp는 메시지
+        # header 시각이라 둘을 함께 기록하면 DDS 수신 단절과 오래된 메시지도 구분할 수 있다.
+        self._detection_input_stats = {
+            source: {
+                'arrival': None,
+                'stamp': None,
+                'people': 0,
+                'person_arrival': None,
+            }
+            for source in ('oakd', 'webcam', 'lidar')
+        }
+        self.call_diagnostic_timer = (
+            self.create_timer(self.call_diagnostic_period, self._log_call_diagnostic)
+            if self.call_diagnostic_period > 0.0 else None
         )
 
         # 웹캠-라이다 신원 매칭 상태
@@ -440,6 +470,7 @@ class ReidTrackingNode(Node):
         # 들어온 검출 전체를 놓고 한 번에 배타적으로 배정한다. 게이팅은 배열 header의 공통
         # 시점(batch_stamp) 기준으로 모든 기존 트랙을 일관되게 예측해 비교한다.
         batch_stamp = stamp_to_sec(msg.header.stamp)
+        self._record_detection_input(source, batch_stamp, len(entries))
         positions = [(x, y) for x, y, _, _, _ in entries]
         variances = [v for _, _, _, _, v in entries]
         # 이 배열과 같은 stamp로 온 외형 임베딩(인덱스가 검출 순서와 일치). 웹캠 등 임베딩을
@@ -518,13 +549,6 @@ class ReidTrackingNode(Node):
                     if self.log_track_lifecycle:
                         self._log_new_track(track_id, x, y, stamp, source, det_id,
                                             batch_stamp, len(entries), track_ids)
-            elif track_id == self.followed_track_id and self.locked_leg_id is not None:
-                # 락온 중에는 문서 5단계("재매칭 없이 락온된 라이다 트랙을 그대로 추종")대로
-                # 웹캠/OAK-D가 트랙의 위치·속도를 직접 덮어쓰지 않는다. 두 출처가 서로 다른
-                # 위치를 보고하는 락온 구간에서 매 프레임 번갈아 스냅하면, 유한차분 속도 추정이
-                # 실제로는 없는 왕복 운동으로 튀어(수 m/s대) 다음 프레임 게이팅까지 깨뜨린다.
-                # 아래에서 last_independent_update만 기록해 백그라운드 검증(6단계)에 쓴다.
-                pass
             else:
                 track = self.tracks[track_id]
                 # 출처가 막 바뀐 첫 프레임만 위치를 블렌딩해 좌표 불연속을 완화한다.
@@ -687,16 +711,106 @@ class ReidTrackingNode(Node):
                 f'{self.map_frame}가 아니라 무시한다')
             return
         stamp = stamp_to_sec(msg.header.stamp)
+        previous_pending = self.pending_call
+        previous_followed = self.followed_track_id
         self.pending_call = (msg.point.x, msg.point.y, stamp)
+        replacement = ''
+        if previous_pending is not None:
+            moved = distance(
+                previous_pending[0], previous_pending[1],
+                self.pending_call[0], self.pending_call[1])
+            replacement = f' / 대기 중 호출 갱신(이전 좌표와 {moved:.2f}m)'
         self.get_logger().info(
             f'호출 좌표 수신: ({self.pending_call[0]:.2f}, {self.pending_call[1]:.2f}) '
-            f'- 반경 {self.call_designation_radius:.1f}m 안에서 추종 대상을 고른다')
+            f'- 반경 {self.call_designation_radius:.1f}m 안에서 추종 대상을 고른다'
+            f'{replacement}')
         if self.call_overrides_follow:
             # 사람이 명시적으로 지정했으므로 갤러리에서 기다리던 신원은 포기한다.
             self.dormant_followed_id = None
             self.followed_track_id = None
+            if previous_followed is not None:
+                self.get_logger().warn(
+                    f'새 호출이 기존 추종 target track {previous_followed}을 해제함')
         self._maybe_select_followed_track(stamp)
         self.publish_target_pose(msg.header)
+
+    def _record_detection_input(self, source, stamp, people):
+        """출처별 최근 메시지/사람 검출 수신 상태를 호출 매칭 진단용으로 저장한다."""
+        stats = self._detection_input_stats.get(source)
+        if stats is None:
+            return
+        arrival = self.get_clock().now().nanoseconds * 1e-9
+        stats['arrival'] = arrival
+        stats['stamp'] = stamp
+        stats['people'] = people
+        if people > 0:
+            stats['person_arrival'] = arrival
+
+    @staticmethod
+    def _age_text(value):
+        if value is None:
+            return '없음'
+        return f'{max(0.0, value):.1f}s 전'
+
+    def _format_detection_input(self, source, now):
+        stats = self._detection_input_stats[source]
+        if stats['arrival'] is None:
+            return f'{source}=미수신'
+        message_age = now - stats['arrival']
+        stamp_age = now - stats['stamp']
+        person_age = (
+            None if stats['person_arrival'] is None
+            else now - stats['person_arrival']
+        )
+        return (
+            f'{source}=msg {self._age_text(message_age)}/'
+            f'최근 {stats["people"]}명/stamp {stamp_age:+.1f}s/'
+            f'사람 {self._age_text(person_age)}'
+        )
+
+    def _log_call_diagnostic(self):
+        """pending call이 있을 때만 매칭 실패 원인을 5초 주기로 한 줄 출력한다."""
+        if self.pending_call is None:
+            return
+
+        now = self.get_clock().now().nanoseconds * 1e-9
+        cx, cy, call_stamp = self.pending_call
+        nearest = None
+        live_tracks = 0
+        for tid, track in self.tracks.items():
+            track_age = now - track.last_stamp
+            if track_age <= self.track_timeout:
+                live_tracks += 1
+            candidate = (distance(track.x, track.y, cx, cy), tid, track, track_age)
+            if nearest is None or candidate[0] < nearest[0]:
+                nearest = candidate
+
+        if nearest is None:
+            match_reason = '원인=track 없음'
+        else:
+            nearest_d, nearest_id, nearest_track, nearest_age = nearest
+            if nearest_d > self.call_designation_radius:
+                match_reason = (
+                    f'원인=최근접 track {nearest_id}가 반경 밖 '
+                    f'({nearest_d:.2f}m>{self.call_designation_radius:.2f}m, '
+                    f'출처={nearest_track.last_source}, age={nearest_age:.1f}s)'
+                )
+            else:
+                # pending 상태에서 반경 안 후보가 보이면 콜백 시점/타이머 시점 사이 상태를
+                # 확인해야 한다. 선정 로직은 건드리지 않고 이 비정상 상태만 드러낸다.
+                match_reason = (
+                    f'원인=반경 안 후보 track {nearest_id} 미선정 '
+                    f'({nearest_d:.2f}m, 출처={nearest_track.last_source}, '
+                    f'age={nearest_age:.1f}s)'
+                )
+
+        inputs = ' | '.join(
+            self._format_detection_input(source, now)
+            for source in ('oakd', 'webcam', 'lidar')
+        )
+        self.get_logger().warn(
+            f'[호출추종대기] call=({cx:.2f},{cy:.2f}) age={now - call_stamp:.1f}s '
+            f'| tracks={len(self.tracks)}(fresh={live_tracks}) | {match_reason} | {inputs}')
 
     def _maybe_select_followed_track(self, now=None):
         """추종 대상 선정 정책. 실제 대상 지정(제스처/호출좌표 등)은 아직 이 패키지 범위 밖이라
@@ -721,11 +835,16 @@ class ReidTrackingNode(Node):
                 self.tracks, self.pending_call, now,
                 self.call_designation_radius, self.call_ttl)
             if action == 'designate':
+                call_x, call_y, _call_stamp = self.pending_call
                 self.followed_track_id = tid
                 self.pending_call = None
                 self.dormant_followed_id = None
                 self._reset_leg_lock()
-                self.get_logger().info(f'호출 좌표로 추종 대상 지정: track {tid}')
+                selected = self.tracks[tid]
+                selected_distance = distance(selected.x, selected.y, call_x, call_y)
+                self.get_logger().info(
+                    f'호출 좌표로 추종 대상 지정: track {tid} '
+                    f'(거리 {selected_distance:.2f}m, 출처={selected.last_source})')
                 return
             if action == 'wait':
                 # 아직 호출자를 못 찾았다. 여기서 반환해야 아래 폴백이 다른 사람을
@@ -775,6 +894,7 @@ class ReidTrackingNode(Node):
             pos = extract_person_position(det)
             if pos is not None:
                 positions[det.id] = (pos[0], pos[1])
+        self._record_detection_input('lidar', stamp, len(positions))
 
         if self.followed_track_id is None or self.followed_track_id not in self.tracks:
             # 추종 대상 자체가 없으면 라이다 신원매칭도 의미가 없다 - 후보 이력만 갱신해둔다.
@@ -821,7 +941,7 @@ class ReidTrackingNode(Node):
         # [6. 백그라운드 검증] 라이다로 덮어쓰기 전, 웹캠/OAK-D가 마지막으로 "독립적으로" 갱신한
         # 위치와 비교한다. 그 값이 너무 오래됐으면(웹캠도 안 보이는 상황) 판단을 보류한다.
         independent = self.last_independent_update.get(self.followed_track_id)
-        if independent is not None and stamp - independent[2] <= self.swap_check_max_age:
+        if observation_is_fresh(independent, stamp, self.swap_check_max_age):
             discrepancy = distance(independent[0], independent[1], x, y)
             if discrepancy > self.lidar_lock_swap_threshold:
                 self.swap_check_streak += 1
@@ -833,7 +953,12 @@ class ReidTrackingNode(Node):
                 self._reset_leg_lock(stamp)
                 return
 
-        # [5. 추종 유지] 재매칭 없이 락온된 id를 그대로 반영
+        # 최근 카메라 관측이 있으면 그 좌표를 우선한다. LiDAR 락온 ID는 shadow로 유지하므로
+        # 카메라가 끊기는 첫 LiDAR 프레임부터 같은 사람을 이어받는다.
+        if observation_is_fresh(independent, stamp, self.camera_priority_timeout):
+            return
+
+        # [5. 추종 유지] 카메라가 끊긴 동안 락온된 LiDAR id로 같은 트랙을 이어서 갱신한다.
         followed.update(x, y, stamp, source='lidar_leg', velocity_alpha=self.velocity_alpha,
                         max_speed=self.gating_max_speed)
 
@@ -1000,11 +1125,17 @@ class ReidTrackingNode(Node):
         if self.followed_track_id is None or self.followed_track_id not in self.tracks:
             return
         track = self.tracks[self.followed_track_id]
+        now = stamp_to_sec(header.stamp)
+        estimate = coasted_track_position(
+            track, now, self.target_coast_timeout, self.target_coast_max_extrapolation)
+        if estimate is None:
+            return
+        x, y, _age = estimate
         pose = PoseStamped()
         pose.header.stamp = header.stamp
         pose.header.frame_id = self.map_frame
-        pose.pose.position.x = track.x
-        pose.pose.position.y = track.y
+        pose.pose.position.x = x
+        pose.pose.position.y = y
         pose.pose.position.z = 0.0
         pose.pose.orientation.w = 1.0
         self.target_pose_pub.publish(pose)

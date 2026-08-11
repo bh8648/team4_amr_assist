@@ -100,6 +100,9 @@ def generate_launch_description():
         # 인자로 노출한다. 다인 추종으로 바뀌면 gate/distance를 좁히고 단일 후보 재채택을 끈다.
         DeclareLaunchArgument('tracking_min_gate', default_value='0.45'),
         DeclareLaunchArgument('tracking_timeout', default_value='5.0'),
+        DeclareLaunchArgument('camera_priority_timeout', default_value='0.5'),
+        DeclareLaunchArgument('target_coast_timeout', default_value='1.0'),
+        DeclareLaunchArgument('target_coast_max_extrapolation', default_value='0.5'),
         DeclareLaunchArgument('id_rescue_max_distance', default_value='1.5'),
         DeclareLaunchArgument('revival_max_distance', default_value='2.0'),
         DeclareLaunchArgument('sticky_follow_adopt_when_alone', default_value='true'),
@@ -110,6 +113,9 @@ def generate_launch_description():
         DeclareLaunchArgument('call_input_topic', default_value='/person/call_position'),
         DeclareLaunchArgument('call_designation_radius', default_value='2.0'),
         DeclareLaunchArgument('call_ttl', default_value='30.0'),
+        # 호출 좌표가 왔지만 추종 target을 못 고른 동안만 이 주기로 진단 한 줄을 출력한다.
+        # 0이면 비활성화. 평상시 로그는 늘어나지 않는다.
+        DeclareLaunchArgument('call_diagnostic_period', default_value='5.0'),
         # 웹캠 브리지 기동 여부. 웹캠 PC가 없으면 꺼둬도 나머지는 그대로 동작한다.
         DeclareLaunchArgument('enable_webcam_bridge', default_value='true'),
         # 예측 회피 이동 벡터 마커(rviz2). 회피 동작과 무관한 부가 발행이라 기본 꺼짐.
@@ -156,6 +162,7 @@ def generate_launch_description():
         # 비워두면 /proc/net/route의 기본 경로 인터페이스를 자동 선택한다.
         DeclareLaunchArgument('network_interface', default_value=''),
         DeclareLaunchArgument('bandwidth_warn_mbps', default_value='80.0'),
+        DeclareLaunchArgument('require_discovery_server', default_value='true'),
     ]
 
     namespace = LaunchConfiguration('namespace')
@@ -321,8 +328,13 @@ def generate_launch_description():
             'call_position_topic': call_position_topic,
             'call_designation_radius': LaunchConfiguration('call_designation_radius'),
             'call_ttl': LaunchConfiguration('call_ttl'),
+            'call_diagnostic_period': LaunchConfiguration('call_diagnostic_period'),
             'gating_min_gate': LaunchConfiguration('tracking_min_gate'),
             'track_timeout': LaunchConfiguration('tracking_timeout'),
+            'camera_priority_timeout': LaunchConfiguration('camera_priority_timeout'),
+            'target_coast_timeout': LaunchConfiguration('target_coast_timeout'),
+            'target_coast_max_extrapolation': LaunchConfiguration(
+                'target_coast_max_extrapolation'),
             'id_rescue_max_distance': LaunchConfiguration('id_rescue_max_distance'),
             'revival_max_distance': LaunchConfiguration('revival_max_distance'),
             'sticky_follow_adopt_when_alone': LaunchConfiguration(
@@ -386,6 +398,7 @@ def generate_launch_description():
             'period_sec': LaunchConfiguration('transport_diagnostics_period'),
             'network_interface': LaunchConfiguration('network_interface'),
             'bandwidth_warn_mbps': LaunchConfiguration('bandwidth_warn_mbps'),
+            'require_discovery_server': LaunchConfiguration('require_discovery_server'),
             'diagnostics_topic': diagnostics_topic,
             'rgb_topic': LaunchConfiguration('rgb_topic'),
             'depth_topic': LaunchConfiguration('depth_topic'),

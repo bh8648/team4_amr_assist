@@ -151,6 +151,22 @@ def distance(x0, y0, x1, y1):
     return math.hypot(x1 - x0, y1 - y0)
 
 
+def observation_is_fresh(observation, now, timeout):
+    """``(x, y, stamp)`` 관측이 센서 우선권을 유지할 만큼 최근인지 판정한다."""
+    if observation is None or timeout <= 0.0:
+        return False
+    return now - observation[2] <= timeout
+
+
+def coasted_track_position(track, now, timeout, max_extrapolation):
+    """센서 공백 중 짧게 예측한 위치를 반환하고, 허용 시간을 넘으면 None을 반환한다."""
+    age = max(0.0, now - track.last_stamp)
+    if timeout <= 0.0 or age > timeout:
+        return None
+    x, y = track.predict(now, max_dt=max(0.0, max_extrapolation))
+    return x, y, age
+
+
 def cosine_similarity(a, b):
     """두 외형 임베딩의 코사인 유사도. 둘 중 하나라도 없으면 None(=비교 불가).
 

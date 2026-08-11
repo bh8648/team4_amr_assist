@@ -24,8 +24,7 @@
   <exec_depend>sensor_msgs_py</exec_depend>
   <!-- 근접 안전모드에서 IR 근접센서(IrIntensityVector) 교차확인에 사용 -->
   <exec_depend>irobot_create_msgs</exec_depend>
-  <!-- OAK-D PRO 하드웨어 스트림(RGB/Depth/CameraInfo)을 발행하는 상대 패키지 -->
-  <exec_depend>depthai_ros_driver</exec_depend>
+  <!-- OAK-D 드라이버는 Raspberry Pi에서 실행하며 이 패키지는 원격 토픽만 구독한다. -->
   <!--
     YOLO-pose 추론과 이미지 디코딩에 ultralytics / opencv-python / numpy를, 트랙 배정
     전역 최적화(tracking_utils.assign_tracks)에 scipy를 쓰지만, 이 워크스페이스는 해당
