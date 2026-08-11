@@ -8,6 +8,7 @@ vision_utils.py의 발끝 depth 검증(estimate_person_depth) 검증.
 """
 
 import numpy as np
+import pytest
 
 from amr_person_tracking.vision_utils import (
     KP_LEFT_ANKLE,
@@ -17,6 +18,7 @@ from amr_person_tracking.vision_utils import (
     estimate_foot_pixel,
     estimate_person_depth,
     foot_pixel_candidates,
+    lower_body_visibility_rank,
 )
 
 BBOX = (100.0, 50.0, 200.0, 400.0)
@@ -70,6 +72,34 @@ def test_estimate_foot_pixel_returns_first_candidate():
                     KP_RIGHT_ANKLE: (180.0, 390.0, 0.9)})
     assert estimate_foot_pixel(xy, conf, BBOX, 0.5) == \
         foot_pixel_candidates(xy, conf, BBOX, 0.5)[0]
+
+
+def test_lower_body_requires_knee_and_ankle_on_same_leg():
+    xy, conf = _kp({KP_LEFT_KNEE: (125.0, 280.0, 0.8),
+                    KP_LEFT_ANKLE: (120.0, 380.0, 0.9)})
+    assert lower_body_visibility_rank(xy, conf, 0.5) == (1, 2, pytest.approx(1.7))
+
+
+def test_upper_body_or_knees_only_are_rejected():
+    assert lower_body_visibility_rank(None, None, 0.5) is None
+    xy, conf = _kp({KP_LEFT_KNEE: (130.0, 300.0, 0.9),
+                    KP_RIGHT_KNEE: (170.0, 305.0, 0.9)})
+    assert lower_body_visibility_rank(xy, conf, 0.5) is None
+
+    zero_xy, zero_conf = _kp({KP_LEFT_KNEE: (0.0, 0.0, 0.9),
+                               KP_LEFT_ANKLE: (0.0, 0.0, 0.9)})
+    assert lower_body_visibility_rank(zero_xy, zero_conf, 0.5) is None
+
+
+def test_two_complete_legs_rank_above_one_complete_leg():
+    one_xy, one_conf = _kp({KP_LEFT_KNEE: (125.0, 280.0, 0.9),
+                            KP_LEFT_ANKLE: (120.0, 380.0, 0.9)})
+    two_xy, two_conf = _kp({KP_LEFT_KNEE: (125.0, 280.0, 0.6),
+                            KP_LEFT_ANKLE: (120.0, 380.0, 0.6),
+                            KP_RIGHT_KNEE: (175.0, 282.0, 0.6),
+                            KP_RIGHT_ANKLE: (180.0, 382.0, 0.6)})
+    assert lower_body_visibility_rank(two_xy, two_conf, 0.5) > \
+        lower_body_visibility_rank(one_xy, one_conf, 0.5)
 
 SCALE = 0.001  # mm -> m
 

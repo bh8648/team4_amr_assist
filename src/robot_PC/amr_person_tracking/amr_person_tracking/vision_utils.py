@@ -187,6 +187,44 @@ def foot_pixel_candidates(kp_xy, kp_conf, bbox_xyxy, kp_conf_threshold):
     return [((float(x1) + float(x2)) / 2.0, float(y2), 'angle_only')]
 
 
+def lower_body_visibility_rank(kp_xy, kp_conf, kp_conf_threshold):
+    """하체가 실제로 보이는 사람인지 판정하고 선택 우선순위를 반환한다.
+
+    얼굴/상체만 잡힌 원거리 사람은 bbox 하단을 발 위치로 추정할 수는 있어도 실제 하체를
+    관측한 것이 아니다. 단일 사용자 추종에서는 그런 추정을 따라가기보다, 좌우 중 적어도
+    한쪽의 무릎과 발목이 모두 보이는 사람만 받아들인다.
+
+    반환값은 ``(완전한 하퇴 수, 보이는 하체 관절 수, 관절 신뢰도 합)``이며 하체 조건을
+    충족하지 못하면 ``None``이다. 튜플은 그대로 비교할 수 있어 여러 박스가 생겼을 때 가장
+    하체가 잘 보이는 한 명을 안정적으로 고르는 순위로도 쓴다.
+    """
+    if kp_xy is None or kp_conf is None:
+        return None
+
+    def valid(idx):
+        if idx >= len(kp_conf) or idx >= len(kp_xy):
+            return False
+        x, y = float(kp_xy[idx][0]), float(kp_xy[idx][1])
+        return (
+            math.isfinite(x)
+            and math.isfinite(y)
+            and x > 0.0
+            and y > 0.0
+            and float(kp_conf[idx]) >= kp_conf_threshold
+        )
+
+    lower_indices = (KP_LEFT_KNEE, KP_RIGHT_KNEE, KP_LEFT_ANKLE, KP_RIGHT_ANKLE)
+    visible = {idx: valid(idx) for idx in lower_indices}
+    complete_legs = int(visible[KP_LEFT_KNEE] and visible[KP_LEFT_ANKLE])
+    complete_legs += int(visible[KP_RIGHT_KNEE] and visible[KP_RIGHT_ANKLE])
+    if complete_legs == 0:
+        return None
+
+    visible_count = sum(visible.values())
+    confidence_sum = sum(float(kp_conf[idx]) for idx, is_visible in visible.items() if is_visible)
+    return complete_legs, visible_count, confidence_sum
+
+
 def truncation_ratio(bbox_xyxy, top_margin_px):
     """bbox 상단이 이미지 위쪽 경계에 붙었는지(=상반신이 잘렸는지) 0~1로 반환한다.
 

@@ -87,6 +87,10 @@ def generate_launch_description():
         DeclareLaunchArgument('log_follow_overlay_misses', default_value='false'),
         # map 좌표가 이 거리 안에서 겹치는 검출은 한 사람으로 보고 하나만 남긴다. 0이면 끈다.
         DeclareLaunchArgument('duplicate_merge_distance', default_value='0.25'),
+        # 단일 사용자 전용: 완전한 하퇴(같은 쪽 무릎+발목)가 없는 상반신 검출을 버리고,
+        # 통과 후보가 여럿이어도 하체가 가장 잘 보이는 한 명만 발행한다.
+        DeclareLaunchArgument('require_lower_body', default_value='true'),
+        DeclareLaunchArgument('single_person_only', default_value='true'),
         # 현재 운영 조건은 추종 작업자 1명이다. 순간 가림/깊이 좌표 튐으로 내부 ID가 끊기는
         # 현상을 줄이되 현장에서 바로 되돌릴 수 있도록 reid_tracking_node의 완화값을 launch
         # 인자로 노출한다. 다인 추종으로 바뀌면 gate/distance를 좁히고 단일 후보 재채택을 끈다.
@@ -198,6 +202,8 @@ def generate_launch_description():
             'max_detection_distance': LaunchConfiguration('max_detection_distance'),
             'log_follow_overlay_misses': LaunchConfiguration('log_follow_overlay_misses'),
             'duplicate_merge_distance': LaunchConfiguration('duplicate_merge_distance'),
+            'require_lower_body': LaunchConfiguration('require_lower_body'),
+            'single_person_only': LaunchConfiguration('single_person_only'),
             'reid_embeddings_topic': embeddings_topic,
             'follow_target_topic': target_pose_topic,
             'map_frame': LaunchConfiguration('map_frame'),

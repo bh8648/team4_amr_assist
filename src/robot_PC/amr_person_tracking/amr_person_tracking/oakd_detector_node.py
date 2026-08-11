@@ -87,6 +87,7 @@ from amr_person_tracking.vision_utils import (
     decode_compressed_depth,
     estimate_person_depth,
     foot_pixel_candidates,
+    lower_body_visibility_rank,
     sample_depth_patch,
     truncation_ratio,
     yaw_from_quaternion,
@@ -118,6 +119,8 @@ class OakdDetectorNode(Node):
         self.conf_threshold = self.get_parameter('conf_threshold').value
         self.max_detection_distance = self.get_parameter('max_detection_distance').value
         self.duplicate_merge_distance = self.get_parameter('duplicate_merge_distance').value
+        self.require_lower_body = self.get_parameter('require_lower_body').value
+        self.single_person_only = self.get_parameter('single_person_only').value
         self.tracker_conf_threshold = self.get_parameter('tracker_conf_threshold').value
         self.kp_conf_threshold = self.get_parameter('kp_conf_threshold').value
         self.depth_scale = self.get_parameter('depth_scale').value
@@ -161,6 +164,8 @@ class OakdDetectorNode(Node):
         self._stat_no_track_id = 0
         self._stat_too_far = 0
         self._stat_duplicates = 0
+        self._stat_no_lower_body = 0
+        self._stat_single_person_suppressed = 0
         self._stat_detections = 0
         self._stat_depth_invalid = 0
         self._stat_depth_substituted = 0
@@ -325,6 +330,11 @@ class OakdDetectorNode(Node):
         # map 좌표가 이 거리 안에서 겹치는 검출은 한 사람으로 보고 신뢰도 높은 쪽만 남긴다.
         # gating_min_gate(0.3m)보다 작게 잡아, 게이팅이 구분할 수 있는 거리는 건드리지 않는다.
         self.declare_parameter('duplicate_merge_distance', 0.25)
+        # 단일 사용자 전용 운영: 얼굴/상체만 보이는 원거리 검출은 버리고, 좌우 중 적어도
+        # 한쪽 무릎+발목이 함께 보이는 사람만 3D 추적 입력으로 사용한다.
+        self.declare_parameter('require_lower_body', True)
+        # 조건을 통과한 사람이 여러 명이어도 하체 가시성이 가장 좋은 한 명만 발행한다.
+        self.declare_parameter('single_person_only', True)
         # 트래커에 넣을 때만 쓰는 낮은 임계. YOLO의 .track()에 conf_threshold를 그대로 주면
         # 저신뢰 검출이 트래커에 도달하기도 전에 잘려, TrackTrack/ByteTrack 계열의 2단계
         # 연결(track_low_thresh=0.25로 저신뢰 검출을 기존 트랙에 이어붙여 끊김을 막는 장치)이
@@ -472,16 +482,29 @@ class OakdDetectorNode(Node):
             if keypoints is not None and getattr(keypoints, 'conf', None) is not None else None
         )
 
+        eligible = []
         for i in range(len(boxes)):
             bbox = boxes.xyxy[i].cpu().numpy()
             box_conf = float(boxes.conf[i])
-            track_id = int(boxes.id[i]) if boxes.id is not None else -1
-
-            # 트래커에는 tracker_conf_threshold(낮음)로 저신뢰 검출까지 넣어 트랙 연속성을
-            # 얻지만, 실제로 발행하는 검출은 기존과 같은 conf_threshold로 거른다.
             if box_conf < self.conf_threshold:
                 continue
+            kp_xy = kp_xy_all[i] if kp_xy_all is not None and i < len(kp_xy_all) else None
+            kp_conf = kp_conf_all[i] if kp_conf_all is not None and i < len(kp_conf_all) else None
+            lower_rank = lower_body_visibility_rank(
+                kp_xy, kp_conf, self.kp_conf_threshold)
+            if self.require_lower_body and lower_rank is None:
+                self._stat_no_lower_body += 1
+                continue
+            eligible.append((i, lower_rank or (0, 0, 0.0), box_conf))
 
+        if self.single_person_only and len(eligible) > 1:
+            best = max(eligible, key=lambda item: (*item[1], item[2]))
+            self._stat_single_person_suppressed += len(eligible) - 1
+            eligible = [best]
+
+        for i, _lower_rank, box_conf in eligible:
+            bbox = boxes.xyxy[i].cpu().numpy()
+            track_id = int(boxes.id[i]) if boxes.id is not None else -1
             kp_xy = kp_xy_all[i] if kp_xy_all is not None and i < len(kp_xy_all) else None
             kp_conf = kp_conf_all[i] if kp_conf_all is not None and i < len(kp_conf_all) else None
 
@@ -974,6 +997,10 @@ class OakdDetectorNode(Node):
             KeyValue(key='frames_without_track_id', value=str(self._stat_no_track_id)),
             KeyValue(key='dropped_too_far', value=str(self._stat_too_far)),
             KeyValue(key='merged_duplicates', value=str(self._stat_duplicates)),
+            KeyValue(key='dropped_no_lower_body', value=str(self._stat_no_lower_body)),
+            KeyValue(
+                key='single_person_suppressed',
+                value=str(self._stat_single_person_suppressed)),
             KeyValue(key='proximity_alert', value=str(self.proximity_active).lower()),
             KeyValue(key='ir_check', value=self._stat_ir_check),
             KeyValue(key='ir_value', value=str(self._stat_ir_value)),
@@ -1001,6 +1028,8 @@ class OakdDetectorNode(Node):
         self._stat_no_track_id = 0
         self._stat_too_far = 0
         self._stat_duplicates = 0
+        self._stat_no_lower_body = 0
+        self._stat_single_person_suppressed = 0
         self._stat_detections = 0
         self._stat_depth_invalid = 0
         self._stat_depth_substituted = 0

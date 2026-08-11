@@ -72,6 +72,9 @@ PC와 TurtleBot의 시스템 시간도 NTP/Chrony 등으로 맞춰야 한다.
 - 작업자가 한 명인 현재 운영 조건에 맞춰 BoT-SORT의 confidence/association 기준과
   `reid_tracking_node`의 트랙 유실 유예·위치 게이트·단일 후보 재채택 기준을 완화했다.
   관련 값은 `amr_person_tracking.launch.py`의 launch 인자로 다시 조정할 수 있다.
+- OAK-D 입력은 단일 사용자 전용으로 제한했다. 같은 쪽 무릎과 발목이 함께 보이지 않는
+  얼굴·상체 위주의 원거리 검출은 버리고, 조건을 만족하는 박스가 여러 개면 하체 가시성이
+  가장 좋은 한 명만 추적 입력으로 발행한다.
 - 과거 worker bridge 설계 문서는 이력 보존용으로 남겼고, 문서 맨 위에
   최종 실행 기준이 아니라는 표시를 추가했다.
 
