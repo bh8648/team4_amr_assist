@@ -23,6 +23,7 @@ export const robotApi = {
   login: (username, password) => req('/api/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
   getRobots: () => req('/api/robots'),
   getMap: () => req('/api/map'),
+  getDestinations: () => req('/api/destinations'),
   getDatabaseTables: () => req('/api/database/tables'),
   getDatabaseTable: (table, limit = 100) => req(`/api/database/table/${encodeURIComponent(table)}?limit=${limit}`),
   cancelTask: (id) => req(`/api/robot/${id}/cancel`, { method: 'POST', body: JSON.stringify({ return_to: 'CURRENT' }) }),

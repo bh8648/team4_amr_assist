@@ -174,10 +174,13 @@ class DbManagerNode(Node):
                     state=CASE
                         -- 취소 후 PAUSE/DOCKED 메시지가 와도 DB의 최종 취소 상태는 보존한다.
                         WHEN tasks.state = 'CANCELED' THEN tasks.state
+                        -- 오류 복구를 위한 수동 도킹은 운용 상태만 DOCKED로 복구한다.
+                        WHEN tasks.state = 'ERROR' AND excluded.state = 'COMPLETED' THEN tasks.state
                         ELSE excluded.state
                     END,
                     result=CASE
-                        WHEN excluded.result = 'SUCCESS' AND tasks.result = 'CANCELED' THEN tasks.result
+                        WHEN excluded.result = 'SUCCESS'
+                             AND tasks.result IN ('CANCELED', 'FAILED') THEN tasks.result
                         ELSE COALESCE(excluded.result, tasks.result)
                     END,
                     completed_at=CASE WHEN ? THEN datetime('now', 'localtime') ELSE tasks.completed_at END,

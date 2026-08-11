@@ -15,7 +15,19 @@ from sensor_msgs.msg import BatteryState
 from std_msgs.msg import Bool
 
 from robot_status.msg import NavigationResult, RobotError, RobotStatus, TaskCommand, TaskState
-from robot_bridge.pose_utils import build_robot_status, is_followable_pose, quaternion_to_yaw
+from robot_bridge.pose_utils import (
+    build_robot_status,
+    is_followable_pose,
+    quaternion_to_yaw,
+    yaw_to_quaternion,
+)
+
+
+# 도킹 스테이션 기준 로봇별 고정 초기 포즈. RViz2 "2D Pose Estimate" 없이 AMCL을 수렴시킨다.
+INITIAL_POSES = {
+    'robot5': (0.0, 0.0, 0.0),
+    'robot11': (-2.235, -5.022, -1.528),
+}
 
 
 class RobotBridgeNode(Node):
@@ -25,7 +37,7 @@ class RobotBridgeNode(Node):
         super().__init__('robot_bridge_node')
         self.declare_parameter('robot_id', robot_id)
         self.robot_id = str(self.get_parameter('robot_id').value).strip()
-        if self.robot_id not in ('robot5', 'robot11'):
+        if self.robot_id not in INITIAL_POSES:
             raise ValueError('robot_id는 robot5 또는 robot11이어야 합니다.')
         topic_prefix = f'/{self.robot_id}'
         # 추종 인식 좌표가 고주파로 들어와도 Nav2 goal은 기본 1Hz 이하로 제한한다.
@@ -116,6 +128,10 @@ class RobotBridgeNode(Node):
         self.error_pub = self.create_publisher(RobotError, '/robot_error', 10)
         self.task_command_pub = self.create_publisher(TaskCommand, '/task/command', 10)
         self.status_timer = self.create_timer(1.0, self.publish_robot_status)
+        # RViz2 2D Pose Estimate 없이도 AMCL이 수렴하도록 고정 초기 포즈를 반복 발행한다.
+        self.initial_pose_pub = self.create_publisher(
+            PoseWithCovarianceStamped, f'{topic_prefix}/initialpose', 10)
+        self.initial_pose_timer = self.create_timer(1.0, self.publish_initial_pose_retry)
         # 좌표 토픽이 완전히 끊겨도 유실을 감지할 수 있도록 별도 타이머로 감시한다.
         self.tracking_watchdog_timer = self.create_timer(0.2, self.tracking_watchdog_callback)
 
@@ -134,6 +150,22 @@ class RobotBridgeNode(Node):
         q = pose.orientation
         # 공통 변환 유틸을 사용해 로봇별 계산 차이를 방지한다.
         self.latest_yaw = quaternion_to_yaw(q.x, q.y, q.z, q.w)
+
+    def publish_initial_pose_retry(self) -> None:
+        """첫 AMCL pose를 받기 전까지 로봇별 초기 pose를 반복 발행한다."""
+        if self.latest_x is not None:
+            self.initial_pose_timer.cancel()
+            return
+        x, y, yaw = INITIAL_POSES[self.robot_id]
+        msg = PoseWithCovarianceStamped()
+        msg.header.frame_id = 'map'
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.pose.pose.position.x, msg.pose.pose.position.y = x, y
+        msg.pose.pose.orientation.z, msg.pose.pose.orientation.w = yaw_to_quaternion(yaw)
+        msg.pose.covariance[0] = 0.25
+        msg.pose.covariance[7] = 0.25
+        msg.pose.covariance[35] = 0.06853891945200942
+        self.initial_pose_pub.publish(msg)
 
     def battery_callback(self, msg: BatteryState) -> None:
         """BatteryState의 0~1 비율을 DB 규격인 퍼센트로 변환한다."""

@@ -4,9 +4,9 @@ import { robotApi } from './api/robotApi';
 import { renderFleetMap, worldToCanvas } from './mapRenderer';
 
 // DB의 최종 상태(COMPLETED/CANCELED)도 HMI에서 한글로 표시한다.
-const LABELS = { AVAILABLE: '대기', IDLE: '대기', ASSIGNED: '작업자에게 이동', FOLLOWING: '작업자 추종', TRANSPORTING: '배송 중', RETURNING: '복귀 중', PAUSED: '일시정지', DOCKED: '도킹 완료', COMPLETED: '작업 완료', CANCELED: '작업 취소', ERROR: '오류' };
+const LABELS = { AVAILABLE: '대기', IDLE: '대기', ASSIGNED: '작업자에게 이동', FOLLOWING: '작업자 탐색/추종', TRANSPORTING: '배송 중', RETURNING: '복귀 중', PAUSED: '일시정지', DOCKED: '도킹 완료', COMPLETED: '작업 완료', CANCELED: '작업 취소', ERROR: '오류' };
 const ACTIVE = new Set(['ASSIGNED', 'FOLLOWING', 'TRANSPORTING', 'RETURNING', 'PAUSED']);
-const TASK_LABELS = { ASSIGNED: '작업자에게 이동', FOLLOWING: '작업자 추종', TRANSPORTING: '배송 중', RETURNING: '복귀 중', PAUSED: '일시정지', DOCKED: '완료', COMPLETED: '완료', CANCELED: '취소', ERROR: '오류' };
+const TASK_LABELS = { ASSIGNED: '작업자에게 이동', FOLLOWING: '작업자 탐색/추종', TRANSPORTING: '배송 중', RETURNING: '복귀 중', PAUSED: '일시정지', DOCKED: '완료', COMPLETED: '완료', CANCELED: '취소', ERROR: '오류' };
 // 도킹·언도킹·텔레옵 버튼을 열어 주는 유일한 작업 상태 목록
 const MANUAL_CONTROL = new Set(['CANCELED', 'ERROR']);
 
@@ -42,16 +42,30 @@ function taskInfo(robot) {
 function FleetMap({ robots, selectedId, onSelect }) {
   const canvasRef = useRef(null);
   const [map, setMap] = useState(null);
+  const [destinations, setDestinations] = useState([]);
   useEffect(() => {
     let alive = true;
-    const refreshMap = () => robotApi.getMap()
-      .then((data) => alive && setMap(data))
-      .catch(() => alive && setMap(null));
+    const refreshMap = () => Promise.all([
+      robotApi.getMap(),
+      robotApi.getDestinations().catch(() => []),
+    ])
+      .then(([mapData, destinationData]) => {
+        if (!alive) return;
+        setMap(mapData);
+        setDestinations(destinationData);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setMap(null);
+        setDestinations([]);
+      });
     refreshMap();
     const timer = setInterval(refreshMap, 3000);
     return () => { alive = false; clearInterval(timer); };
   }, []);
-  useEffect(() => { if (map) renderFleetMap(canvasRef.current, map, robots, selectedId); }, [map, robots, selectedId]);
+  useEffect(() => {
+    if (map) renderFleetMap(canvasRef.current, map, robots, selectedId, destinations);
+  }, [map, robots, selectedId, destinations]);
   const click = (event) => {
     if (!map) return;
     const canvas = canvasRef.current;
@@ -61,7 +75,7 @@ function FleetMap({ robots, selectedId, onSelect }) {
     const robot = robots.find((item) => { const point = worldToCanvas(map, item.pose_x, item.pose_y); return Math.hypot(point.x - x, point.y - y) < 24; });
     if (robot) onSelect(robot.robot_id);
   };
-  return <section className="map-workspace"><header><div><strong>내비게이션 지도</strong><small>MAP FRAME · LIVE</small></div><div className="map-tabs">{robots.map((robot) => <button key={robot.robot_id} className={selectedId === robot.robot_id ? 'active' : ''} onClick={() => onSelect(robot.robot_id)}>{robot.robot_id.toUpperCase()}</button>)}</div></header><div className="map-stage">{map ? <canvas ref={canvasRef} onClick={click} aria-label="AMR 실시간 위치 지도" /> : <span>운영 지도를 연결하는 중입니다.</span>}</div><footer><i /> 지도와 로봇 좌표는 DB 최신 상태를 기준으로 갱신됩니다.</footer></section>;
+  return <section className="map-workspace"><header><div><strong>내비게이션 지도</strong><small>MAP FRAME · LIVE</small></div><div className="map-tabs">{robots.map((robot) => <button key={robot.robot_id} className={selectedId === robot.robot_id ? 'active' : ''} onClick={() => onSelect(robot.robot_id)}>{robot.robot_id.toUpperCase()}</button>)}</div></header><div className="map-stage">{map ? <canvas ref={canvasRef} onClick={click} aria-label="AMR 실시간 위치와 작업장 목적지 지도" /> : <span>운영 지도를 연결하는 중입니다.</span>}</div><footer><i /> 로봇 위치와 작업장 목적지는 DB 최신 상태를 기준으로 갱신됩니다.</footer></section>;
 }
 
 function LaptopCameraTile() {

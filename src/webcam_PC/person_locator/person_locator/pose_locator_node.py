@@ -49,18 +49,18 @@ def _package_config_dir() -> Path:
     이 파일 기준 상대경로의 config로 fallback한다.
     """
     try:
-        return Path(get_package_share_directory(PACKAGE_NAME)) / 'config'
+        return Path(get_package_share_directory(PACKAGE_NAME)) / 'config'       # 필요한 설정 파일의 경로를 찾아줌(config)
     except PackageNotFoundError:
         return Path(__file__).resolve().parent.parent / 'config'
 
 
-def _load_default_params():
+def _load_default_params():     # json에 기록된 파라미터들을 딕셔너리로 변환
     """config/params.json에서 파라미터 기본값을 불러온다."""
     with open(_package_config_dir() / 'params.json', encoding='utf-8') as f:
         return json.load(f)
 
 
-def _resolve_config_relative_path(value: str) -> str:
+def _resolve_config_relative_path(value: str) -> str:       # 상대경로를 절대경로로 바꿔주기
     """파라미터로 받은 경로가 상대경로면 package config 디렉터리 기준으로 풀어준다.
 
     homography_yaml_path 기본값이 'config/xxx.yaml' 형태의 상대경로라서,
@@ -125,7 +125,7 @@ class PoseLocatorNode(Node):
         #   hardhat_roi_top_ratio: 1.0이면 기존과 동일하게 전신을 그대로
         #     씀 - 오탐 튜닝을 위해 위에서부터 이 비율만큼(예: 0.4 =
         #     상반신/머리)만 남기려면 1.0 미만으로 낮춤
-        default_params = _load_default_params()
+        default_params = _load_default_params()     # json 파일에 저장된 파라미터를 불러옴
         for name, value in default_params.items():
             self.declare_parameter(name, value)
 

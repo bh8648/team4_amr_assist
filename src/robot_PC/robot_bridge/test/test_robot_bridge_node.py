@@ -28,6 +28,7 @@ def test_robot_specific_topics_and_status_identity(robot_id):
         assert node.amcl_sub.topic_name == f'/{robot_id}/amcl_pose'
         assert node.battery_sub.topic_name == f'/{robot_id}/battery_state'
         assert node.target_person_pose_sub.topic_name == f'/{robot_id}/target_person_pose'
+        assert node.initial_pose_pub.topic_name == f'/{robot_id}/initialpose'
 
         pose = PoseWithCovarianceStamped()
         pose.pose.pose.position.x, pose.pose.pose.position.y = 1.5, -2.0
@@ -41,6 +42,41 @@ def test_robot_specific_topics_and_status_identity(robot_id):
         assert status.battery == 75.0
         assert status.x == 1.5
         assert status.y == -2.0
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+@pytest.mark.parametrize(
+    ('robot_id', 'expected_pose'),
+    [('robot5', (0.0, 0.0, 0.0)),
+     ('robot11', (-2.235, -5.022, -1.528))],
+)
+def test_initial_pose_retries_until_first_amcl_pose(robot_id, expected_pose):
+    rclpy.init()
+    node = RobotBridgeNode(robot_id=robot_id)
+    try:
+        node.initial_pose_pub = Mock()
+        node.initial_pose_timer = Mock()
+
+        node.publish_initial_pose_retry()
+
+        msg = node.initial_pose_pub.publish.call_args.args[0]
+        x, y, yaw = expected_pose
+        assert msg.header.frame_id == 'map'
+        assert math.isclose(msg.pose.pose.position.x, x)
+        assert math.isclose(msg.pose.pose.position.y, y)
+        assert math.isclose(msg.pose.pose.orientation.z, math.sin(yaw / 2.0))
+        assert math.isclose(msg.pose.pose.orientation.w, math.cos(yaw / 2.0))
+        assert math.isclose(msg.pose.covariance[0], 0.25)
+        assert math.isclose(msg.pose.covariance[7], 0.25)
+        assert math.isclose(msg.pose.covariance[35], 0.06853891945200942)
+
+        node.initial_pose_pub.publish.reset_mock()
+        node.latest_x = x
+        node.publish_initial_pose_retry()
+        node.initial_pose_timer.cancel.assert_called_once()
+        node.initial_pose_pub.publish.assert_not_called()
     finally:
         node.destroy_node()
         rclpy.shutdown()
@@ -361,6 +397,38 @@ def test_follow_stopped_waits_for_every_follow_and_spin_goal():
         rclpy.shutdown()
 
 
+@pytest.mark.parametrize('robot_id', ['robot5', 'robot11'])
+def test_transport_waits_for_active_follow_goal_terminal_result(robot_id):
+    """취소 요청만으로 확인하지 않고 기존 추종 goal의 최종 결과까지 기다린다."""
+    rclpy.init()
+    node = RobotBridgeNode(robot_id=robot_id)
+    try:
+        node.navigation_result_pub = Mock()
+        node.current_task_state, node.current_task_id = 'FOLLOWING', 'TASK-1'
+        generation = node.nav_generation = 7
+        goal_handle = Mock()
+        node.nav_goal_handle = goal_handle
+        node.follow_goal_handles[generation] = goal_handle
+
+        transporting = TaskState()
+        transporting.robot_id, transporting.task_id = robot_id, 'TASK-1'
+        transporting.state = 'TRANSPORTING'
+        node.task_state_callback(transporting)
+
+        goal_handle.cancel_goal_async.assert_called_once()
+        node.navigation_result_pub.publish.assert_not_called()
+
+        node.follow_result_callback(Mock(), goal_handle, generation)
+
+        result = node.navigation_result_pub.publish.call_args.args[0]
+        assert result.goal_type == 'FOLLOWING_STOPPED'
+        assert result.success is True
+        assert result.task_id == 'TASK-1'
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
 def test_late_follow_goal_is_canceled_before_handoff_confirmation():
     """TRANSPORTING 전환 뒤 늦게 수락된 Follow goal도 결과 종료까지 기다린다."""
     rclpy.init()
@@ -387,6 +455,72 @@ def test_late_follow_goal_is_canceled_before_handoff_confirmation():
         node.follow_result_callback(Mock(), goal_handle, generation=1)
         node.navigation_result_pub.publish.assert_called_once()
         assert node.navigation_result_pub.publish.call_args.args[0].goal_type == 'FOLLOWING_STOPPED'
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+@pytest.mark.parametrize('robot_id', ['robot5', 'robot11'])
+def test_transport_waits_for_pending_follow_goal_response_and_result(robot_id):
+    """수락 응답과 엇갈린 배송 전환도 뒤늦게 수락된 goal을 취소·종료 후 확인한다."""
+    rclpy.init()
+    node = RobotBridgeNode(robot_id=robot_id)
+    try:
+        node.navigation_result_pub = Mock()
+        node.current_task_state, node.current_task_id = 'FOLLOWING', 'TASK-1'
+        generation = node.nav_generation = 3
+        node.nav_goal_pending = True
+        node.follow_pending_generations.add(generation)
+
+        transporting = TaskState()
+        transporting.robot_id, transporting.task_id = robot_id, 'TASK-1'
+        transporting.state = 'TRANSPORTING'
+        node.task_state_callback(transporting)
+        node.navigation_result_pub.publish.assert_not_called()
+
+        goal_handle = Mock()
+        goal_handle.accepted = True
+        response_future = Mock()
+        response_future.result.return_value = goal_handle
+        node.follow_goal_response_callback(response_future, generation)
+
+        goal_handle.cancel_goal_async.assert_called_once()
+        node.navigation_result_pub.publish.assert_not_called()
+
+        node.follow_result_callback(Mock(), goal_handle, generation)
+        result = node.navigation_result_pub.publish.call_args.args[0]
+        assert result.goal_type == 'FOLLOWING_STOPPED'
+        assert result.task_id == 'TASK-1'
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+@pytest.mark.parametrize('robot_id', ['robot5', 'robot11'])
+def test_transport_waits_for_following_search_spin_terminal_result(robot_id):
+    """FOLLOWING 중 재탐색 Spin도 최종 종료되기 전에는 handoff를 완료하지 않는다."""
+    rclpy.init()
+    node = RobotBridgeNode(robot_id=robot_id)
+    try:
+        node.navigation_result_pub = Mock()
+        node.current_task_state, node.current_task_id = 'FOLLOWING', 'TASK-1'
+        generation = node.spin_generation = 4
+        goal_handle = Mock()
+        node.spin_goal_handle = goal_handle
+        node.spin_goal_handles[generation] = goal_handle
+
+        transporting = TaskState()
+        transporting.robot_id, transporting.task_id = robot_id, 'TASK-1'
+        transporting.state = 'TRANSPORTING'
+        node.task_state_callback(transporting)
+
+        goal_handle.cancel_goal_async.assert_called_once()
+        node.navigation_result_pub.publish.assert_not_called()
+
+        node.spin_result_callback(Mock(), goal_handle, generation)
+        result = node.navigation_result_pub.publish.call_args.args[0]
+        assert result.goal_type == 'FOLLOWING_STOPPED'
+        assert result.task_id == 'TASK-1'
     finally:
         node.destroy_node()
         rclpy.shutdown()
