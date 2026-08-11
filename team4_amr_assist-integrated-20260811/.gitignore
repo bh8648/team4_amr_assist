@@ -1,0 +1,76 @@
+# ROS 2 / colcon build outputs
+build/
+install/
+log/
+
+# Python caches, test outputs, and packaging artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Frontend dependencies and generated bundles
+**/node_modules/
+**/dist/
+**/.vite/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local environment files (keep committed *.example and robot presets)
+**/.env
+**/.env.local
+**/.env.*.local
+
+# Runtime database sidecars and local backups; keep the seeded amr.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.db.bak
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+
+# ROS bags, recordings, and generated evidence
+rosbag2_*/
+*.bag
+*.db3
+*.mcap
+/evidence/
+
+# Training data and generated model artifacts
+*.pt
+*.onnx
+datasets/
+runs/
+
+# Runtime models required by the checked-in launch configurations
+!src/webcam_PC/person_locator/models/yolov8n-pose.pt
+!src/webcam_PC/hardhat_detector/models/yolov8n_tuned.pt
+!src/robot_PC/amr_person_tracking/config/yolo11n-pose.pt
+
+# Editor and OS files
+.vscode/
+.idea/
+.vs/
+**/.vs/
+browse.vc.db
+*.VC.db
+*.VC.opendb
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Separate local project/repository
+/mini_project/

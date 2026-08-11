@@ -1,0 +1,19 @@
+# Workspace-local IDE caches
+.vscode/
+.vs/
+**/.vs/
+browse.vc.db
+*.VC.db
+*.VC.opendb
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# OS/editor temporary files
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
