@@ -78,70 +78,47 @@ function FleetMap({ robots, selectedId, onSelect }) {
   return <section className="map-workspace"><header><div><strong>내비게이션 지도</strong><small>MAP FRAME · LIVE</small></div><div className="map-tabs">{robots.map((robot) => <button key={robot.robot_id} className={selectedId === robot.robot_id ? 'active' : ''} onClick={() => onSelect(robot.robot_id)}>{robot.robot_id.toUpperCase()}</button>)}</div></header><div className="map-stage">{map ? <canvas ref={canvasRef} onClick={click} aria-label="AMR 실시간 위치와 작업장 목적지 지도" /> : <span>운영 지도를 연결하는 중입니다.</span>}</div><footer><i /> 로봇 위치와 작업장 목적지는 DB 최신 상태를 기준으로 갱신됩니다.</footer></section>;
 }
 
-function LaptopCameraTile() {
-  const videoRef = useRef(null);
-  const [cameraState, setCameraState] = useState('loading');
-  const [message, setMessage] = useState('카메라 권한을 요청하고 있습니다.');
-  const [devices, setDevices] = useState([]);
-  const [selectedDevice, setSelectedDevice] = useState('');
+function RosWebcamTile() {
+  const [cameraState, setCameraState] = useState('waiting');
+  const [message, setMessage] = useState('웹캠 ROS 2 토픽의 첫 프레임을 기다리고 있습니다.');
+  const [frameUrl, setFrameUrl] = useState('');
   useEffect(() => {
-    let stream;
     let alive = true;
-    const connect = async () => {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setCameraState('error');
-        setMessage(window.isSecureContext ? '이 브라우저에서는 카메라 기능을 지원하지 않습니다.' : '카메라는 localhost 또는 HTTPS 주소에서만 사용할 수 있습니다. http://localhost:5173으로 접속해 주세요.');
-        return;
-      }
+    let timer;
+    let currentUrl = '';
+    const refresh = async () => {
+      let delay = 100;
       try {
-        setCameraState('loading');
-        setMessage('카메라 장치를 연결하고 있습니다.');
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            ...(selectedDevice ? { deviceId: { exact: selectedDevice } } : { facingMode: 'user' }),
-          },
-          audio: false,
-        });
-        if (!alive) { stream.getTracks().forEach((track) => track.stop()); return; }
-        const cameras = (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === 'videoinput');
-        setDevices(cameras);
-        const activeDevice = stream.getVideoTracks()[0]?.getSettings().deviceId;
-        // DroidCam/가상 카메라 대신 실제 내장·USB 웹캠을 우선 사용한다.
-        if (!selectedDevice) {
-          const virtualCamera = /droid|virtual|loopback|obs/i;
-          const physicalCamera = cameras.find((camera) => !virtualCamera.test(camera.label));
-          const preferredDevice = physicalCamera?.deviceId || activeDevice || cameras[0]?.deviceId;
-          if (preferredDevice) setSelectedDevice(preferredDevice);
-        }
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        setCameraState('live');
-      } catch (error) {
+        const blob = await robotApi.getWebcamFrame();
         if (!alive) return;
-        setCameraState('error');
-        const errors = {
-          NotAllowedError: '카메라 권한이 거부되었습니다. 브라우저 주소창에서 카메라 권한을 허용해 주세요.',
-          NotFoundError: '사용 가능한 웹캠을 찾지 못했습니다. OS에서 카메라 장치를 확인해 주세요.',
-          NotReadableError: '웹캠이 다른 프로그램에서 사용 중이거나 장치를 열 수 없습니다.',
-          OverconstrainedError: '선택한 카메라를 현재 설정으로 열 수 없습니다.',
-        };
-        setMessage(errors[error.name] || `카메라 연결 실패: ${error.message}`);
+        const nextUrl = URL.createObjectURL(blob);
+        const previousUrl = currentUrl;
+        currentUrl = nextUrl;
+        setFrameUrl(nextUrl);
+        setCameraState('live');
+        setMessage('실시간 프레임을 수신 중입니다.');
+        if (previousUrl) window.setTimeout(() => URL.revokeObjectURL(previousUrl), 0);
+      } catch {
+        if (!alive) return;
+        setCameraState('waiting');
+        setMessage('`/camera/image_raw/compressed` 토픽의 실시간 프레임을 기다리고 있습니다.');
+        delay = 750;
+      } finally {
+        if (alive) timer = window.setTimeout(refresh, delay);
       }
     };
-    connect();
+    refresh();
     return () => {
       alive = false;
-      stream?.getTracks().forEach((track) => track.stop());
+      window.clearTimeout(timer);
+      if (currentUrl) URL.revokeObjectURL(currentUrl);
     };
-  }, [selectedDevice]);
-  const visibleDevices = devices.filter((device) => !/droid|virtual|loopback|obs/i.test(device.label));
-  return <article className="video-tile"><header><div><strong>노트북 웹캠</strong><small>LOCAL CAMERA · 실시간 화면</small></div><span className={cameraState === 'live' ? '' : 'waiting'}><i />{cameraState === 'live' ? 'LIVE' : 'WAIT'}</span></header><div><video ref={videoRef} autoPlay muted playsInline style={{ display: cameraState === 'error' ? 'none' : 'block', width: '100%', height: '100%', objectFit: 'cover' }} />{cameraState !== 'live' && <span><b>{cameraState === 'loading' ? '카메라 연결 중' : '카메라를 연결할 수 없습니다'}</b><small>{message}</small></span>}</div><footer>{visibleDevices.length > 0 ? <label>실제 카메라 선택 <select value={selectedDevice} onChange={(event) => setSelectedDevice(event.target.value)}>{visibleDevices.map((device, index) => <option value={device.deviceId} key={device.deviceId}>CAM {index} · {device.label || `웹캠 ${index}`}</option>)}</select></label> : '실제 웹캠을 찾지 못했습니다. DroidCam/가상 카메라는 목록에서 제외됩니다.'}</footer></article>;
+  }, []);
+  return <article className="video-tile"><header><div><strong>작업장 웹캠</strong><small>ROS 2 COMPRESSED IMAGE · 실시간 화면</small></div><span className={cameraState === 'live' ? '' : 'waiting'}><i />{cameraState === 'live' ? 'LIVE' : 'WAIT'}</span></header><div>{frameUrl && <img src={frameUrl} alt="작업장 웹캠 실시간 영상" />}{cameraState !== 'live' && !frameUrl && <span><b>웹캠 토픽 연결 중</b><small>{message}</small></span>}</div><footer>/camera/image_raw/compressed · JPEG 최신 프레임</footer></article>;
 }
 
 function VisionWorkspace() {
-  return <section className="vision-workspace"><header><div><strong>웹캠 영상 관제</strong><small>LOCAL CAMERA · LIVE VIEW</small></div><span><i />1 CHANNEL</span></header><div className="video-grid webcam-only"><LaptopCameraTile /></div><footer><i /> 현재 HMI를 실행한 노트북의 웹캠 화면입니다.</footer></section>;
+  return <section className="vision-workspace"><header><div><strong>웹캠 영상 관제</strong><small>ROS 2 CAMERA · LIVE VIEW</small></div><span><i />1 CHANNEL</span></header><div className="video-grid webcam-only"><RosWebcamTile /></div><footer><i /> 웹캠 PC가 발행하는 ROS 2 압축 영상을 실시간으로 표시합니다.</footer></section>;
 }
 
 function DatabaseWorkspace() {

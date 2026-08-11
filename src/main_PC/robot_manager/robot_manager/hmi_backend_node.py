@@ -4,12 +4,13 @@ import math
 import secrets
 import sqlite3
 import threading
+import time
 import uvicorn
 from pathlib import Path
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
 import rclpy
@@ -19,6 +20,7 @@ from irobot_create_msgs.msg import DockStatus
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from robot_status.msg import NavigationResult, TaskCommand, TaskState
+from sensor_msgs.msg import CompressedImage
 
 # =========================================================
 # 1. Pydantic 요청 Body 모델
@@ -54,6 +56,8 @@ class HmiBackendNode(Node):
     MANUAL_CONTROL_STATES = {'CANCELED', 'ERROR'}
     MAX_TELEOP_LINEAR = 0.25
     MAX_TELEOP_ANGULAR = 1.0
+    MAX_CAMERA_FRAME_BYTES = 5 * 1024 * 1024
+    CAMERA_FRAME_MAX_AGE_SEC = 2.0
 
     def __init__(self):
         super().__init__('hmi_backend_node')
@@ -70,6 +74,24 @@ class HmiBackendNode(Node):
         self.map_yaml_path = (configured_map_path if configured_map_path.is_absolute() else package_share / configured_map_path).resolve()
         if not self.map_yaml_path.is_file():
             self.map_yaml_path = Path(default_map_path).resolve()
+
+        # 웹캠 PC가 발행하는 JPEG CompressedImage를 브라우저가 조회할 수 있도록
+        # 가장 최근 프레임 하나만 메모리에 유지한다. DB에는 영상을 저장하지 않는다.
+        self.declare_parameter(
+            'camera_topic',
+            os.environ.get('HMI_CAMERA_TOPIC', '/camera/image_raw/compressed'),
+        )
+        self.camera_topic = str(self.get_parameter('camera_topic').value)
+        self.camera_frame = b''
+        self.camera_frame_sequence = 0
+        self.camera_frame_received_at = 0.0
+        self.camera_frame_lock = threading.Lock()
+        self.camera_subscription = self.create_subscription(
+            CompressedImage,
+            self.camera_topic,
+            self.camera_frame_callback,
+            qos_profile_sensor_data,
+        )
 
         self.task_command_publisher = self.create_publisher(TaskCommand, '/task/command', 10)   # 정지, 도킹, 언도킹 등의 명령을 보낼 퍼블리셔
         self.teleop_publishers = {robot_id: self.create_publisher(Twist, f'/{robot_id}/cmd_vel', 10) for robot_id in ('robot5', 'robot11')}
@@ -95,7 +117,34 @@ class HmiBackendNode(Node):
                 'canceled': 0, 'teleop_enabled': 0, 'error_dock_recovered': 0,
             }
 
-        self.get_logger().info('HMI Backend Node시작')
+        self.get_logger().info(
+            f'HMI Backend Node시작 | 영상 토픽: {self.camera_topic}'
+        )
+
+    def camera_frame_callback(self, msg: CompressedImage) -> None:
+        """웹캠 PC의 최신 JPEG 프레임 하나만 메모리에 보관한다."""
+        frame = bytes(msg.data)
+        if not frame or len(frame) > self.MAX_CAMERA_FRAME_BYTES:
+            self.get_logger().warning(
+                f'무효한 웹캠 프레임 무시: {len(frame)} bytes',
+                throttle_duration_sec=2.0,
+            )
+            return
+        with self.camera_frame_lock:
+            self.camera_frame = frame
+            self.camera_frame_sequence += 1
+            self.camera_frame_received_at = time.monotonic()
+
+    def latest_camera_frame(self):
+        """실시간으로 수신된 최신 프레임과 순번·수신 경과 시간을 반환한다."""
+        with self.camera_frame_lock:
+            frame = self.camera_frame
+            sequence = self.camera_frame_sequence
+            received_at = self.camera_frame_received_at
+        age = time.monotonic() - received_at if received_at else float('inf')
+        if not frame or age > self.CAMERA_FRAME_MAX_AGE_SEC:
+            return None
+        return frame, sequence, age
 
     def task_state_callback(self, msg):
         control = self.control_states.get(str(msg.robot_id))
@@ -539,6 +588,30 @@ def get_hmi_destinations():
             """
         ).fetchall()
     return [dict(row) for row in rows]
+
+
+@app.get("/api/camera/frame")
+def get_camera_frame():
+    """ROS 2 CompressedImage 토픽의 최신 JPEG 프레임을 HMI에 전달한다."""
+    if not ros_node:
+        raise HTTPException(status_code=503, detail="ROS 노드가 준비되지 않았습니다.")
+    latest = ros_node.latest_camera_frame()
+    if latest is None:
+        raise HTTPException(
+            status_code=503,
+            detail=f"실시간 웹캠 프레임 미수신: {ros_node.camera_topic}",
+        )
+    frame, sequence, age = latest
+    return Response(
+        content=frame,
+        media_type='image/jpeg',
+        headers={
+            'Cache-Control': 'no-store, no-cache, must-revalidate',
+            'X-Camera-Topic': ros_node.camera_topic,
+            'X-Frame-Sequence': str(sequence),
+            'X-Frame-Age-Ms': str(round(age * 1000)),
+        },
+    )
 
 
 @app.get("/api/map")

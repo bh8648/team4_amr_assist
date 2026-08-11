@@ -19,11 +19,28 @@ async function req(path, opts) {
   return res.json();
 }
 
+async function imageReq(path) {
+  const token = sessionStorage.getItem('hmi_auth_token');
+  const res = await fetch(`${BASE}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    cache: 'no-store',
+  });
+  if (!res.ok) {
+    if (res.status === 401) {
+      sessionStorage.removeItem('hmi_auth_token');
+      window.dispatchEvent(new Event('hmi-auth-expired'));
+    }
+    throw new Error(`${path} -> ${res.status}`);
+  }
+  return res.blob();
+}
+
 export const robotApi = {
   login: (username, password) => req('/api/auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
   getRobots: () => req('/api/robots'),
   getMap: () => req('/api/map'),
   getDestinations: () => req('/api/destinations'),
+  getWebcamFrame: () => imageReq('/api/camera/frame'),
   getDatabaseTables: () => req('/api/database/tables'),
   getDatabaseTable: (table, limit = 100) => req(`/api/database/table/${encodeURIComponent(table)}?limit=${limit}`),
   cancelTask: (id) => req(`/api/robot/${id}/cancel`, { method: 'POST', body: JSON.stringify({ return_to: 'CURRENT' }) }),

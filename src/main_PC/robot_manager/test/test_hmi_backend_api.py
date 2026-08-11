@@ -11,6 +11,7 @@ import rclpy
 from robot_manager import hmi_backend_node as backend
 from robot_manager.hmi_backend_node import HmiBackendNode
 from robot_status.msg import NavigationResult, TaskState
+from sensor_msgs.msg import CompressedImage
 
 from .test_db_manager_pipeline import SCHEMA
 
@@ -50,6 +51,25 @@ def test_admin_hmi_destination_api_returns_map_labels(tmp_path, monkeypatch):
             'position_x': 3.2,
             'position_y': -1.4,
         }]
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_camera_topic_frame_is_exposed_as_jpeg(tmp_path, monkeypatch):
+    node = _make_node(tmp_path)
+    monkeypatch.setattr(backend, 'ros_node', node)
+    try:
+        frame = CompressedImage()
+        frame.format = 'jpeg'
+        frame.data = [0xff, 0xd8, 0xff, 0xd9]
+        node.camera_frame_callback(frame)
+
+        response = backend.get_camera_frame()
+        assert response.media_type == 'image/jpeg'
+        assert response.body == b'\xff\xd8\xff\xd9'
+        assert response.headers['x-camera-topic'] == '/camera/image_raw/compressed'
+        assert response.headers['x-frame-sequence'] == '1'
     finally:
         node.destroy_node()
         rclpy.shutdown()
