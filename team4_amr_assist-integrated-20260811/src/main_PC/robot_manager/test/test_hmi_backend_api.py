@@ -4,6 +4,7 @@ import sqlite3
 from unittest.mock import Mock
 
 from fastapi import HTTPException
+from irobot_create_msgs.msg import DockStatus
 import pytest
 import rclpy
 
@@ -56,7 +57,35 @@ def test_manual_control_is_blocked_until_cancel_or_error(tmp_path):
         assert node.set_teleop_mode('robot5', True) is True
         assert node.publish_teleop('robot5', 0.1, 0.2) is True
         assert node.publish_teleop('robot5', 9.0, 0.0) is False
+        dock_status = DockStatus()
+        dock_status.is_docked = False
+        node.dock_status_callback('robot5', dock_status)
         assert node.set_dock('robot5', True) is True
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+def test_actual_dock_status_remains_authoritative_in_error_state(tmp_path):
+    """ERROR 같은 작업 상태 추정값 대신 Create3 is_docked로 버튼 상태를 결정한다."""
+    node = _make_node(tmp_path)
+    try:
+        control = node.control_states['robot11']
+        assert control['dock_status_known'] == 0
+
+        status = DockStatus()
+        status.is_docked = False
+        node.dock_status_callback('robot11', status)
+
+        task = TaskState()
+        task.robot_id, task.task_id, task.state = 'robot11', 'TASK-ERROR', 'ERROR'
+        node.task_state_callback(task)
+        assert control['dock_status_known'] == 1
+        assert control['docked'] == 0
+
+        status.is_docked = True
+        node.dock_status_callback('robot11', status)
+        assert control['docked'] == 1
     finally:
         node.destroy_node()
         rclpy.shutdown()

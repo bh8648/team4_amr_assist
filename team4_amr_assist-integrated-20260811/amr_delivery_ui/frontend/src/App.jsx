@@ -242,6 +242,7 @@ export default function App() {
   };
   const selectedTask = selected ? taskInfo(selected) : null;
   const teleopActive = teleopRobotId === selectedId;
+  const dockStatusKnown = !!selected?.dock_status_known;
   // 토글 API가 성공한 뒤에만 화면의 활성화 상태를 변경한다.
   const toggleTeleop = async () => {
     if (!selected) return;
@@ -264,7 +265,7 @@ export default function App() {
           <section className="quick-actions"><header><strong>작업·안전 제어</strong></header><div><button className="cancel" disabled={busy || !selectedTask.active} onClick={() => window.confirm(`${selected.robot_id.toUpperCase()} 작업을 취소할까요?`) && execute(() => robotApi.cancelTask(selected.robot_id), '작업 취소 요청 완료')}>작업 취소</button><button className={`pause ${selected.estopped ? 'resume' : ''}`} disabled={busy} onClick={() => execute(() => robotApi.setEstop(!selected.estopped, selected.robot_id), selected.estopped ? '운행 재개 요청 완료' : '일시정지 요청 완료')}>{selected.estopped ? '운행 재개' : '일시정지'}</button></div></section>
 
           {/* 수동 도킹 버튼은 CANCELED/ERROR 상태에서만 활성화한다. */}
-          <section className="dock-box"><header><strong>도킹 제어</strong><small>취소·오류 상태 전용</small></header><div><button disabled={busy || !manualReady || selected.docked} onClick={() => execute(() => robotApi.setDock(true, selected.robot_id), '도킹 요청 완료')}>도킹</button><button disabled={busy || !manualReady || !selected.docked} onClick={() => execute(() => robotApi.setDock(false, selected.robot_id), '언도킹 요청 완료')}>언도킹</button></div></section>
+          <section className="dock-box"><header><strong>도킹 제어</strong><small>{dockStatusKnown ? 'Create3 실제 상태' : '도킹 상태 수신 대기'}</small></header><div><button disabled={busy || !manualReady || !dockStatusKnown || selected.docked} onClick={() => execute(() => robotApi.setDock(true, selected.robot_id), '도킹 요청 완료')}>도킹</button><button disabled={busy || !manualReady || !dockStatusKnown || !selected.docked} onClick={() => execute(() => robotApi.setDock(false, selected.robot_id), '언도킹 요청 완료')}>언도킹</button></div></section>
 
           {/* 기존 방향 버튼 대신 키보드 텔레옵을 켜고 끄는 단일 토글만 제공한다. */}
           <section className="teleop-box"><header><div><strong>키보드 텔레옵</strong><small>{teleopActive ? '방향키 ↑ ↓ ← → 로 조종' : '취소·오류 상태에서만 활성화'}</small></div><span className={teleopActive ? 'ready' : ''}>{teleopActive ? 'ACTIVE' : manualReady ? 'READY' : 'LOCKED'}</span></header><button className={`teleop-toggle ${teleopActive ? 'active' : ''}`} disabled={busy || (!manualReady && !teleopActive)} onClick={toggleTeleop}>{teleopActive ? '텔레옵 비활성화' : '텔레옵 활성화'}</button></section>

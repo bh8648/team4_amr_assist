@@ -15,7 +15,9 @@ from pydantic import BaseModel
 import rclpy
 from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import Twist
+from irobot_create_msgs.msg import DockStatus
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from robot_status.msg import NavigationResult, TaskCommand, TaskState
 
 # =========================================================
@@ -72,6 +74,15 @@ class HmiBackendNode(Node):
         self.task_command_publisher = self.create_publisher(TaskCommand, '/task/command', 10)   # 정지, 도킹, 언도킹 등의 명령을 보낼 퍼블리셔
         self.teleop_publishers = {robot_id: self.create_publisher(Twist, f'/{robot_id}/cmd_vel', 10) for robot_id in ('robot5', 'robot11')}
         self.task_state_subscription = self.create_subscription(TaskState, '/task/state', self.task_state_callback, 10)
+        # Create3가 주기적으로 발행하는 실제 도킹 센서값을 HMI 버튼의 유일한 기준으로 사용한다.
+        self.dock_status_subscriptions = [
+            self.create_subscription(
+                DockStatus, f'/{robot_id}/dock_status',
+                lambda msg, selected_robot=robot_id: self.dock_status_callback(selected_robot, msg),
+                qos_profile_sensor_data,
+            )
+            for robot_id in ('robot5', 'robot11')
+        ]
         # 브릿지의 실제 Dock/Undock 액션 성공 결과로만 HMI 도킹 표시를 확정한다.
         self.navigation_result_subscription = self.create_subscription(
             NavigationResult, '/navigation/result', self.navigation_result_callback, 10)
@@ -80,7 +91,7 @@ class HmiBackendNode(Node):
 
         for robot_id in ('robot5', 'robot11'):  # 로봇마다 비상정지, 도킹 상태를 관리하기 위한 딕셔너리 초기화
             self.control_states[robot_id] = {
-                'estopped': 0, 'docked': 1, 'task_state': 'DOCKED',
+                'estopped': 0, 'docked': 0, 'dock_status_known': 0, 'task_state': 'DOCKED',
                 'canceled': 0, 'teleop_enabled': 0,
             }
 
@@ -91,10 +102,6 @@ class HmiBackendNode(Node):
         if control is None:
             return
         control['task_state'] = str(msg.state).upper()
-        if msg.state == 'DOCKED':
-            control['docked'] = 1
-        elif msg.state in ('ASSIGNED', 'FOLLOWING', 'TRANSPORTING', 'RETURNING', 'CANCELED'):
-            control['docked'] = 0
         if (msg.state == 'CANCELED'
                 or (msg.state == 'RETURNING' and msg.detail == '작업 취소 후 복귀')):
             control['canceled'] = 1
@@ -103,15 +110,25 @@ class HmiBackendNode(Node):
             control['canceled'] = 0
             control['teleop_enabled'] = 0
 
+    def dock_status_callback(self, robot_id: str, msg: DockStatus):
+        """Create3의 실제 도킹 센서값으로 HMI 제어 상태를 계속 갱신한다."""
+        control = self.control_states.get(str(robot_id))
+        if control is None:
+            return
+        control['docked'] = int(bool(msg.is_docked))
+        control['dock_status_known'] = 1
+
     def navigation_result_callback(self, msg):
-        """브릿지가 보고한 실제 도킹 액션 성공 결과를 HMI 제어 상태에 반영한다."""
+        """DockStatus 갱신 전에도 성공한 실제 액션 결과를 즉시 반영한다."""
         control = self.control_states.get(str(msg.robot_id))
         if control is None or not msg.success:
             return
         if msg.goal_type == 'DOCK':
             control['docked'] = 1
+            control['dock_status_known'] = 1
         elif msg.goal_type == 'UNDOCK':
             control['docked'] = 0
+            control['dock_status_known'] = 1
 
     def latest_task_state(self, robot_id: str):
         """재시작 뒤에도 제한을 유지하도록 DB의 가장 최근 작업 상태/결과를 조회한다."""
@@ -215,11 +232,16 @@ class HmiBackendNode(Node):
                 if task:
                     robot['mode'] = task['state']
 
-                control = self.control_states.get(robot['robot_id'], {'estopped': 0, 'docked': 0})
-                if robot['mode'] == 'DOCKED' and not control['docked']:
+                control = self.control_states.get(
+                    robot['robot_id'],
+                    {'estopped': 0, 'docked': 0, 'dock_status_known': 0},
+                )
+                dock_status_known = bool(control.get('dock_status_known'))
+                if robot['mode'] == 'DOCKED' and dock_status_known and not control['docked']:
                     robot['mode'] = 'IDLE'
                 robot['estopped'] = int(bool(control['estopped']) or robot['mode'] == 'PAUSED') # 정지 여부 확인
-                robot['docked'] = int(bool(control['docked']) or robot['mode'] == 'DOCKED')     # 도킹 여부 확인
+                robot['dock_status_known'] = int(dock_status_known)
+                robot['docked'] = int(bool(control['docked'])) if dock_status_known else 0
                 robots.append(robot)
         return robots
 
@@ -242,6 +264,10 @@ class HmiBackendNode(Node):
         if robot_id not in self.control_states: # 대상 로봇 검증
             return False
         if not self.manual_control_allowed(robot_id):
+            return False
+        control = self.control_states[robot_id]
+        # 실제 센서값을 받기 전이거나 이미 목표 상태라면 잘못된 수동 액션을 보내지 않는다.
+        if not control['dock_status_known'] or bool(control['docked']) == bool(dock):
             return False
 
         # 도킹 동작과 cmd_vel이 동시에 실행되지 않도록 텔레옵을 먼저 끈다.
@@ -507,9 +533,12 @@ def set_robot_dock(robot_id: str, data: DockRequest):
         raise HTTPException(status_code=503, detail="ROS 노드가 준비되지 않았습니다.")
     if robot_id not in ros_node.control_states:
         raise HTTPException(status_code=404, detail=f"지원하지 않는 AMR ID: {robot_id}")
-    # 존재하는 로봇이라도 CANCELED/ERROR가 아니면 충돌 응답으로 거부한다.
+    # 실제 도킹 상태를 아직 못 받았거나 CANCELED/ERROR가 아니면 충돌 응답으로 거부한다.
     if not ros_node.set_dock(robot_id, data.dock):
-        raise HTTPException(status_code=409, detail="도킹/언도킹은 CANCELED 또는 ERROR 상태에서만 가능합니다.")
+        raise HTTPException(
+            status_code=409,
+            detail="실제 도킹 상태 수신 및 CANCELED/ERROR 상태를 확인해 주세요.",
+        )
     return {"accepted": True, "robot_id": robot_id, "docked": data.dock}
 
 
