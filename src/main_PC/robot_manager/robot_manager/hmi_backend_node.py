@@ -92,7 +92,7 @@ class HmiBackendNode(Node):
         for robot_id in ('robot5', 'robot11'):  # 로봇마다 비상정지, 도킹 상태를 관리하기 위한 딕셔너리 초기화
             self.control_states[robot_id] = {
                 'estopped': 0, 'docked': 0, 'dock_status_known': 0, 'task_state': 'DOCKED',
-                'canceled': 0, 'teleop_enabled': 0,
+                'canceled': 0, 'teleop_enabled': 0, 'error_dock_recovered': 0,
             }
 
         self.get_logger().info('HMI Backend Node시작')
@@ -101,7 +101,12 @@ class HmiBackendNode(Node):
         control = self.control_states.get(str(msg.robot_id))
         if control is None:
             return
+        previous_state = control['task_state']
         control['task_state'] = str(msg.state).upper()
+        if msg.state == 'DOCKED' and previous_state == 'ERROR':
+            control['error_dock_recovered'] = 1
+        elif msg.state in ('ASSIGNED', 'ERROR'):
+            control['error_dock_recovered'] = 0
         if (msg.state == 'CANCELED'
                 or (msg.state == 'RETURNING' and msg.detail == '작업 취소 후 복귀')):
             control['canceled'] = 1
@@ -117,6 +122,8 @@ class HmiBackendNode(Node):
             return
         control['docked'] = int(bool(msg.is_docked))
         control['dock_status_known'] = 1
+        if not msg.is_docked:
+            control['error_dock_recovered'] = 0
 
     def navigation_result_callback(self, msg):
         """DockStatus 갱신 전에도 성공한 실제 액션 결과를 즉시 반영한다."""
@@ -124,11 +131,19 @@ class HmiBackendNode(Node):
         if control is None or not msg.success:
             return
         if msg.goal_type == 'DOCK':
+            was_error = control['task_state'] == 'ERROR'
+            if not was_error:
+                state, result = self.latest_task_state(str(msg.robot_id))
+                was_error = state == 'ERROR' or result == 'FAILED'
             control['docked'] = 1
             control['dock_status_known'] = 1
+            if was_error:
+                control['task_state'] = 'DOCKED'
+                control['error_dock_recovered'] = 1
         elif msg.goal_type == 'UNDOCK':
             control['docked'] = 0
             control['dock_status_known'] = 1
+            control['error_dock_recovered'] = 0
 
     def latest_task_state(self, robot_id: str):
         """재시작 뒤에도 제한을 유지하도록 DB의 가장 최근 작업 상태/결과를 조회한다."""
@@ -239,6 +254,11 @@ class HmiBackendNode(Node):
                 dock_status_known = bool(control.get('dock_status_known'))
                 if robot['mode'] == 'DOCKED' and dock_status_known and not control['docked']:
                     robot['mode'] = 'IDLE'
+                # ASSIGNED 등 정상 작업 상태는 물리 dock 값으로 덮지 않고,
+                # ERROR에서 실제 Dock 성공을 확인한 경우에만 운용 상태를 복구한다.
+                if (dock_status_known and control['docked']
+                        and control.get('error_dock_recovered')):
+                    robot['mode'] = 'DOCKED'
                 robot['estopped'] = int(bool(control['estopped']) or robot['mode'] == 'PAUSED') # 정지 여부 확인
                 robot['dock_status_known'] = int(dock_status_known)
                 robot['docked'] = int(bool(control['docked'])) if dock_status_known else 0
@@ -503,6 +523,22 @@ def get_hmi_robots():
     if not ros_node:
         raise HTTPException(status_code=503, detail="ROS 노드가 준비되지 않았습니다.")
     return ros_node.fetch_hmi_robots()
+
+
+@app.get("/api/destinations")
+def get_hmi_destinations():
+    """HMI 지도에 표시할 DB 목적지 ID·이름·map 좌표 목록."""
+    if not ros_node:
+        raise HTTPException(status_code=503, detail="ROS 노드가 준비되지 않았습니다.")
+    with sqlite3.connect(ros_node.db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT destination_id, destination_name, position_x, position_y
+            FROM destinations ORDER BY destination_id
+            """
+        ).fetchall()
+    return [dict(row) for row in rows]
 
 
 @app.get("/api/map")

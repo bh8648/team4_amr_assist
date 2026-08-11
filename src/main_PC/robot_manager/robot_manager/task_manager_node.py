@@ -31,6 +31,8 @@ class ManagedTask:  # 로봇의 정보를 모델 클래스
     goal_pending: bool = False
     goal_completed: bool = False
     awaiting_undock: bool = False
+    awaiting_follow_stop: bool = False
+    follow_stop_requested_time_ns: Optional[int] = None
     canceled: bool = False  # ROS 상태 문자열과 별도로 취소된 작업의 수동 복구 권한을 보존한다.
     destination_id: str = ''  # HMI가 선택한 중앙 목적지 설정 ID를 상태와 DB에 전달한다.
 
@@ -52,6 +54,11 @@ class TaskManagerNode(Node):
         super().__init__('task_manager_node')
         self.declare_parameter('robot5_dock_pose', [0.0, 0.0, 0.0])     # 로봇5 도킹 위치
         self.declare_parameter('robot11_dock_pose', [-2.3, -3.6, -math.pi / 2]) # 로봇11 도킹 위치
+        self.declare_parameter('follow_stop_timeout_sec', 5.0)
+        follow_stop_timeout_sec = float(self.get_parameter('follow_stop_timeout_sec').value)
+        if follow_stop_timeout_sec <= 0.0:
+            raise ValueError('follow_stop_timeout_sec은 0보다 커야 합니다.')
+        self.follow_stop_timeout_ns = int(follow_stop_timeout_sec * 1e9)
         self.tasks: Dict[str, ManagedTask] = {}
         self.idle_paused: Set[str] = set()
         self.destinations = {}
@@ -147,6 +154,10 @@ class TaskManagerNode(Node):
             # 다시 오지 않을 수 있으므로(상태 바뀔 때만 publish) 여기서도 알림을 점검한다.
             if self.worker_wearing_hardhat is False:
                 self.start_hardhat_alert()
+        elif command == 'WORKER_DETECTED' and task.state == 'FOLLOWING':
+            # TO_WORKER 도착과 사람 감지 메시지가 엇갈려도 이미 시작한 탐색/추종을
+            # INVALID_TRANSITION 오류로 만들지 않는다.
+            self.publish_state(task, '작업자 감지 확인, 추종 계속')
         elif command == 'START_TRANSPORT' and task.state == 'FOLLOWING':
             # 로봇 HMI는 좌표 대신 ID만 보내며, 실제 Nav2 좌표는 중앙 DB 배포 설정만 신뢰한다.
             destination_id = str(msg.destination_id).strip()
@@ -167,8 +178,11 @@ class TaskManagerNode(Node):
                 destination = (float(msg.target_x), float(msg.target_y), float(msg.target_yaw))
             task.goal_type, task.target = 'TO_DESTINATION', destination
             task.goal_completed = False
-            self.transition(task, 'TRANSPORTING', '작업자가 배송 모드로 전환')
-            self.send_navigation_goal(task, replace=True)
+            # RobotBridge가 추종 NavigateToPose의 최종 종료를 확인할 때까지 목적지 goal을
+            # 보내지 않는다. 두 액션 클라이언트가 같은 Nav2 서버를 동시에 잡는 경합을 막는다.
+            task.awaiting_follow_stop = True
+            task.follow_stop_requested_time_ns = self.get_clock().now().nanoseconds
+            self.transition(task, 'TRANSPORTING', '배송 모드 전환, 추종 goal 종료 대기')
         elif (command == 'DELIVERY_CONFIRMED' and task.state == 'TRANSPORTING'
               and task.goal_type == 'TO_DESTINATION' and task.goal_completed):
             # 로컬 HMI를 우회해도 실제 목적지 Nav2 성공 전에는 복귀를 시작할 수 없다.
@@ -179,6 +193,8 @@ class TaskManagerNode(Node):
         elif command == 'RETURN_TO_DOCK' and task.state in ('ASSIGNED', 'FOLLOWING', 'TRANSPORTING', 'PAUSED'):
             # 정상 HMI 도킹은 수동 DOCK과 달리 dock pose까지 자율 복귀한 뒤 실제 Dock 액션을 수행한다.
             task.pause_reason = ''
+            task.awaiting_follow_stop = False
+            task.follow_stop_requested_time_ns = None
             self.stop_publishers[robot_id].publish(Bool(data=False))
             task.goal_type = 'TO_DOCK'
             task.target = tuple(float(value) for value in self.get_parameter(f'{robot_id}_dock_pose').value)
@@ -189,6 +205,8 @@ class TaskManagerNode(Node):
             task.canceled = True
             task.pause_reason = ''
             task.awaiting_undock = False
+            task.awaiting_follow_stop = False
+            task.follow_stop_requested_time_ns = None
             self.invalidate_navigation_goal(task)
             self.stop_publishers[robot_id].publish(Bool(data=True))
             task.goal_type, task.target = '', None
@@ -265,6 +283,8 @@ class TaskManagerNode(Node):
             return
         task.previous_state, task.state = task.state, 'PAUSED'
         task.pause_reason = detail
+        task.awaiting_follow_stop = False
+        task.follow_stop_requested_time_ns = None
         self.invalidate_navigation_goal(task)
         self.stop_publishers[robot_id].publish(Bool(data=True))
         self.publish_state(task, detail)
@@ -317,6 +337,10 @@ class TaskManagerNode(Node):
         generation = task.nav_generation
         task.goal_pending = True
         future = client.send_goal_async(goal)       # Nav2 goal 전송
+        self.get_logger().info(
+            f'{task.task_id} · {task.robot_id}: Nav2 goal 전송 '
+            f'type={task.goal_type}, x={x:.3f}, y={y:.3f}, yaw={yaw:.3f}, '
+            f'generation={generation}')
         future.add_done_callback(lambda result, rid=task.robot_id, goal_type=task.goal_type, gen=generation: self.goal_response_callback(result, rid, goal_type, gen))
 
     def goal_response_callback(self, future, robot_id: str, goal_type: str, generation: int) -> None:   # Action goal 수락 여부
@@ -361,9 +385,26 @@ class TaskManagerNode(Node):
         task = self.tasks.get(robot_id)
         if task is None or (msg.task_id and msg.task_id != task.task_id):
             return
+        if msg.goal_type == 'FOLLOWING_STOPPED':
+            # 현재 배송 전환에서 요청한 종료 확인만 받는다. 늦게 도착한 이전 작업의
+            # 확인 메시지가 새 목적지 주행을 시작시키지 못하게 상태와 goal 종류도 검사한다.
+            if (not task.awaiting_follow_stop or task.state != 'TRANSPORTING'
+                    or task.goal_type != 'TO_DESTINATION'):
+                return
+            task.awaiting_follow_stop = False
+            task.follow_stop_requested_time_ns = None
+            if not msg.success:
+                error_code = msg.error_code or 'FOLLOW_STOP_FAILED'
+                self.transition(task, 'ERROR', error_code)
+                self.publish_error(robot_id, task.task_id, error_code)
+                return
+            self.publish_state(task, '추종 goal 종료 확인, 배송 목적지로 이동')
+            self.send_navigation_goal(task, replace=True)
+            return
         # 브릿지의 실제 Dock 액션 성공 결과가 도착한 뒤에만 작업을 DOCKED로 완료한다.
         if msg.goal_type == 'DOCK':
-            if msg.success and (task.goal_type == 'TO_DOCK' or task.state == 'CANCELED'):
+            if msg.success and (task.goal_type == 'TO_DOCK'
+                                or task.state in ('CANCELED', 'ERROR')):
                 task.goal_completed = True
                 self.transition(task, 'DOCKED', '실제 도킹 액션 성공')
             return
@@ -397,7 +438,12 @@ class TaskManagerNode(Node):
         else:
             task.goal_completed = True
         if success and goal_type == 'TO_WORKER':
-            self.publish_state(task, '작업자 위치 도착, 작업자 감지 대기')
+            # 호출 위치 도착 즉시 FOLLOWING으로 진입한다. RobotBridge는 FOLLOWING 진입 후
+            # grace 시간 동안 pose를 기다린 뒤 미감지 시 Nav2 Spin 탐색을 시작한다.
+            if task.state == 'ASSIGNED':
+                self.transition(task, 'FOLLOWING', '작업자 위치 도착, 회전 탐색/추종 시작')
+            else:
+                self.publish_state(task, '작업자 위치 도착, 회전 탐색/추종 시작')
         elif success and goal_type == 'TO_DESTINATION':
             self.publish_state(task, '배송 위치 도착, 작업자 배송 확인 대기')
         elif success and goal_type == 'TO_DOCK':
@@ -407,6 +453,18 @@ class TaskManagerNode(Node):
 
     def retry_navigation_goals(self) -> None:
         for task in self.tasks.values():
+            if task.awaiting_follow_stop:
+                requested_ns = task.follow_stop_requested_time_ns
+                if (requested_ns is not None
+                        and self.get_clock().now().nanoseconds - requested_ns
+                        >= self.follow_stop_timeout_ns):
+                    task.awaiting_follow_stop = False
+                    task.follow_stop_requested_time_ns = None
+                    self.invalidate_navigation_goal(task)
+                    self.stop_publishers[task.robot_id].publish(Bool(data=True))
+                    self.transition(task, 'ERROR', 'FOLLOW_STOP_TIMEOUT')
+                    self.publish_error(task.robot_id, task.task_id, 'FOLLOW_STOP_TIMEOUT')
+                continue
             if (task.state in ('ASSIGNED', 'TRANSPORTING', 'RETURNING')
                     and task.target and not task.awaiting_undock
                     and not task.goal_completed and task.goal_handle is None
@@ -419,6 +477,8 @@ class TaskManagerNode(Node):
         robot_id = self.normalize_robot_id(msg.robot_id)
         task = self.tasks.get(robot_id)
         if task and task.state != 'ERROR':
+            task.awaiting_follow_stop = False
+            task.follow_stop_requested_time_ns = None
             self.invalidate_navigation_goal(task)
             self.stop_publishers[robot_id].publish(Bool(data=True))
             self.transition(task, 'ERROR', msg.error_code)

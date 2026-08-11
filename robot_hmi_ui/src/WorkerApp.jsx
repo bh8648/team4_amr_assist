@@ -4,7 +4,7 @@ import { hmiApi } from './hmiApi.js';
 
 const STEPS = [
   ['ASSIGNED', '작업자 접근'],
-  ['FOLLOWING', '작업자 동행'],
+  ['FOLLOWING', '작업자 탐색/동행'],
   ['DELIVERING', '배송 중'],
   ['WAITING_FOR_UNLOAD', '수취 대기'],
 ];
@@ -13,7 +13,7 @@ const STATE_TEXT = {
   IDLE: '도킹 완료 · 작업 대기',
   DOCKED: '도킹 완료 · 작업 대기',
   ASSIGNED: '작업자 위치로 이동 중',
-  FOLLOWING: '작업자 동행 중',
+  FOLLOWING: '작업자 탐색/동행 중',
   DELIVERING: '배송 중',
   TRANSPORTING: '배송 중',
   WAITING_FOR_UNLOAD: '수취 대기',
@@ -102,7 +102,7 @@ function TaskView({ robot, task, connected, busy, onPause, onResume, onReturn, o
   const returning = displayedState === 'RETURNING';
   const currentStep = Math.max(0, STEPS.findIndex(([state]) => state === displayedState));
   const progress = returning ? 50 : [10, 30, 65, 90][currentStep];
-  const mode = displayedState === 'ASSIGNED' ? ['→', '작업자에게 이동 중', '전달받은 작업자 위치로 이동하고 있습니다.'] : displayedState === 'FOLLOWING' ? ['◎', '작업자 동행 중', '인식된 작업자를 따라 이동하고 있습니다.'] : displayedState === 'DELIVERING' ? ['→', '목적지 배송 중', '선택한 목적지로 물품을 운반하고 있습니다.'] : displayedState === 'WAITING_FOR_UNLOAD' ? ['✓', '수취 확인 대기', '목적지에 도착했습니다. 수취 확인을 눌러 주세요.'] : displayedState === 'RETURNING' ? ['↩', '도킹 위치로 복귀 중', '현재 작업을 종료하고 도킹 위치로 이동하고 있습니다.'] : displayedState === 'ERROR' ? ['!', '오류 발생', task.detail] : ['Ⅱ', STATE_TEXT[task.state] || task.state, task.detail || '현재 작업 상태를 확인하세요.'];
+  const mode = displayedState === 'ASSIGNED' ? ['→', '작업자에게 이동 중', '전달받은 작업자 위치로 이동하고 있습니다.'] : displayedState === 'FOLLOWING' ? ['◎', '작업자 탐색/동행 중', '작업자를 탐색하고, 감지되면 따라 이동합니다.'] : displayedState === 'DELIVERING' ? ['→', '목적지 배송 중', '선택한 목적지로 물품을 운반하고 있습니다.'] : displayedState === 'WAITING_FOR_UNLOAD' ? ['✓', '수취 확인 대기', '목적지에 도착했습니다. 수취 확인을 눌러 주세요.'] : displayedState === 'RETURNING' ? ['↩', '도킹 위치로 복귀 중', '현재 작업을 종료하고 도킹 위치로 이동하고 있습니다.'] : displayedState === 'ERROR' ? ['!', '오류 발생', task.detail] : ['Ⅱ', STATE_TEXT[task.state] || task.state, task.detail || '현재 작업 상태를 확인하세요.'];
   return <div className="worker-view">
     <header className="worker-view-title task"><small>TASK {task.id || '-'} · {task.rawState}</small><h1>{task.destination?.name || robot.id.toUpperCase()} · {STATE_TEXT[task.state] || task.state}</h1><p>{task.detail || 'HMI 백엔드의 최신 작업 상태를 기준으로 표시합니다.'}</p></header>
     <section className={`worker-mode worker-mode-${String(displayedState).toLowerCase()}`}><span>{mode[0]}</span><div><small>CURRENT MODE</small><strong>{mode[1]}</strong><p>{mode[2]}</p></div></section>

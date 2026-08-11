@@ -107,3 +107,24 @@ def test_assignment_state_status_and_error_are_persisted(tmp_path):
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
+
+def test_error_task_history_is_preserved_after_recovery_dock(tmp_path):
+    db_path = tmp_path / 'error_recovery.db'
+    with sqlite3.connect(db_path) as conn:
+        conn.executescript(SCHEMA)
+
+    rclpy.init(args=['--ros-args', '-p', f'db_path:={db_path}'])
+    node = DbManagerNode()
+    try:
+        node.task_state_callback(_state('robot11', 'TASK-ERROR', 'ERROR'))
+        node.task_state_callback(_state('robot11', 'TASK-ERROR', 'DOCKED'))
+
+        task = node.conn.execute(
+            'SELECT state, result FROM tasks WHERE task_id=?',
+            ('TASK-ERROR',),
+        ).fetchone()
+        assert task == ('ERROR', 'FAILED')
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
